@@ -1,0 +1,641 @@
+/* Reader chrome + canvas (03 §5.3, 04 §1/§2/§5/§6, 07 §2/§3) */
+
+.folio-reader {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  background: var(--reader-bg, #FAFAF7);
+  color: var(--reader-text, #1C1B19);
+}
+
+.folio-reader__canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.folio-reader__canvas .readium-navigator-iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+/* ---- Brightness scrim (04 §6) — under chrome, over canvas, pointer-events none */
+.folio-reader__scrim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+  z-index: 15;
+}
+
+/* ---- Chrome (03 §5.3) — surface per resolved reading theme ---------------- */
+.folio-reader-chrome {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  transition: opacity var(--folio-motion-panel) var(--folio-motion-panel-ease);
+  opacity: 1;
+}
+
+.folio-reader-chrome.is-visible {
+  opacity: 1;
+}
+
+.folio-reader-chrome:not(.is-visible) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Top bar (04 §5.3 / 03 §5.3): compact, non-scrolling, chrome surface. */
+.folio-reader-top {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-3);
+  height: 52px;
+  padding: 0 var(--folio-space-4);
+  background: var(--reader-chrome-surface, rgba(255, 254, 251, 0.92));
+  color: var(--reader-chrome-text, #1C1B19);
+  border-bottom: var(--folio-divider) solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.folio-reader-chrome:not(.is-visible) .folio-reader-top,
+.folio-reader-chrome:not(.is-visible) .folio-reader-pillar {
+  visibility: hidden;
+}
+
+.folio-reader-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--folio-radius-pill);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--folio-motion-hover) ease, color var(--folio-motion-hover) ease;
+}
+
+.folio-reader-icon:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.folio-reader-icon:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.folio-reader-top__title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folio-reader-menu {
+  position: relative;
+}
+
+.folio-reader-menu__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  padding: var(--folio-space-2) 0;
+  background: var(--folio-surface, #FFFEFB);
+  color: var(--folio-text-primary, #22251F);
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  z-index: 45;
+}
+
+.folio-reader-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--folio-space-4);
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: var(--folio-type-body-strong-size);
+  line-height: var(--folio-type-body-strong-line);
+  font-weight: var(--folio-type-body-strong-weight);
+  text-align: left;
+  cursor: pointer;
+}
+
+.folio-reader-menu__item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Bottom pillar: rounded pill, chrome surface @ .94 + subtle shadow (03 §5.3). */
+.folio-reader-pillar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-4);
+  margin: 0 var(--folio-space-4);
+  padding: 10px var(--folio-space-4);
+  border-radius: var(--folio-radius-pill);
+  background: color-mix(in srgb, var(--reader-chrome-surface, rgba(255, 254, 251, 0.92)) 94%, transparent);
+  color: var(--reader-chrome-text, #1C1B19);
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.12);
+  transition: opacity var(--folio-motion-panel) var(--folio-motion-panel-ease);
+  opacity: 0;
+}
+
+.folio-reader-chrome.is-visible .folio-reader-pillar {
+  opacity: 1;
+}
+
+.folio-reader-pillar__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--folio-space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.folio-reader-pillar__chapter {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folio-reader-pillar__percent {
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  min-width: 38px;
+  text-align: right;
+}
+
+.folio-reader-pillar__time {
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  font-weight: var(--folio-type-micro-weight);
+  color: color-mix(in srgb, currentColor 70%, transparent);
+  min-width: 44px;
+  text-align: right;
+}
+
+.folio-reader-scrubber {
+  flex: 0 1 220px;
+  width: 220px;
+  height: 20px;
+  accent-color: var(--folio-accent, #355847);
+  cursor: pointer;
+}
+
+/* ---- Splash (04 §1/§11) ---------------------------------------------------- */
+.folio-reader-splash {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--reader-bg, #FAFAF7);
+  transition: opacity 300ms ease;
+}
+
+.folio-reader-splash.is-fading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.folio-reader-splash__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--folio-space-3);
+  padding: var(--folio-space-6);
+  max-width: 420px;
+  text-align: center;
+}
+
+.folio-reader-splash__cover {
+  width: 132px;
+  height: 178px;
+  border-radius: var(--folio-radius-cover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--folio-tint-sage-grey, #D8DDD0);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+}
+
+.folio-reader-splash__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.folio-reader-splash__initials {
+  font-family: var(--folio-font-display);
+  font-size: var(--folio-type-title-l-size);
+  color: var(--folio-tint-ink, #3A4038);
+}
+
+.folio-reader-splash__title {
+  font-family: var(--folio-font-display);
+  font-size: var(--folio-type-title-size);
+  line-height: var(--folio-type-title-line);
+  font-weight: var(--folio-type-title-weight);
+}
+
+.folio-reader-splash__author {
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.folio-reader-spinner {
+  width: 34px;
+  height: 34px;
+  margin-top: var(--folio-space-2);
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-top-color: var(--folio-accent, #355847);
+  animation: folio-reader-spin 800ms linear infinite;
+}
+
+@keyframes folio-reader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.folio-reader-splash__error-title {
+  font-size: var(--folio-type-title-l-size);
+  font-weight: var(--folio-type-title-l-weight);
+}
+
+.folio-reader-splash__actions {
+  display: flex;
+  gap: var(--folio-space-3);
+}
+
+/* ---- Panels reuse the Folio sheets (app theme, never reader theme) ------ */
+.folio-reader .folio-panel {
+  z-index: 50;
+}
+
+/* ---- Appearance panel controls (app theme) ------------------------------- */
+.folio-appearance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-5);
+}
+
+.folio-appearance section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-3);
+}
+
+.folio-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--folio-space-2);
+}
+
+.folio-theme-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-2);
+  border: 1px solid var(--folio-border, #E1E0D6);
+  border-radius: var(--folio-radius-card);
+  background: var(--folio-surface-subtle, #F1F0E9);
+  padding: var(--folio-space-2);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.folio-theme-swatch.is-selected {
+  border-color: var(--folio-accent, #355847);
+  box-shadow: 0 0 0 2px var(--folio-accent-container, #E2EAE1);
+}
+
+.folio-theme-swatch__page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border-radius: var(--folio-radius-control);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.folio-theme-swatch__label {
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  font-weight: var(--folio-type-micro-weight);
+  color: var(--folio-text-secondary, #676A61);
+  text-align: center;
+}
+
+.folio-wrap-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--folio-space-2);
+}
+
+.folio-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-3);
+}
+
+.folio-stepper__btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-pill);
+  background: var(--folio-surface-subtle);
+  color: var(--folio-text-primary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.folio-stepper__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.folio-slider {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--folio-accent, #355847);
+}
+
+.folio-slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-3);
+}
+
+.folio-control-value {
+  min-width: 44px;
+  text-align: right;
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  color: var(--folio-text-secondary, #676A61);
+}
+
+.folio-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  gap: var(--folio-space-3);
+  font-size: var(--folio-type-body-strong-size);
+  line-height: var(--folio-type-body-strong-line);
+}
+
+.folio-switch {
+  width: 52px;
+  height: 32px;
+  border-radius: var(--folio-radius-pill);
+  border: none;
+  background: var(--folio-surface-subtle, #F1F0E9);
+  border: var(--folio-divider) solid var(--folio-border);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--folio-motion-panel) var(--folio-motion-panel-ease);
+}
+
+.folio-switch.is-on {
+  background: var(--folio-accent, #355847);
+  border-color: transparent;
+}
+
+.folio-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform var(--folio-motion-panel) var(--folio-motion-panel-ease);
+}
+
+.folio-switch.is-on .folio-switch__thumb {
+  transform: translateX(20px);
+}
+
+.folio-appearance__reset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-2);
+  align-items: flex-start;
+}
+
+.folio-helper {
+  margin: 0;
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  color: var(--folio-text-secondary, #676A61);
+}
+
+.folio-helper--muted {
+  color: var(--folio-text-muted, #87897F);
+}
+
+/* ---- Reader empty state (no request) -------------------------------------- */
+.folio-reader-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.folio-reader-empty p {
+  font-size: var(--folio-type-body-size);
+  color: var(--folio-text-secondary, #676A61);
+}
+
+/* ---- Selection toolbar (04 §7) -------------------------------------------- */
+.folio-selection-toolbar {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--folio-radius-pill);
+  background: var(--folio-surface-raised, #FFFFFF);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border: var(--folio-divider) solid var(--folio-border);
+}
+
+.folio-selection-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  padding: 0;
+}
+
+.folio-selection-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--folio-radius-pill);
+  background: transparent;
+  color: var(--folio-text-primary, #22251F);
+  cursor: pointer;
+}
+
+.folio-selection-btn:hover {
+  background: var(--folio-surface-subtle, #F1F0E9);
+}
+
+.folio-note-quote {
+  margin: 0 0 var(--folio-space-3);
+  padding: var(--folio-space-3);
+  border-left: 3px solid var(--folio-accent, #355847);
+  background: var(--folio-surface-subtle, #F1F0E9);
+  font-style: italic;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.folio-note-input {
+  width: 100%;
+  min-height: 96px;
+  padding: var(--folio-space-3);
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-field);
+  background: var(--folio-surface, #FFFEFB);
+  color: var(--folio-text-primary, #22251F);
+  font: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+@media (prefers-reduced-motion: reduce) {
+  .folio-reader-splash,
+  .folio-reader-chrome {
+    transition-duration: 0.01ms !important;
+  }
+
+  .folio-reader-spinner {
+    animation-duration: 1.6s !important;
+  }
+}
+
+/* ---- In-book search (04 §10, 06 §6) ---- */
+.folio-inbook-search {
+  position: absolute;
+  top: 56px;
+  right: var(--folio-space-4);
+  width: min(420px, calc(100% - 32px));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-2);
+}
+
+.folio-inbook-search__input {
+  height: var(--folio-control-height);
+  padding: 0 var(--folio-space-4);
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-field);
+  background: var(--folio-surface, #FFFEFB);
+  color: var(--folio-text-primary, #22251F);
+  font: inherit;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.folio-inbook-search__results {
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--folio-surface, #FFFEFB);
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.folio-inbook-search__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-1);
+  width: 100%;
+  padding: var(--folio-space-3) var(--folio-space-4);
+  border: none;
+  border-bottom: var(--folio-divider) solid var(--folio-border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.folio-inbook-search__result:hover {
+  background: var(--folio-surface-subtle, #F1F0E9);
+}
+
+.folio-inbook-search__chapter {
+  font-size: var(--folio-type-label-size);
+  font-weight: var(--folio-type-label-weight);
+  color: var(--folio-text-secondary, #676A61);
+}
+
+.folio-inbook-search__snippet {
+  font-size: var(--folio-type-body-size);
+  color: var(--folio-text-primary, #22251F);
+}
+
+.folio-inbook-search__snippet mark {
+  background: var(--folio-accent-container, #E2EAE1);
+  color: var(--folio-text-primary, #22251F);
+  border-radius: 2px;
+  padding: 0 2px;
+}

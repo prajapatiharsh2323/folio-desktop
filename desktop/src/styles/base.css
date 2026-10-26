@@ -1,0 +1,194 @@
+/* Base/reset + focus + app frame (03 §5.1, §7) */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--folio-canvas);
+  color: var(--folio-text-primary);
+  font-family: var(--folio-font-sans);
+  font-size: var(--folio-type-body-size);
+  line-height: var(--folio-type-body-line);
+  font-weight: var(--folio-type-body-weight);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Focus rings always visible: 2px accent, offset 2px (03 §7) */
+:focus-visible {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.folio-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.folio-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---- Left sidebar (03 §5.1): quiet 232px nav, surface tone ---- */
+.folio-sidebar {
+  width: var(--folio-sidebar-w);
+  flex-shrink: 0;
+  background: var(--folio-surface);
+  border-right: var(--folio-divider) solid var(--folio-border);
+  padding: var(--folio-space-5) var(--folio-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-1);
+}
+
+.folio-sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-2);
+  padding: var(--folio-space-2) var(--folio-space-3) var(--folio-space-5);
+  color: var(--folio-text-primary);
+}
+
+.folio-sidebar__brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--folio-radius-control);
+  background: var(--folio-accent);
+  color: var(--folio-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--folio-font-display);
+  font-size: var(--folio-type-body-size);
+  font-weight: var(--folio-type-title-weight);
+}
+
+.folio-sidebar__brand-name {
+  font-family: var(--folio-font-display);
+  font-size: var(--folio-type-title-size);
+  line-height: var(--folio-type-title-line);
+  font-weight: var(--folio-type-title-weight);
+}
+
+.folio-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-3);
+  width: 100%;
+  min-height: var(--folio-touch-target);
+  padding: 0 var(--folio-space-4);
+  border: none;
+  border-radius: var(--folio-radius-pill);
+  background: transparent;
+  color: var(--folio-text-secondary);
+  font-size: var(--folio-type-body-strong-size);
+  line-height: var(--folio-type-body-strong-line);
+  font-weight: var(--folio-type-body-strong-weight);
+  cursor: pointer;
+  transition: background var(--folio-motion-hover) ease, color var(--folio-motion-hover) ease;
+}
+
+.folio-sidebar__item:hover {
+  background: var(--folio-surface-subtle);
+  color: var(--folio-text-primary);
+}
+
+/* Active nav item = accent-container pill (03 §5.1) */
+.folio-sidebar__item.is-active {
+  background: var(--folio-accent-container);
+  color: var(--folio-text-primary);
+}
+
+/* ---- Main area ---- */
+.folio-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Screen toolbar (Library etc.): title + count + actions */
+.folio-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-3);
+  padding: var(--folio-space-4) var(--folio-screen-inset);
+  min-height: var(--folio-touch-target);
+}
+
+.folio-toolbar__titles {
+  margin-right: auto;
+  min-width: 0;
+}
+
+.folio-toolbar__title {
+  font-size: var(--folio-type-title-size);
+  line-height: var(--folio-type-title-line);
+  font-weight: var(--folio-type-title-weight);
+  color: var(--folio-text-primary);
+}
+
+.folio-toolbar__subtitle {
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  color: var(--folio-text-secondary);
+}
+
+.folio-screen {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--folio-screen-inset) var(--folio-screen-inset);
+}
+
+/* Icon-only button (24/20px glyphs, ≥40px target with padding) */
+.folio-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--folio-radius-pill);
+  background: transparent;
+  color: var(--folio-text-secondary);
+  cursor: pointer;
+  transition: background var(--folio-motion-hover) ease, color var(--folio-motion-hover) ease;
+}
+
+.folio-iconbtn:hover {
+  background: var(--folio-surface-subtle);
+  color: var(--folio-text-primary);
+}
+
+.folio-iconbtn--accent {
+  color: var(--folio-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
