@@ -6,10 +6,12 @@ import { FolioChip } from "../components/FolioChip";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioSectionHeader } from "../components/FolioSectionHeader";
 import { FolioSettingsRow } from "../components/FolioSettingsRow";
+import { CloudSyncSection } from "../components/CloudSyncSection";
 import { useThemeStore, type ThemeSetting } from "../theme/theme";
 import { getLibraryFs, getLibraryManager, LIBRARY_ROOT } from "../store/libraryUi";
 import { DEFAULT_READING_PREFS, READER_THEME_COLORS } from "../model/defaults";
 import type { ReadingPrefs } from "../model/types";
+import { dictStatus, type DictStatus } from "../dict/lookup";
 import { strToU8, zipSync, unzipSync } from "fflate";
 
 const THEME_OPTIONS: { value: ThemeSetting; label: string }[] = [
@@ -42,6 +44,8 @@ export function SettingsScreen() {
   const [restoreFile, setRestoreFile] = useState<Uint8Array | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [dict, setDict] = useState<DictStatus | null>(null);
+  const [libPath, setLibPath] = useState(LIBRARY_ROOT);
 
   const loadPrefs = useCallback(async () => {
     try {
@@ -78,6 +82,12 @@ export function SettingsScreen() {
   useEffect(() => {
     void loadPrefs();
     void loadStorage();
+    void dictStatus().then(setDict);
+    if (isTauri()) {
+      void invoke<string>("library_path")
+        .then(setLibPath)
+        .catch(() => {});
+    }
   }, [loadPrefs, loadStorage]);
 
   const setDefaultTheme = async (theme: ReadingPrefs["theme"]) => {
@@ -96,7 +106,8 @@ export function SettingsScreen() {
       const walk = async (dir: string, prefix: string) => {
         const entries = await fs.list(dir);
         for (const e of entries) {
-          const rel = prefix ? `${prefix}/${e.path.split("/").pop()}` : e.path.slice(LIBRARY_ROOT.length + 1);
+          const name = e.path.split(/[\\/]/).filter(Boolean).pop() ?? "";
+          const rel = prefix ? `${prefix}/${name}` : name;
           if (e.isDir) await walk(e.path, rel);
           else files[rel] = await fs.readBytes(e.path);
         }
@@ -297,12 +308,12 @@ export function SettingsScreen() {
         />
         <FolioSettingsRow
           title="Library folder"
-          helper={LIBRARY_ROOT}
+          helper={libPath}
           control={
             <FolioButton
               variant="secondary"
               onClick={() => {
-                if (isTauri()) void invoke("open_external_url", { url: `file://${LIBRARY_ROOT}` });
+                if (isTauri()) void invoke("open_app_dir").catch(() => {});
               }}
             >
               Open
@@ -310,11 +321,7 @@ export function SettingsScreen() {
           }
         />
 
-        <FolioSectionHeader>Cloud sync</FolioSectionHeader>
-        <FolioSettingsRow
-          title="Cloud sync"
-          helper="Sign in and sync arrives in Phase 9"
-        />
+        <CloudSyncSection />
 
         <FolioSectionHeader>About</FolioSectionHeader>
         <FolioSettingsRow
@@ -322,8 +329,16 @@ export function SettingsScreen() {
           helper="0.1.0"
         />
         <FolioSettingsRow
+          title="Offline dictionary"
+          helper={
+            dict?.installed
+              ? `${dict.entries?.toLocaleString() ?? "—"} entries · pack installed`
+              : "Pack not installed — see src-tauri/dict/README.md"
+          }
+        />
+        <FolioSettingsRow
           title="Dictionary attribution"
-          helper="Folio Dictionary (English→Hindi) — FreeDict, GPL-2.0 (Phase 10)"
+          helper="Folio Dictionary (English→Hindi) — FreeDict, GPL-2.0"
         />
       </div>
 

@@ -1,18 +1,20 @@
-use crate::guard::{normalize_absolute, GuardError};
+use crate::guard::guard_user_path;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Entry {
     pub path: String,
     pub is_dir: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Stat {
     pub size: u64,
     pub mtime_ms: i64,
@@ -20,7 +22,7 @@ pub struct Stat {
 }
 
 fn guard(path: &str) -> Result<PathBuf, String> {
-    normalize_absolute(path).map_err(|e: GuardError| e.to_string())
+    guard_user_path(path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -122,4 +124,168 @@ pub fn fs_list_dir(dir: String) -> Result<Vec<Entry>, String> {
         });
     }
     Ok(out)
+}
+
+/// Free bytes available to the current user on the volume holding `path`.
+#[tauri::command]
+pub fn fs_free_space(path: String) -> Result<u64, String> {
+    let p = guard(&path)?;
+    let dir = if p.is_dir() {
+        p
+    } else {
+        p.parent().map(Path::to_path_buf).unwrap_or(p)
+    };
+    free_space(&dir).map_err(|e| e.to_string())
+}
+
+#[cfg(windows)]
+fn free_space(path: &Path) -> std::io::Result<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut available: u64 = 0;
+    let mut total: u64 = 0;
+    let mut total_free: u64 = 0;
+    // SAFETY: `wide` is NUL-terminated and the out-pointers are valid for the
+    // duration of the call.
+    let ok =
+        unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut available, &mut total, &mut total_free) };
+    if ok == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(available)
+    }
+}
+
+#[cfg(not(windows))]
+fn free_space(_path: &Path) -> std::io::Result<u64> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "free space is only implemented on Windows",
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir =
+            std::env::temp_dir().join(format!("folio-fs-{tag}-{}-{nanos}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    fn s(p: &PathBuf) -> String {
+        p.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn write_read_roundtrip_and_overwrite() {
+        let dir = temp_dir("roundtrip");
+        let file = dir.join("nested").join("data.bin");
+        fs_write_atomic(s(&file), b"hello".to_vec()).unwrap();
+        assert_eq!(fs_read(s(&file)).unwrap(), b"hello");
+        // atomic overwrite of an existing file
+        fs_write_atomic(s(&file), b"world".to_vec()).unwrap();
+        assert_eq!(fs_read(s(&file)).unwrap(), b"world");
+        // no temp file left behind
+        let stray: Vec<_> = fs::read_dir(file.parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(stray.is_empty(), "temp file left behind");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stat_list_move_delete() {
+        let dir = temp_dir("ops");
+        let a = dir.join("a.txt");
+        let b = dir.join("sub").join("b.txt");
+        fs_write_atomic(s(&a), b"12345".to_vec()).unwrap();
+
+        let st = fs_stat(s(&a)).unwrap().expect("stat present");
+        assert!(!st.is_dir);
+        assert_eq!(st.size, 5);
+        assert!(st.mtime_ms > 0);
+
+        let entries = fs_list_dir(s(&dir)).unwrap();
+        assert!(entries
+            .iter()
+            .any(|e| e.path.ends_with("a.txt") && !e.is_dir));
+
+        fs_move(s(&a), s(&b)).unwrap();
+        assert!(fs_stat(s(&a)).unwrap().is_none());
+        assert_eq!(fs_read(s(&b)).unwrap(), b"12345");
+
+        fs_delete(s(&b)).unwrap();
+        assert!(fs_stat(s(&b)).unwrap().is_none());
+        // delete is idempotent on a missing path
+        fs_delete(s(&b)).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn guards_traversal_and_relative_paths() {
+        assert!(fs_read("../escape".to_string()).is_err());
+        assert!(fs_write_atomic("../escape".to_string(), vec![1]).is_err());
+        assert!(fs_list_dir("/a/../../b".to_string()).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn free_space_reports_positive() {
+        let dir = temp_dir("free");
+        let free = fs_free_space(s(&dir)).unwrap();
+        assert!(free > 0);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn entry_and_stat_serialize_camel_case() {
+        // The TS FileStore reads `isDir`/`mtimeMs`; a snake_case regression
+        // silently turns every directory into a file on Windows.
+        let entry = serde_json::to_value(Entry {
+            path: "C:\\lib\\docs".into(),
+            is_dir: true,
+        })
+        .unwrap();
+        assert_eq!(entry["isDir"], true);
+        assert!(entry.get("is_dir").is_none());
+
+        let stat = serde_json::to_value(Stat {
+            size: 3,
+            mtime_ms: 42,
+            is_dir: false,
+        })
+        .unwrap();
+        assert_eq!(stat["mtimeMs"], 42);
+        assert!(stat.get("mtime_ms").is_none());
+    }
+
+    #[test]
+    fn maps_virtual_app_dir_when_installed() {
+        let dir = temp_dir("virtual");
+        crate::appdir::set_app_dir(dir.clone());
+        let virtual_path = crate::appdir::VIRTUAL_APP_DIR.to_string() + "/library/virtual.txt";
+        fs_write_atomic(virtual_path, b"v".to_vec()).unwrap();
+        assert_eq!(
+            fs_read(s(&dir.join("library").join("virtual.txt"))).unwrap(),
+            b"v"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

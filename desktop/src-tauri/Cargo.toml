@@ -14,16 +14,24 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-shell = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 zip = "2"
 thiserror = "1"
-rusqlite = { version = "0.32", optional = true, features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+base64 = "0.22"
+rand = "0.8"
+url = "2"
+keyring = { version = "3", default-features = false, features = ["windows-native"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "form", "native-tls"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
-dict = ["dep:rusqlite"]

@@ -1,4 +1,4 @@
-use crate::guard::normalize_absolute;
+use crate::guard::guard_user_path;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{Read, Write};
@@ -11,7 +11,7 @@ pub struct ZipEntry {
 
 #[tauri::command]
 pub fn zip_read(path: String) -> Result<Vec<ZipEntry>, String> {
-    let p = normalize_absolute(&path).map_err(|e| e.to_string())?;
+    let p = guard_user_path(&path).map_err(|e| e.to_string())?;
     let file = File::open(&p).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
     let mut out = Vec::new();
@@ -27,7 +27,7 @@ pub fn zip_read(path: String) -> Result<Vec<ZipEntry>, String> {
 
 #[tauri::command]
 pub fn zip_write(path: String, entries: Vec<ZipEntry>) -> Result<(), String> {
-    let p = normalize_absolute(&path).map_err(|e| e.to_string())?;
+    let p = guard_user_path(&path).map_err(|e| e.to_string())?;
     if let Some(parent) = p.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }

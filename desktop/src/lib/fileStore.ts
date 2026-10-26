@@ -181,7 +181,11 @@ export class TauriFileStore implements FileStore {
     return s !== null;
   }
   async freeSpace(): Promise<number> {
-    // not provided by core in Phase 0; placeholder
-    return 0;
+    try {
+      return await invoke<number>("fs_free_space", { path: "/folio-library" });
+    } catch {
+      // Browser dev or a platform without the command.
+      return 0;
+    }
   }
 }

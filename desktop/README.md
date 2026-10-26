@@ -146,17 +146,34 @@ pnpm tauri:build      # NSIS / installer
 
 ## Phase 8 status (settings, backup, keyboard)
 
-- **Done**: Settings screen groups (appearance, reading, backup, storage, sync placeholder, about) with app theme row, default reading theme picker, storage sizes, open-folder button.
+- **Done**: Settings screen groups (appearance, reading, backup, storage, cloud sync, about) with app theme row, default reading theme picker, storage sizes, open-folder button.
 - **Done**: Backup export (zip) + restore (merge/replace) with progress dialog.
 - **Done**: Keyboard wiring (app shortcuts, library "/", reader keys already in Phase 4).
-- **Tests**: 98 total green.
+- **Tests**: 107 total green.
 
 ## Phases 9–11 status (sync, dictionary, platform)
 
-- **Phase 9**: sync merge semantics module (`src/sync/merge.ts`) — newest-wins, deletions never propagate, docId remap by contentHash. OAuth/Drive client deferred (requires Rust + network).
-- **Phase 10**: dictionary headword normalizer (`src/dict/normalise.ts`) + Meaning card placeholder; Rust `dict_sqlite_query` remains a stub.
-- **Phase 11**: platform polish deferred (file associations, single-instance, window-state restore need Rust/Tauri config). Keyboard shortcuts wired in Phase 8.
-- **Tests**: 98 total green.
+- **Phase 9 — done, pending a Google OAuth client ID**:
+  - Rust loopback OAuth (`src-tauri/src/oauth.rs`): system browser, PKCE S256, ephemeral `127.0.0.1` listener, `drive.file` scope, refresh token in Windows Credential Manager (`keyring`), access token memory-only.
+  - Drive mirror (`src/sync/`): `auth.ts` (token lifecycle), `driveClient.ts` (Drive REST + multipart upload + 401 refresh), `state.ts` (`sync/state.json` driveId/sha map), `engine.ts` (newest-wins, user JSON per-id merge, deletions never propagate, contentHash docId remap, manifest last, remote manifest commit point).
+  - UI (`src/components/CloudSyncSection.tsx`): connect + first-sync consent card, Sync now, disconnect, 15-minute opt-in auto-sync, progress line, classified failure copy + Retry.
+  - Requires `VITE_GOOGLE_CLIENT_ID` (or paste a Desktop client ID in Settings) and a network. Never deletes Drive content.
+- **Phase 10 — done except the pack asset**: Rust `dict_lookup` / `dict_status` / schema introspection / inflection fallback / sha256 install verify (`src-tauri/src/commands/dict.rs`); meaning card does real lookups with loading/empty/missing/error states + GPL-2.0 footer; Settings→About shows install status. Drop the `mobile/tools/build_dict.py` output into `src-tauri/dict/` before release (see its README).
+- **Phase 11 — platform**: window geometry restore clamped to the monitor work area (`window_state.rs`), file associations (EPUB/HTML/TXT), single-instance + open-with hand-off (`open_files.rs`), native F11 fullscreen (`src/lib/fullscreen.ts`), NSIS installer config, CI workflow (`.github/workflows/desktop-ci.yml`), Windows path-guard/fs tests. Jump list remains P1; perf/a11y audits are not run.
+- **Tests**: 107 Vitest (11 files) + 28 Rust green.
+
+## Drive sync setup
+
+1. Google Cloud Console → enable **Google Drive API**.
+2. OAuth consent screen → add yourself as a test user (the app uses the
+   restricted `drive.file` scope, which needs no verification for test users).
+3. Create credentials → **OAuth client ID** → application type **Desktop app**.
+4. Build with `VITE_GOOGLE_CLIENT_ID=…apps.googleusercontent.com` (and the
+   Desktop client secret as `VITE_GOOGLE_CLIENT_SECRET` if Google issued one),
+   or paste the client ID under Settings → Cloud sync.
+5. Sign in; Folio creates a private **Folio Library** folder. The refresh token
+   is stored by Windows Credential Manager; Disconnect removes it.
+
 
 ## Layout
 
@@ -164,6 +181,9 @@ pnpm tauri:build      # NSIS / installer
 
 - `src/`  — frontend (React, Zustand route stub, FileStore, path helpers).
 - `src-tauri/` — thin Rust core: `fs_*`, `zip_*`, `sha256_file`,
-  `open_external_url`, `prevent_display_sleep`, `dict_sqlite_query` (P2 stub).
-  No Folio data-model logic lives here by design.
-- `tests/` — Vitest suites (FileStore round-trip/atomicity, path guard).
+  `open_external_url`, `open_app_dir`, `library_path`, `prevent_display_sleep`,
+  dictionary pack bridge, Google OAuth loopback flow, single-instance launch
+  queue, and window-state persistence. No Folio data-model logic lives here by
+  design.
+- `tests/` — Vitest suites (FileStore round-trip/atomicity, path guard, model,
+  import, reader, library, shell, sync).

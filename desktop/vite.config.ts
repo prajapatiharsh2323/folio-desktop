@@ -7,6 +7,11 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    // Cargo writes DLLs under src-tauri/target while Vite watches the project;
+    // on Windows the locked DLL makes the watcher crash with EBUSY.
+    watch: {
+      ignored: ["**/src-tauri/**"],
+    },
   },
   envPrefix: ["VITE_", "TAURI_"],
   build: {

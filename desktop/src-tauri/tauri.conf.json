@@ -23,12 +23,53 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob: https:; font-src 'self' data:; frame-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://drive.google.com https://drive.usercontent.google.com https://*.googleusercontent.com",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob: https:; font-src 'self' data:; frame-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420 https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://drive.google.com https://drive.usercontent.google.com https://*.googleusercontent.com"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "icon": []
+    "targets": ["nsis"],
+    "resources": ["dict/*"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["epub"],
+        "name": "Folio EPUB",
+        "description": "EPUB book",
+        "mimeType": "application/epub+zip",
+        "role": "Viewer",
+        "rank": "Default"
+      },
+      {
+        "ext": ["html", "htm"],
+        "name": "Folio HTML",
+        "description": "HTML article",
+        "mimeType": "text/html",
+        "role": "Viewer",
+        "rank": "Default"
+      },
+      {
+        "ext": ["txt"],
+        "name": "Folio Text",
+        "description": "Plain text article",
+        "mimeType": "text/plain",
+        "role": "Viewer",
+        "rank": "Default"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    }
   }
 }

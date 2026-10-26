@@ -870,6 +870,7 @@ export function ReaderScreen() {
           <MeaningCard
             open={meaningOpen}
             term={meaningTerm}
+            theme={activePrefs.theme}
             onClose={() => setMeaningOpen(false)}
           />
 

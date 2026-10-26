@@ -25,7 +25,9 @@ export class DocMetaRepo {
 
   async listSlugs(): Promise<string[]> {
     const entries = await this.fs.list(L.docsDir(this.root));
-    return entries.filter((e) => e.isDir).map((e) => e.path.split("/").pop() ?? "");
+    return entries
+      .filter((e) => e.isDir)
+      .map((e) => e.path.split(/[\\/]/).filter(Boolean).pop() ?? "");
   }
 
   /** sha256 + size for a doc-folder file (library-relative path), for manifests. */

@@ -5,7 +5,7 @@
   "windows": ["Library"],
   "permissions": [
     "core:default",
-    "shell:allow-open",
+    "opener:default",
     "dialog:default"
   ]
 }

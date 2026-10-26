@@ -1,0 +1,72 @@
+name: desktop-ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Windows build + tests
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc -b
+
+      - name: Unit tests (Vitest)
+        run: pnpm exec vitest run
+
+      - name: Frontend build
+        run: pnpm exec vite build
+
+      - name: Rust tests
+        working-directory: desktop/src-tauri
+        run: cargo test --all-targets
+
+      - name: Rust format
+        working-directory: desktop/src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: Build NSIS installer
+        run: pnpm tauri:build
+        env:
+          # Optional: ship a signed build in CI by providing the signing keys.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-windows-nsis
+          path: desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
