@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@readium/css':
-        specifier: ^2.0.5
-        version: 2.0.5
       '@readium/navigator':
         specifier: ^2.14.0
         version: 2.14.0(typescript@5.9.3)
