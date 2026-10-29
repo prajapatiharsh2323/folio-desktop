@@ -2,14 +2,15 @@
 
 **Session:** `S-20261029-01` — development knowledge system bootstrap
 **Updated:** 2026-10-29
-**Status:** checkpoint complete; no application code in flight
+**Status:** checkpoint committed locally; not pushed; no application code in flight
 
 ## Verified current state
 
 - Git branch `main` tracks `origin/main`; working tree was clean at the start of
   the session (commit `242778b`).
-- The knowledge base and root `AGENTS.md` were added in this session and are
-  **uncommitted** (per user instruction: leave changes uncommitted).
+- The knowledge base and root `AGENTS.md` were committed locally in `2211d7f`
+  (knowledge base + `AGENTS.md`) and `4d48ad0` (`.docs` link). `main` is ahead
+  of `origin/main` by 2 commits. **Nothing has been pushed.**
 - Application code was **not** modified.
 - Linux verification passed: `tsc -b`, `vitest run` (107 tests / 11 files),
   `vite build`.
@@ -28,6 +29,8 @@
 4. Recorded the bootstrap implementation and verification results:
    [`I-20261029-01`](plans/implementations/I-20261029-01-development-knowledge-system.md),
    [`R-20261029-01`](audits/results/R-20261029-01-knowledge-bootstrap.md).
+5. Committed the knowledge base locally in two commits after user approval. No
+   remote push was performed.
 
 ## Open work
 
@@ -37,11 +40,11 @@ dictionary pack asset (FT-004), or Windows hardware (FT-002).
 
 ## Exact next action
 
-1. Review the uncommitted knowledge-base files and `AGENTS.md`.
-2. If approved, create a local checkpoint commit with explicit paths; push only
-   with separate authorization (see the checkpoint procedure in
-   [`README.md`](README.md#checkpoints-and-temporary-vms)).
-3. For coding work, start with **FT-001**: read `.docs/09` §3, inspect
+1. If remote durability is required, push `main` to `origin/main` with separate
+   authorization (see the checkpoint procedure in
+   [`README.md`](README.md#checkpoints-and-temporary-vms)). Until then the work
+   exists only in this VM’s local Git history.
+2. For coding work, start with **FT-001**: read `.docs/09` §3, inspect
    `desktop/src-tauri/src/open_files.rs` and `tauri.conf.json`, update
    `TASKS.md` to `in-progress`, then implement and verify on Windows.
 

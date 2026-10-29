@@ -1,7 +1,7 @@
 # I-20261029-01 — Development Knowledge System
 
 **Date:** 2026-10-29
-**Status:** done (changes intentionally uncommitted)
+**Status:** done (committed locally in `2211d7f` and `4d48ad0`; not pushed)
 **Tasks:** KB-001
 **Session:** [S-20261029-01](../../sessions/S-20261029-01-bootstrap.md)
 **Verification:** [R-20261029-01](../../audits/results/R-20261029-01-knowledge-bootstrap.md)
@@ -68,7 +68,7 @@ VM-local backup.
 
 ## Follow-ups
 
-- User review and optional authorized commit/push.
+- User review and optional authorized push to `origin/main`.
 - Keep `CURRENT_SESSION.md` and `TASKS.md` current as work proceeds.
 - Create audit/implementation records for future substantial work rather than
   overloading this one.

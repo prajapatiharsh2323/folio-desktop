@@ -5,7 +5,7 @@ short live checkpoint and put narrative history here.
 
 | ID | Date | Title | Outcome | Record |
 |---|---|---|---|---|
-| S-20261029-01 | 2026-10-29 | Development knowledge system bootstrap | Complete; uncommitted by request | [`S-20261029-01-bootstrap.md`](S-20261029-01-bootstrap.md) |
+| S-20261029-01 | 2026-10-29 | Development knowledge system bootstrap | Complete; committed locally, not pushed | [`S-20261029-01-bootstrap.md`](S-20261029-01-bootstrap.md) |
 
 ## Convention
 

@@ -2,7 +2,7 @@
 
 | ID | Date | Change | Status | Record |
 |---|---|---|---|---|
-| I-20261029-01 | 2026-10-29 | Development knowledge system + root `AGENTS.md` | done (uncommitted) | [`I-20261029-01-development-knowledge-system.md`](I-20261029-01-development-knowledge-system.md) |
+| I-20261029-01 | 2026-10-29 | Development knowledge system + root `AGENTS.md` | done (committed locally; not pushed) | [`I-20261029-01-development-knowledge-system.md`](I-20261029-01-development-knowledge-system.md) |
 
 ## Historical sources
 
