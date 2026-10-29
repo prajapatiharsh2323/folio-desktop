@@ -14,11 +14,3 @@ export function normalizePath(p: string): string {
   }
   return "/" + out.join("/");
 }
-
-export function isAbsolute(p: string): boolean {
-  return p.startsWith("/");
-}
-
-export function joinPath(...parts: string[]): string {
-  return normalizePath(parts.join("/"));
-}

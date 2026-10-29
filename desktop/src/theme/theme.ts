@@ -65,9 +65,3 @@ export function initTheme(): void {
     media.addEventListener?.("change", mediaHandler);
   }
 }
-
-export function disposeTheme(): void {
-  if (media && mediaHandler) media.removeEventListener?.("change", mediaHandler);
-  media = null;
-  mediaHandler = null;
-}

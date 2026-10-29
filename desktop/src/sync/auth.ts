@@ -48,10 +48,6 @@ function isFresh(t: AuthTokens | null): boolean {
   return !!t && t.expires_at - Date.now() > 60_000;
 }
 
-export function forgetAccessToken(): void {
-  tokens = null;
-}
-
 export async function hasRefreshToken(): Promise<boolean> {
   if (!isTauri()) return false;
   try {
