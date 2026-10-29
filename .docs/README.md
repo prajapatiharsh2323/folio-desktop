@@ -34,3 +34,10 @@ desktop app with the exact reading experience and UI/UX of the shipped Android a
 2. Execute `08` phases sequentially, each prompt citing the doc sections it needs and
    the mobile source files given there.
 3. Keep the byte-compatibility rules from `05` inviolable.
+
+## Development knowledge base
+
+Ongoing tasks, session checkpoints, audits, decisions, and recovery instructions
+live in [`../docs/development/`](../docs/development/README.md). The specs in
+this directory remain the product/design source of truth; the knowledge base
+records execution state and how to resume work.
