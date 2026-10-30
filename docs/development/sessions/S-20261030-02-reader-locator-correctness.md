@@ -65,8 +65,8 @@ cd src-tauri && cargo fmt --all -- --check # clean
 
 - **FT-008 Windows behaviour** (click zones, pagination, decorations) needs a
   real Tauri/webview run; Linux cannot compile the Tauri crate.
-- **Commit/push decision**: the working tree now contains FT-007 + FT-008.
-  Both ask for explicit user authorization before any `git commit`.
+- The user chose two scoped commits: `2dce770` (FT-007) and `72d2a04`
+  (FT-008). Both are local only — the push remains unauthorized by default.
 - **FT-001** (taskbar jump list) is the next unblocked P1.
 - Knowledge-base derived from a previous session's intermediate state: no
   additional blocker found in the resumed code, but `desktop/README.md`'s

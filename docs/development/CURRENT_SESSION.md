@@ -2,21 +2,17 @@
 
 **Session:** `S-20261030-02` — reader locator correctness (FT-008)
 **Updated:** 2026-10-30
-**Status:** FT-008 code complete and Linux-verified; FT-007 + FT-008 changes
-are **uncommitted** and not pushed
+**Status:** FT-007 + FT-008 complete, Linux-verified, **committed locally**
+(`2dce770`, `72d2a04`); **not pushed** — `main` is ahead of `origin/main`
+by 5 commits
 
 ## Verified current state
 
-- Branch `main`, ahead of `origin/main` by 3 local commits (knowledge base only).
-  Working tree has uncommitted changes for **two features**:
-  - FT-007 backup hardening: `desktop/src/backup/` (new),
-    `desktop/tests/backup.test.ts` (new), `desktop/src/lib/fileStore.ts`,
-    `desktop/src/screens/SettingsScreen.tsx`, `desktop/src/shell/Shell.tsx`,
-    `desktop/src-tauri/src/commands/fs.rs`.
-  - FT-008 reader correctness: `desktop/src/reader/locatorCodec.ts` (new),
-    `desktop/tests/locatorCodec.test.ts` (new), `desktop/src/reader/resume.ts`,
-    `desktop/src/reader/readiumEngine.ts`, `desktop/src/reader/chrome.ts`,
-    `desktop/src/screens/ReaderScreen.tsx`, `desktop/tests/reader.test.ts`.
+- Branch `main`, ahead of `origin/main` by 5 local commits (3× knowledge base,
+  `2dce770` FT-007 backup hardening, `72d2a04` FT-008 reader correctness).
+  Nothing has been pushed; the only uncommitted/untracked file is
+  `session.json` (a local transcript dump of the previous session — not code,
+  not committed).
 - Session recovery used the dumped `session.json` of the *previous* failed
   build session (same repo) to reconstruct its FT-008 intent; see
   [`sessions/S-20261030-02-reader-locator-correctness.md`](sessions/S-20261030-02-reader-locator-correctness.md).
@@ -45,6 +41,9 @@ are **uncommitted** and not pushed
 3. Records written: [`I-20261030-02`](plans/implementations/I-20261030-02-reader-locator-correctness.md),
    [`S-20261030-02`](sessions/S-20261030-02-reader-locator-correctness.md);
    `TASKS.md`, session and implementation indexes updated.
+4. With user approval, committed the work as two scoped commits: `2dce770`
+   (FT-007) and `72d2a04` (FT-008), then updated these records
+   (`f6a41e0`-style follow-up commit — see `git log`).
 
 ## Open work
 
@@ -55,10 +54,8 @@ explicit user authorization.
 
 ## Exact next action
 
-1. Ask the user whether to commit the FT-007 + FT-008 work (scoped commits,
-   e.g. `feat(backup): staged restore + v2 archives` and
-   `fix(reader): persisted href+progression+anchor locators`) and whether to
-   push. Do not commit without approval.
+1. Pushing `main` (5 local commits) still needs explicit user authorization —
+   the only durable copy of this work is the remote.
 2. If continuing code work without a Windows host, start **FT-001** after
    reading `.docs/09` §3 and re-checking `desktop/src-tauri/src/` for existing
    shell-integration scaffolding.

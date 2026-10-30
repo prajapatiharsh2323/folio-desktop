@@ -37,17 +37,15 @@ active or known work; move narrative detail to session/audit records.
   2026-10-30).
 - `cargo test` / `tauri:build` were **not** run here (Windows-only toolchain /
   missing webkit). Do not mark them verified.
-- Working tree has uncommitted changes for FT-007 (`src/backup/`,
-  `tests/backup.test.ts`, `fileStore.ts`, `SettingsScreen.tsx`, `Shell.tsx`,
-  `src-tauri/src/commands/fs.rs`) **and** FT-008 (`src/reader/locatorCodec.ts`,
-  `resume.ts`, `readiumEngine.ts`, `chrome.ts`, `ReaderScreen.tsx`,
-  `tests/locatorCodec.test.ts`, `tests/reader.test.ts`). Nothing committed or
-  pushed.
+- Committed locally with user approval: `2dce770` (FT-007 backup hardening)
+  and `72d2a04` (FT-008 reader locator correctness). **Not pushed** —
+  `main` is ahead of `origin/main` by these plus the earlier knowledge-base
+  commits.
 
 ## Selection guidance
 
-1. Committing / pushing FT-007 + FT-008, then continue **FT-001** (taskbar
-   jump list) — it is the next unblocked P1.
+1. Push `main` for remote durability (needs explicit authorization), then
+   continue **FT-001** (taskbar jump list) — it is the next unblocked P1.
 2. Prefer unblocked P1 work over P2 polish.
 3. For blocked tasks, document the exact credential/asset/hardware needed and
    keep the code path unchanged unless the user supplies it.
