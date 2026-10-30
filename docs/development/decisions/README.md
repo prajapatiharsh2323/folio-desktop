@@ -13,6 +13,7 @@ source. This is an index, not a second copy of the specs.
 | D-006 | Drive sync is newest-wins with per-id merges; deletions never propagate; manifest last | locked | `.docs/05` §6, `desktop/src/sync/` |
 | D-007 | No telemetry/analytics; restricted CSP; Drive REST is the only network use | locked | `.docs/09` §8, `desktop/src-tauri/tauri.conf.json` |
 | D-008 | Product/design specs stay in `.docs/`; execution history lives in `docs/development/` | adopted 2026-10-29 | [I-20261029-01](../plans/implementations/I-20261029-01-development-knowledge-system.md) |
+| D-009 | Backups are v2, validated before mutation, replaced via staged swap + rollback; merge is document-aware, never path-aware | adopted 2026-10-30 | [D-20261030-01](D-20261030-01-backup-restore-transaction.md) |
 
 ## Adding a decision
 

@@ -5,7 +5,7 @@ import { generatePositions, progressionForLocator, locatorForProgression, POSITI
 import { resumePlan, isCfi } from "../src/reader/resume";
 import { ReadingPaceStats, formatTimeLeft } from "../src/reader/pace";
 import { ProgressWriter } from "../src/reader/progress";
-import { ChromeStateMachine } from "../src/reader/chrome";
+import { ChromeStateMachine, intentForReaderClick } from "../src/reader/chrome";
 import { resolveReaderTheme, typefaceStack, scrimAlpha, toNavigatorPreferences } from "../src/reader/readerThemes";
 
 function makeEpub(
@@ -142,9 +142,41 @@ describe("resumePlan", () => {
     expect(plan.kind).toBe("cfi");
   });
 
-  it("plain saved progress → percent", () => {
+  it("saved href + progression resumes exactly, not by coarse percent", () => {
+    const plan = resumePlan(
+      { location: "ch.xhtml?p=0.428612&q=the%20whale", percent: 60 },
+      null
+    );
+    expect(plan.kind).toBe("saved-locator");
+    if (plan.kind === "saved-locator") {
+      expect(plan.locator).toBe("ch.xhtml?p=0.428612&q=the%20whale");
+      expect(plan.percent).toBe(60);
+    }
+  });
+
+  it("legacy plain href progress still resumes at the chapter", () => {
     const plan = resumePlan({ location: "ch.xhtml", percent: 60 }, null);
+    expect(plan.kind).toBe("saved-locator");
+  });
+
+  it("unusable saved location → percent", () => {
+    const plan = resumePlan({ location: "", percent: 60 }, null);
     expect(plan.kind).toBe("percent");
+    if (plan.kind === "percent") expect(plan.percent).toBe(60);
+  });
+
+  it("override anchor is merged into a single locator", () => {
+    const plan = resumePlan(null, {
+      location: "ch.xhtml?p=0.5",
+      anchor: { quote: "Call me", prefix: "pre", suffix: "post" },
+    });
+    expect(plan.kind).toBe("override-locator");
+    if (plan.kind === "override-locator") {
+      expect(plan.locator).toContain("ch.xhtml?p=0.5");
+      expect(plan.locator).toContain("q=Call");
+      expect(plan.locator).toContain("b=pre");
+      expect(plan.locator).toContain("a=post");
+    }
   });
 
   it("no progress → first", () => {
@@ -325,6 +357,17 @@ describe("ChromeStateMachine", () => {
     expect(ChromeStateMachine.zoneForClick(10, 300)).toBe("back");
     expect(ChromeStateMachine.zoneForClick(150, 300)).toBe("toggle");
     expect(ChromeStateMachine.zoneForClick(290, 300)).toBe("forward");
+  });
+
+  it("intentForReaderClick passes interactive and prevented clicks through", () => {
+    // A tap on a link/footnote/edge control must reach the engine untouched.
+    expect(intentForReaderClick({ x: 10, width: 300, interactive: true, defaultPrevented: false })).toBe("passthrough");
+    expect(intentForReaderClick({ x: 290, width: 300, interactive: false, defaultPrevented: true })).toBe("passthrough");
+    expect(intentForReaderClick({ x: 10, width: 300, interactive: true, defaultPrevented: true })).toBe("passthrough");
+    // Non-interactive taps still resolve by thirds.
+    expect(intentForReaderClick({ x: 10, width: 300, interactive: false, defaultPrevented: false })).toBe("back");
+    expect(intentForReaderClick({ x: 150, width: 300, interactive: false, defaultPrevented: false })).toBe("toggle");
+    expect(intentForReaderClick({ x: 290, width: 300, interactive: false, defaultPrevented: false })).toBe("forward");
   });
 
   it("scrub grace hides after 1.2 s", () => {

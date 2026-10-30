@@ -29,6 +29,11 @@ import {
   locatorForProgression,
   progressionForLocator,
 } from "./positions";
+import {
+  decodeLocation,
+  encodeLocation,
+  isCfiLocation,
+} from "./locatorCodec";
 
 const XHTML = "application/xhtml+xml";
 
@@ -157,7 +162,7 @@ export class ReadiumEngine implements ReaderEngine {
 
     let target: Locator | null = null;
     if (typeof locator === "string") {
-      if (!locator || /^epubcfi\(/i.test(locator)) return false;
+      if (!locator || isCfiLocation(locator)) return false;
       target = this.locatorFromString(locator);
     } else {
       target = locatorForProgression(locator.percent / 100, this.positions);
@@ -208,15 +213,18 @@ export class ReadiumEngine implements ReaderEngine {
   async applyDecorations(decorations: DecorationSpec[]): Promise<void> {
     const nav = this.navigator;
     if (!nav) return;
-    const locators = decorations.map((d, i) => ({
-      id: decorations[i].id,
-      locator: this.locatorFromString(d.locator) ?? this.currentBaseLocator() ?? new Locator({
-        href: this.pub?.readingOrder.items[0]?.href ?? "",
-        type: XHTML,
-      }),
-      style: decorations[i].style,
-      color: decorations[i].color,
-    }));
+    // A decoration whose locator cannot be resolved is skipped rather than
+    // painted at the chapter start — a highlight in the wrong place is worse
+    // than a missing one.
+    const locators = decorations
+      .map((d) => {
+        const locator = this.locatorFromString(d.locator);
+        if (!locator) return null;
+        return { id: d.id, locator, style: d.style, color: d.color };
+      })
+      .filter((d): d is { id: string; locator: Locator; style: string; color: string } =>
+        d !== null
+      );
     nav.applyDecorations(locators as never, "highlights");
   }
 
@@ -330,7 +338,7 @@ export class ReadiumEngine implements ReaderEngine {
 
   private resolveInitial(target: ReaderOpenTarget | null): Locator | null {
     if (!target) return null;
-    if (target.location && !/^epubcfi\(/i.test(target.location)) {
+    if (target.location && !isCfiLocation(target.location)) {
       const loc = this.locatorFromString(target.location);
       if (loc) return loc;
     }
@@ -340,26 +348,50 @@ export class ReadiumEngine implements ReaderEngine {
     return null;
   }
 
-  /** Convert a persisted location (chapter href, href#fragment) to a locator. */
+  /**
+   * Rebuild a Locator from a persisted string. The navigator's `loadLocator`
+   * tries the text anchor first (`go_text`), then the element id, then the
+   * in-resource progression, which is exactly the fallback order we want.
+   */
   private locatorFromString(value: string): Locator | null {
-    if (!value || /^epubcfi\(/i.test(value)) return null;
-    const hash = value.indexOf("#");
-    const href = hash >= 0 ? value.slice(0, hash) : value;
-    const fragment = hash >= 0 ? value.slice(hash + 1) : "";
+    const decoded = decodeLocation(value);
+    if (!decoded) return null;
+    const { href } = decoded;
+    const link = this.pub?.readingOrder.items.find(
+      (l) => l.href === href || decodeHref(l.href) === href
+    );
     const base =
-      this.positions.find((p) => p.href === href) ??
-      (this.pub?.readingOrder.items.some((l) => l.href === href)
+      this.positions.find((p) => p.href === href || decodeHref(p.href) === href) ??
+      (link
         ? new Locator({
-            href,
-            type:
-              this.pub?.readingOrder.items.find((l) => l.href === href)?.type ?? XHTML,
+            href: link.href,
+            type: link.type ?? XHTML,
             locations: new LocatorLocations({ progression: 0 }),
           })
         : null);
     if (!base) return null;
-    return fragment
-      ? base.copyWithLocations({ fragments: [fragment] })
-      : base;
+
+    const progression = decoded.progression ?? base.locations.progression;
+    const locations = new LocatorLocations({
+      position: base.locations.position,
+      totalProgression: base.locations.totalProgression,
+      progression,
+      fragments: decoded.fragment ? [decoded.fragment] : undefined,
+    });
+    const text = decoded.anchor?.quote
+      ? new LocatorText({
+          highlight: decoded.anchor.quote,
+          before: decoded.anchor.prefix ?? "",
+          after: decoded.anchor.suffix ?? "",
+        })
+      : undefined;
+    return new Locator({
+      href: base.href,
+      type: base.type,
+      title: base.title,
+      locations,
+      text,
+    });
   }
 
   private currentBaseLocator(): Locator | null {
@@ -367,10 +399,23 @@ export class ReadiumEngine implements ReaderEngine {
     return this.locatorFromString(this.lastLocator.location);
   }
 
+  /** Persist href + in-resource progression + text anchor (see locatorCodec). */
   private locatorToString(locator: Locator): string {
     const fragments = locator.locations.fragments ?? [];
     const fragment = fragments.find((f) => !/^epubcfi\(/i.test(f));
-    return fragment ? `${locator.href}#${fragment}` : locator.href;
+    const highlight = locator.text?.highlight?.trim();
+    return encodeLocation({
+      href: locator.href.split("#")[0],
+      fragment,
+      progression: locator.locations.progression,
+      anchor: highlight
+        ? {
+            quote: highlight,
+            prefix: locator.text?.before ?? "",
+            suffix: locator.text?.after ?? "",
+          }
+        : undefined,
+    });
   }
 
   private extractContext(targetFrameSrc: string, quote: string): { prefix: string; suffix: string } {
@@ -443,6 +488,15 @@ function stripHtml(html: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Percent-decoded href without its fragment, for tolerant href comparison. */
+function decodeHref(href: string): string {
+  try {
+    return decodeURIComponent(href.split("#")[0]);
+  } catch {
+    return href.split("#")[0];
+  }
 }
 
 export function createReadiumEngine(args: {

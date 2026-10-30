@@ -1,56 +1,73 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261029-01` — development knowledge system bootstrap
-**Updated:** 2026-10-29
-**Status:** checkpoint committed locally; not pushed; no application code in flight
+**Session:** `S-20261030-02` — reader locator correctness (FT-008)
+**Updated:** 2026-10-30
+**Status:** FT-008 code complete and Linux-verified; FT-007 + FT-008 changes
+are **uncommitted** and not pushed
 
 ## Verified current state
 
-- Git branch `main` tracks `origin/main`; working tree was clean at the start of
-  the session (commit `242778b`).
-- The knowledge base and root `AGENTS.md` were committed locally in `2211d7f`
-  (knowledge base + `AGENTS.md`) and `4d48ad0` (`.docs` link). `main` is ahead
-  of `origin/main` by 2 commits. **Nothing has been pushed.**
-- Application code was **not** modified.
-- Linux verification passed: `tsc -b`, `vitest run` (107 tests / 11 files),
-  `vite build`.
-- Full `cargo` / Tauri verification is not possible on this host; see
-  [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md#environment-constraints).
-- No work was pushed or backed up to a remote in this session.
+- Branch `main`, ahead of `origin/main` by 3 local commits (knowledge base only).
+  Working tree has uncommitted changes for **two features**:
+  - FT-007 backup hardening: `desktop/src/backup/` (new),
+    `desktop/tests/backup.test.ts` (new), `desktop/src/lib/fileStore.ts`,
+    `desktop/src/screens/SettingsScreen.tsx`, `desktop/src/shell/Shell.tsx`,
+    `desktop/src-tauri/src/commands/fs.rs`.
+  - FT-008 reader correctness: `desktop/src/reader/locatorCodec.ts` (new),
+    `desktop/tests/locatorCodec.test.ts` (new), `desktop/src/reader/resume.ts`,
+    `desktop/src/reader/readiumEngine.ts`, `desktop/src/reader/chrome.ts`,
+    `desktop/src/screens/ReaderScreen.tsx`, `desktop/tests/reader.test.ts`.
+- Session recovery used the dumped `session.json` of the *previous* failed
+  build session (same repo) to reconstruct its FT-008 intent; see
+  [`sessions/S-20261030-02-reader-locator-correctness.md`](sessions/S-20261030-02-reader-locator-correctness.md).
+  `session.json` is a transcript dump, not code — it may be deleted once this
+  record is trusted.
+- Linux verification from `desktop/` (2026-10-30):
+  - `./node_modules/.bin/tsc -b` — clean
+  - `./node_modules/.bin/vitest run` — **143 tests / 13 files** passing
+  - `./node_modules/.bin/vite build` — success (existing >500 kB chunk warning)
+  - `cd src-tauri && cargo fmt --all -- --check` — clean
+- `cargo test`, `pnpm tauri:dev` and all Windows behaviours were **not** run
+  (no `webkit2gtk`/`gtk3` here). Do not describe them as verified.
 
-## Completed
+## Completed in this session
 
-1. Audited the repo, toolchain, CI, Git state, existing `.docs/` specs,
-   `REMAINING.md`, and `desktop/README.md`.
-2. Created `docs/development/` with project context, task board, session
-   records, plans, audit indexes, decisions, improvements, and archive policy.
-3. Added the concise root [`AGENTS.md`](../../AGENTS.md) and a pointer from
-   `.docs/README.md`.
-4. Recorded the bootstrap implementation and verification results:
-   [`I-20261029-01`](plans/implementations/I-20261029-01-development-knowledge-system.md),
-   [`R-20261029-01`](audits/results/R-20261029-01-knowledge-bootstrap.md).
-5. Committed the knowledge base locally in two commits after user approval. No
-   remote push was performed.
+1. Verified the interrupted FT-008 work left in the tree (it was sound).
+2. Closed the remaining FT-008 items:
+   - Click passthrough: `intentForReaderClick` in `chrome.ts` returns
+     `passthrough` for interactive/default-prevented clicks; the reader screen
+     forwards them to the engine instead of page-turning.
+   - Reader teardown always unsubscribes engine listeners; `handleBack` no
+     longer destroys the engine (the idempotent effect cleanup owns that), so
+     callbacks no longer leak across reader sessions.
+   - Prefs effect keys on `doc?.docId`, so progress persists no longer trigger
+     redundant `applyPrefs` → navigator relayout.
+3. Records written: [`I-20261030-02`](plans/implementations/I-20261030-02-reader-locator-correctness.md),
+   [`S-20261030-02`](sessions/S-20261030-02-reader-locator-correctness.md);
+   `TASKS.md`, session and implementation indexes updated.
 
 ## Open work
 
-See [`TASKS.md`](TASKS.md). Highest-priority unblocked item: **FT-001** (taskbar
-jump list). Blocked items need a real OAuth Desktop client ID (FT-003), the
-dictionary pack asset (FT-004), or Windows hardware (FT-002).
+See [`TASKS.md`](TASKS.md). Both FT-007 and FT-008 need **Windows
+verification** (real Tauri/webview run) that this host cannot provide. The next
+unblocked P1 is **FT-001** (taskbar jump list). Committing/pushing requires
+explicit user authorization.
 
 ## Exact next action
 
-1. If remote durability is required, push `main` to `origin/main` with separate
-   authorization (see the checkpoint procedure in
-   [`README.md`](README.md#checkpoints-and-temporary-vms)). Until then the work
-   exists only in this VM’s local Git history.
-2. For coding work, start with **FT-001**: read `.docs/09` §3, inspect
-   `desktop/src-tauri/src/open_files.rs` and `tauri.conf.json`, update
-   `TASKS.md` to `in-progress`, then implement and verify on Windows.
+1. Ask the user whether to commit the FT-007 + FT-008 work (scoped commits,
+   e.g. `feat(backup): staged restore + v2 archives` and
+   `fix(reader): persisted href+progression+anchor locators`) and whether to
+   push. Do not commit without approval.
+2. If continuing code work without a Windows host, start **FT-001** after
+   reading `.docs/09` §3 and re-checking `desktop/src-tauri/src/` for existing
+   shell-integration scaffolding.
+3. When a Windows host becomes available: run `cargo test --all-targets`,
+   `pnpm tauri:dev`, and exercise backup replace/rollback + reader click
+   zones/resume; record results under `audits/results/`.
 
 ## Recovery note
 
-A new session should trust this checkpoint only after re-running
-`git status --short --branch` and the Linux-safe checks. If the tree differs
-from the state above, treat the difference as user work and reconcile it before
-continuing.
+Trust this checkpoint only after re-running `git status --short --branch` and
+the Linux-safe checks above. If the tree differs, treat the difference as user
+work and reconcile before continuing.

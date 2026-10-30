@@ -70,3 +70,24 @@ export class ChromeStateMachine {
     return "toggle";
   }
 }
+
+export interface ReaderClickInput {
+  x: number;
+  width: number;
+  /** The click landed on a link/interactive element (supplied by the engine). */
+  interactive: boolean;
+  /** The engine already consumed the event (target attributes, scripts). */
+  defaultPrevented: boolean;
+}
+
+export type ReaderClickIntent = "passthrough" | "back" | "forward" | "toggle";
+
+/**
+ * Click intent (04 §5): taps on interactive elements or events the engine
+ * already handled go back to the engine (links, footnotes, controls);
+ * everything else is resolved by the thirds zones.
+ */
+export function intentForReaderClick(info: ReaderClickInput): ReaderClickIntent {
+  if (info.defaultPrevented || info.interactive) return "passthrough";
+  return ChromeStateMachine.zoneForClick(info.x, info.width);
+}

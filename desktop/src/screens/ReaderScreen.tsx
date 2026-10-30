@@ -24,10 +24,12 @@ import type {
   ReaderOpenTarget,
   TocEntry,
 } from "../reader/ReaderEngine";
-import { ChromeStateMachine, CHROME_IDLE_MS } from "../reader/chrome";
+import { ChromeStateMachine, CHROME_IDLE_MS, intentForReaderClick } from "../reader/chrome";
 import { ProgressWriter } from "../reader/progress";
 import { ReadingPaceStats, formatTimeLeft } from "../reader/pace";
 import { resumePlan, type ResumePlan } from "../reader/resume";
+import { hrefOf, sameLocation, withAnchor } from "../reader/locatorCodec";
+import type { DecorationSpec } from "../reader/ReaderEngine";
 import {
   KeepAwakeController,
   isTauri,
@@ -48,6 +50,8 @@ function planTarget(plan: ResumePlan): ReaderOpenTarget | null {
     // byte-backed publication keeps the percent fallback (04 §8 step 2b).
     case "cfi":
       return { percent: plan.fallbackPercent };
+    case "saved-locator":
+      return { location: plan.locator };
     case "percent":
       return { percent: plan.percent };
     case "first":
@@ -70,9 +74,38 @@ function openExternal(href: string): boolean {
 
 function hrefMatches(a: string | null | undefined, b: string | null | undefined): boolean {
   if (!a || !b) return false;
-  const x = a.split("#")[0];
-  const y = b.split("#")[0];
+  // Stored locations carry progression/anchor query parameters; compare hrefs.
+  const x = hrefOf(a) ?? a;
+  const y = hrefOf(b) ?? b;
   return x === y || x.endsWith(`/${y}`) || y.endsWith(`/${x}`);
+}
+
+const HIGHLIGHT_CSS: Record<string, string> = {
+  yellow: "#FFF3B0",
+  green: "#CDE8C2",
+  blue: "#BFDFF7",
+  pink: "#F8CFE0",
+};
+
+/**
+ * Highlights carry the text quote as their anchor so the range survives
+ * repagination and a new edition's CSS. Annotations written by mobile have the
+ * quote in separate fields rather than in `location`, so merge them here.
+ */
+function decorationsFor(annotations: Annotation[]): DecorationSpec[] {
+  return annotations
+    .filter((a) => a.kind === "highlight" && a.location)
+    .map((a) => ({
+      id: a.id,
+      locator: withAnchor(
+        a.location as string,
+        a.quote.trim()
+          ? { quote: a.quote, prefix: a.prefix, suffix: a.suffix }
+          : null
+      ),
+      style: "highlight",
+      color: HIGHLIGHT_CSS[a.color ?? "yellow"] ?? HIGHLIGHT_CSS.yellow,
+    }));
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -240,7 +273,6 @@ export function ReaderScreen() {
 
     let firstLocatorSeen = false;
     let cancelled = false;
-    let anchoredTried = false;
 
     const failsafe = setTimeout(() => {
       if (cancelled || firstLocatorSeen) return;
@@ -287,14 +319,22 @@ export function ReaderScreen() {
       const chrome = chromeRef.current!;
       chrome.onActivity();
       setChromeVisible(true);
-      const zone = ChromeStateMachine.zoneForClick(info.x, info.width || canvas.clientWidth || 1);
-      if (zone === "toggle") {
+      const intent = intentForReaderClick({
+        x: info.x,
+        width: info.width || canvas.clientWidth || 1,
+        interactive: info.interactive,
+        defaultPrevented: info.defaultPrevented,
+      });
+      // Interactive elements (links, footnotes, media) must reach the engine's
+      // own handling — turning a tap on a link into a page flip is a trust bug.
+      if (intent === "passthrough") return false;
+      if (intent === "toggle") {
         chrome.toggle();
         setChromeVisible(chrome.visible);
         return true;
       }
       pace.breakSession(Date.now());
-      if (zone === "forward") void engine.goForward();
+      if (intent === "forward") void engine.goForward();
       else void engine.goBackward();
       return true;
     });
@@ -318,31 +358,9 @@ export function ReaderScreen() {
         try {
           const lm = getLibraryManager();
           const anns = await lm.annotations.listForDoc(doc.docId);
-          const swatchCss: Record<string, string> = {
-            yellow: "#FFF3B0",
-            green: "#CDE8C2",
-            blue: "#BFDFF7",
-            pink: "#F8CFE0",
-          };
-          const decorations = anns
-            .filter((a) => a.kind === "highlight" && a.location)
-            .map((a) => ({
-              id: a.id,
-              locator: a.location as string,
-              style: "highlight",
-              color: swatchCss[a.color ?? "yellow"] ?? "#FFF3B0",
-            }));
-          await engine.applyDecorations(decorations);
+          await engine.applyDecorations(decorationsFor(anns));
         } catch {
           /* annotation load failure must not break reading */
-        }
-        if (plan.kind === "override-locator" && plan.anchored && !anchoredTried) {
-          anchoredTried = true;
-          await engine.goAnchored(
-            plan.anchored.quote,
-            plan.anchored.prefix,
-            plan.anchored.suffix
-          );
         }
       } catch (error) {
         if (cancelled) return;
@@ -353,8 +371,9 @@ export function ReaderScreen() {
     })();
 
     return () => {
-      if (disposedRef.current) return;
-      disposedRef.current = true;
+      // The engine is idempotent to double-destroy (destroy() nulls the
+      // navigator), and handleBack may have flushed already. Always discard
+      // the subscriptions and mutate refs, or they leak across sessions.
       cancelled = true;
       clearTimeout(failsafe);
       offLocator();
@@ -406,6 +425,8 @@ export function ReaderScreen() {
   }, [doc?.docId]);
 
   // ---- debounced per-book prefs writes ------------------------------------
+  // `doc` churns on every progress persist; keying on docId keeps page turns
+  // from relaying out the navigator via a redundant applyPrefs.
   useEffect(() => {
     if (!doc) return;
     prefsRef.current = prefs;
@@ -417,7 +438,7 @@ export function ReaderScreen() {
       void savePrefs(prefs);
     }, 400);
     return () => clearTimeout(timer);
-  }, [prefs, doc, savePrefs]);
+  }, [prefs, doc?.docId, savePrefs]);
 
   // ---- keyboard matrix (07 §2) --------------------------------------------
   useEffect(() => {
@@ -483,12 +504,25 @@ export function ReaderScreen() {
             void bookmarkToggleRef.current();
           }
           break;
+        case "m":
+        case "M":
           event.preventDefault();
           chromeRef.current?.toggle();
           setChromeVisible(chromeRef.current?.visible ?? false);
           break;
+        case "f":
+        case "F":
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            setInbookSearchOpen((open) => !open);
+            chromeRef.current?.onActivity();
+            setChromeVisible(true);
+          }
+          break;
         case "Escape":
           if (panel) setPanel(null);
+          else if (inbookSearchOpen) setInbookSearchOpen(false);
+          else if (selection) setSelection(null);
           break;
         default:
           break;
@@ -496,7 +530,7 @@ export function ReaderScreen() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, panel]);
+  }, [doc, panel, inbookSearchOpen, selection]);
 
   // Best-effort flush if the window is closed from the OS (07 §5).
   useEffect(() => {
@@ -510,11 +544,11 @@ export function ReaderScreen() {
   }, [doc?.docId]);
 
   const handleBack = useCallback(async () => {
+    // Effect teardown destroys the engine; only flush and navigate here.
+    // disposedRef keeps a double-back from closing twice.
     if (disposedRef.current) return;
     disposedRef.current = true;
     await writerRef.current?.flush();
-    await engineRef.current?.destroy();
-    engineRef.current = null;
     await keepAwakeRef.current?.release();
     closeDoc();
     closeReader();
@@ -549,7 +583,8 @@ export function ReaderScreen() {
   const resolveChapterId = useCallback(
     (location: string | null | undefined): string | null => {
       if (!doc || !location) return null;
-      const href = location.split("#")[0];
+      const href = hrefOf(location);
+      if (!href) return null;
       const chapter = doc.meta.chapters.find((c) => hrefMatches(c.href, href));
       return chapter?.id ?? null;
     },
@@ -565,14 +600,20 @@ export function ReaderScreen() {
     ) => {
       if (!doc) return;
       const lm = getLibraryManager();
+      const prefix = sel.prefix.slice(0, 32);
+      const suffix = sel.suffix.slice(0, 32);
       const annotation: Annotation = {
         id: crypto.randomUUID(),
         docId: doc.docId,
         chapterId: resolveChapterId(sel.location),
         quote: sel.quote,
-        prefix: sel.prefix.slice(0, 32),
-        suffix: sel.suffix.slice(0, 32),
-        location: sel.location || null,
+        prefix,
+        suffix,
+        // Store the quote as the locator's text anchor so the highlight can be
+        // re-found after repagination (mobile stores a CFI here instead).
+        location: sel.location
+          ? withAnchor(sel.location, { quote: sel.quote, prefix, suffix })
+          : null,
         kind,
         color,
         note,
@@ -584,21 +625,7 @@ export function ReaderScreen() {
       if (kind === "highlight") {
         try {
           const anns = await lm.annotations.listForDoc(doc.docId);
-          const swatchCss: Record<string, string> = {
-            yellow: "#FFF3B0",
-            green: "#CDE8C2",
-            blue: "#BFDFF7",
-            pink: "#F8CFE0",
-          };
-          const decorations = anns
-            .filter((a) => a.kind === "highlight" && a.location)
-            .map((a) => ({
-              id: a.id,
-              locator: a.location as string,
-              style: "highlight",
-              color: swatchCss[a.color ?? "yellow"] ?? "#FFF3B0",
-            }));
-          await engineRef.current?.applyDecorations(decorations);
+          await engineRef.current?.applyDecorations(decorationsFor(anns));
         } catch {
           /* ignore */
         }
@@ -622,21 +649,7 @@ export function ReaderScreen() {
       // Re-paint.
       try {
         const anns = await lm.annotations.listForDoc(doc.docId);
-        const swatchCss: Record<string, string> = {
-          yellow: "#FFF3B0",
-          green: "#CDE8C2",
-          blue: "#BFDFF7",
-          pink: "#F8CFE0",
-        };
-        const decorations = anns
-          .filter((a) => a.kind === "highlight" && a.location)
-          .map((a) => ({
-            id: a.id,
-            locator: a.location as string,
-            style: "highlight",
-            color: swatchCss[a.color ?? "yellow"] ?? "#FFF3B0",
-          }));
-        await engineRef.current?.applyDecorations(decorations);
+        await engineRef.current?.applyDecorations(decorationsFor(anns));
       } catch {
         /* ignore */
       }
@@ -674,8 +687,10 @@ export function ReaderScreen() {
     const loc = engineRef.current?.currentLocator();
     if (!loc) return;
     const lm = getLibraryManager();
+    // Compare by href + progression, not string equality: the engine reports
+    // slightly different progressions for the same page as layout settles.
     const existing = (await lm.annotations.listForDoc(doc.docId)).find(
-      (a) => a.kind === "bookmark" && a.location === (loc.location || null)
+      (a) => a.kind === "bookmark" && sameLocation(a.location, loc.location)
     );
     if (existing) await lm.annotations.remove(existing.id);
     else {

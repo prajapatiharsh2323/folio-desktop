@@ -6,6 +6,8 @@ short live checkpoint and put narrative history here.
 | ID | Date | Title | Outcome | Record |
 |---|---|---|---|---|
 | S-20261029-01 | 2026-10-29 | Development knowledge system bootstrap | Complete; committed locally, not pushed | [`S-20261029-01-bootstrap.md`](S-20261029-01-bootstrap.md) |
+| S-20261030-01 | 2026-10-30 | Backup/restore hardening (Phase 1) | Complete; uncommitted, Linux-verified | [`S-20261030-01-backup-restore-hardening.md`](S-20261030-01-backup-restore-hardening.md) |
+| S-20261030-02 | 2026-10-30 | Reader locator correctness (FT-008), resumed after interrupted session | Complete; uncommitted, Linux-verified | [`S-20261030-02-reader-locator-correctness.md`](S-20261030-02-reader-locator-correctness.md) |
 
 ## Convention
 
