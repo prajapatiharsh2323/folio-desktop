@@ -1128,6 +1128,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "thiserror 1.0.69",
  "url",
+ "windows",
  "windows-sys 0.61.2",
  "zip",
 ]

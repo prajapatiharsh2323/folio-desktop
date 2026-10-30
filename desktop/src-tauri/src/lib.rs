@@ -1,6 +1,7 @@
 mod appdir;
 mod commands;
 mod guard;
+mod jumplist;
 mod oauth;
 mod open_files;
 mod window_state;
@@ -56,6 +57,9 @@ pub fn run() {
 
             // Open-with / command-line paths for this first launch.
             open_files::remember(open_files::parse_args(std::env::args()));
+
+            // Taskbar jump list (09 §3): Open Folio / Import file…
+            jumplist::install();
 
             if let Some(window) = app.get_webview_window("Library") {
                 window_state::restore(&window);
