@@ -31,17 +31,22 @@ active or known work; move narrative detail to session/audit records.
 | FT-008 | Reader locator correctness (Linux side) | done | [`I-20261030-02`](plans/implementations/I-20261030-02-reader-locator-correctness.md), [`S-20261030-02`](sessions/S-20261030-02-reader-locator-correctness.md) |
 | FT-001 | Taskbar jump list (Linux side) | done | [`I-20261030-03`](plans/implementations/I-20261030-03-taskbar-jump-list.md), [`S-20261030-03`](sessions/S-20261030-03-taskbar-jump-list.md) |
 
+*(pushed: FT-007–FT-008 by user authorization on 2026-10-30; FT-001 code
+`4cce075` / docs `a5e4a94` likewise)*
+
 ## Verified state
 
 - `desktop`: `tsc -b` clean, **143 Vitest tests / 13 files** passing,
-  `vite build` successful, `cargo fmt --all -- --check` clean (Linux,
-  2026-10-30).
+  `vite build` successful, `cargo fmt --all -- --check` clean; new
+  Windows-target compile gate green (`cargo check --all-targets
+  --target x86_64-pc-windows-gnu`, exit 0) (Linux, 2026-10-30).
 - `cargo test` / `tauri:build` were **not** run here (Windows-only toolchain /
-  missing webkit). Do not mark them verified.
-- Committed locally with user approval: `2dce770` (FT-007 backup hardening)
-  and `72d2a04` (FT-008 reader locator correctness). **Not pushed** —
-  `main` is ahead of `origin/main` by these plus the earlier knowledge-base
-  commits.
+  missing webkit; the jump-list Rust tests first run in CI). Do not mark them
+  verified.
+- Committed and pushed to `origin/main` with user approval: `2dce770`
+  (FT-007 backup hardening), `72d2a04` (FT-008 reader locator correctness),
+  and FT-001 code (`4cce075`) + docs (`a5e4a94`). `main` and `origin/main`
+  are in sync.
 
 ## Selection guidance
 

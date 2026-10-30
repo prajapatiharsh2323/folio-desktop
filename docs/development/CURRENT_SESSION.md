@@ -2,10 +2,11 @@
 
 **Session:** `S-20261030-03` — taskbar jump list (FT-001)
 **Updated:** 2026-10-30
-**Status:** FT-007 + FT-008 + FT-001 implemented; **committed locally up to
-FT-008** (`2dce770` FT-007, `72d2a04` FT-008, docs follow-up `43a6b0b`) —
-**FT-001 is uncommitted and nothing is pushed**; `main` is ahead of
-`origin/main` by 6 commits plus the uncommitted FT-001 changes
+**Status:** FT-001 committed (`4cce075` code, `a5e4a94` docs) and **pushed to
+origin/main** with the user's authorization — `main` and `origin/main` are in
+sync; the full run `2dce770`/`72d2a04`/`43a6b0b` (FT-007/FT-008) is durable on
+the remote as well. `session.json` (previous transcript dump) remains the only
+untracked file.
 
 ## Verified current state
 
@@ -58,8 +59,9 @@ Committing/pushing requires explicit user authorization.
 
 ## Exact next action
 
-1. Ask the user for the FT-001 commit decision (single `feat(jumplist):` code
-   commit + separate docs commit, matching the FT-007/008 pattern), then
-   commit **only after authorization**. Nothing is pushed.
-2. Pushing `main` (currently 6 local commits, soon 8) still needs explicit
-   user authorization — the remote is the only durable copy.
+1. ~Nothing pending on Git: committed (`4cce075` code, `a5e4a94` docs) and
+   pushed to `origin/main` with user authorization.~
+2. Remaining open work needs either a real Windows host (runtime verification
+   of FT-001/007/008, scaling check FT-002, `cargo test` locally) or new
+   ground (perf budget FT-005, a11y audit FT-006, Drive E2E FT-003, dict pack
+   FT-004) — see [`TASKS.md`](TASKS.md).

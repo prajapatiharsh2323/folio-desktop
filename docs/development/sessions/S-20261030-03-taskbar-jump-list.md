@@ -2,8 +2,8 @@
 
 **Date:** 2026-10-30
 **Task:** FT-001
-**Status:** complete on the Linux side; **uncommitted** (committing/pushing
-requires explicit user authorization)
+**Status:** complete; committed (`4cce075` code, `a5e4a94` docs) and pushed to
+`origin/main` with user authorization
 
 ## Objective
 
@@ -63,11 +63,10 @@ Frontend unaffected — no TS changes this session.
 - Runtime taskbar verification needs real Windows (pin icon, exercise both
   entries) — the `cargo check` gate is compile-only.
 - `cargo test --all-targets` (which would actually *run* the two new Rust
-  tests) has its first chance in CI or on a Windows host.
-- Working tree holds the changes uncommitted; user authorization needed for
-  the commit/push decisions.
+  tests) has its first chance in CI or on a Windows host. CI's
+  `desktop-ci.yml` run for `4cce075` is the first compile/run gate.
 
 ## Exact next action
 
-Ask the user how to commit FT-001 (single `feat(jumplist)` commit vs.
-code+docs split), then update only the user authorizes.
+Committed as `4cce075` (code) + `a5e4a94` (docs) and pushed to
+`origin/main` with authorization. Nothing pending on Git.
