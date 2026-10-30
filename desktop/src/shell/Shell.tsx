@@ -10,7 +10,8 @@ import { ReaderScreen } from "../screens/ReaderScreen";
 import { exitFullscreen, toggleFullscreen } from "../lib/fullscreen";
 import { onLaunch, takePendingLaunch } from "../lib/openWith";
 import { filesFromTauriDrop, pickImportFiles } from "../lib/fileSource";
-import { useLibraryUi } from "../store/libraryUi";
+import { getLibraryFs, LIBRARY_ROOT, useLibraryUi } from "../store/libraryUi";
+import { recoverInterruptedRestore } from "../backup/backupService";
 
 /** Single-window shell (02 §3, 03 §5.1): one route stack, sidebar hidden in reader. */
 export function Shell() {
@@ -56,6 +57,22 @@ export function Shell() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [inReader, setRoute]);
+
+  // Restore swap is two renames; if the app died between them, put the
+  // rollback tree back before the library screen shows an empty shelf.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const recovered = await recoverInterruptedRestore(
+          getLibraryFs(),
+          LIBRARY_ROOT
+        );
+        if (recovered) await useLibraryUi.getState().refresh();
+      } catch {
+        // Best-effort: a failed cleanup must not block app start.
+      }
+    })();
+  }, []);
 
   // Open-with / second-instance file hand-off (09 §3). Register the listener
   // before draining so a launch racing app start cannot be lost.

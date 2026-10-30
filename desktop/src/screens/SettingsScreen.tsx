@@ -8,11 +8,24 @@ import { FolioSectionHeader } from "../components/FolioSectionHeader";
 import { FolioSettingsRow } from "../components/FolioSettingsRow";
 import { CloudSyncSection } from "../components/CloudSyncSection";
 import { useThemeStore, type ThemeSetting } from "../theme/theme";
-import { getLibraryFs, getLibraryManager, LIBRARY_ROOT } from "../store/libraryUi";
+import {
+  getLibraryFs,
+  getLibraryManager,
+  LIBRARY_ROOT,
+  useLibraryUi,
+} from "../store/libraryUi";
+import { useReaderStore } from "../store/readerStore";
 import { DEFAULT_READING_PREFS, READER_THEME_COLORS } from "../model/defaults";
 import type { ReadingPrefs } from "../model/types";
 import { dictStatus, type DictStatus } from "../dict/lookup";
-import { strToU8, zipSync, unzipSync } from "fflate";
+import {
+  createBackup,
+  inspectBackup,
+  restoreBackup,
+  type BackupSummary,
+  type RestorePhase,
+  type RestoreResult,
+} from "../backup/backupService";
 
 const THEME_OPTIONS: { value: ThemeSetting; label: string }[] = [
   { value: "light", label: "Light" },
@@ -28,6 +41,46 @@ const READING_THEMES: { value: ReadingPrefs["theme"]; label: string }[] = [
   { value: "system", label: "System" },
 ];
 
+const PHASE_LABEL: Record<RestorePhase, string> = {
+  reading: "Reading archive…",
+  extracting: "Extracting files…",
+  validating: "Validating backup…",
+  applying: "Applying backup…",
+  indexing: "Rebuilding search index…",
+  done: "Finished",
+};
+
+function describeRestore(result: RestoreResult): string {
+  if (result.mode === "replace") {
+    return `Library replaced: ${result.addedDocs} document${
+      result.addedDocs === 1 ? "" : "s"
+    } restored.`;
+  }
+  const parts = [
+    `${result.addedDocs} new document${result.addedDocs === 1 ? "" : "s"} added`,
+  ];
+  if (result.annotationsMerged > 0) {
+    parts.push(
+      `${result.annotationsMerged} annotation${
+        result.annotationsMerged === 1 ? "" : "s"
+      } merged`
+    );
+  }
+  if (result.progressMerged > 0) {
+    parts.push(`${result.progressMerged} reading position${result.progressMerged === 1 ? "" : "s"} updated`);
+  }
+  if (result.skippedDocs.length > 0) {
+    parts.push(`${result.skippedDocs.length} skipped`);
+  }
+  return `Merge complete: ${parts.join(", ")}.`;
+}
+
+function formatDate(iso: string): string {
+  if (!iso) return "Unknown date";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+}
+
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -42,6 +95,10 @@ export function SettingsScreen() {
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreMode, setRestoreMode] = useState<"merge" | "replace">("merge");
   const [restoreFile, setRestoreFile] = useState<Uint8Array | null>(null);
+  const [restoreSummary, setRestoreSummary] = useState<BackupSummary | null>(null);
+  const [restorePhase, setRestorePhase] = useState<RestorePhase | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dict, setDict] = useState<DictStatus | null>(null);
@@ -101,48 +158,25 @@ export function SettingsScreen() {
     setBusy(true);
     setMessage(null);
     try {
-      const fs = getLibraryFs();
-      const files: Record<string, Uint8Array> = {};
-      const walk = async (dir: string, prefix: string) => {
-        const entries = await fs.list(dir);
-        for (const e of entries) {
-          const name = e.path.split(/[\\/]/).filter(Boolean).pop() ?? "";
-          const rel = prefix ? `${prefix}/${name}` : name;
-          if (e.isDir) await walk(e.path, rel);
-          else files[rel] = await fs.readBytes(e.path);
-        }
-      };
-      await walk(LIBRARY_ROOT, "");
-      // backup.json with manifest sha
-      let manifestSha = "";
-      try {
-        const manifestBytes = files["manifest.json"];
-        if (manifestBytes) {
-          const { sha256Hex } = await import("../lib/sha256");
-          manifestSha = await sha256Hex(manifestBytes);
-        }
-      } catch {
-        /* ignore */
-      }
-      const backupMeta = { schema: 1, app: "folio", createdAt: new Date().toISOString(), manifestSha256: manifestSha };
-      files["backup.json"] = strToU8(JSON.stringify(backupMeta));
-      const zipped = zipSync(files);
+      const bytes = await createBackup(getLibraryFs(), LIBRARY_ROOT);
       if (isTauri()) {
         const path = await saveDialog({
           defaultPath: "folio-backup.zip",
           filters: [{ name: "Zip", extensions: ["zip"] }],
         });
-        if (!path) return;
-        await invoke("fs_write_atomic", { path, data: Array.from(zipped) });
+        if (!path || Array.isArray(path)) return;
+        await invoke("fs_write_atomic", { path, data: Array.from(bytes) });
       } else {
-        const url = URL.createObjectURL(new Blob([zipped as BlobPart], { type: "application/zip" }));
+        const url = URL.createObjectURL(
+          new Blob([bytes as BlobPart], { type: "application/zip" })
+        );
         const a = document.createElement("a");
         a.href = url;
         a.download = "folio-backup.zip";
         a.click();
         URL.revokeObjectURL(url);
       }
-      setMessage("Backup exported.");
+      setMessage(`Backup exported (${formatBytes(bytes.length)}).`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Export failed");
     } finally {
@@ -151,63 +185,80 @@ export function SettingsScreen() {
   };
 
   const handlePickRestore = async () => {
+    setMessage(null);
+    setRestoreError(null);
     try {
+      let bytes: Uint8Array | null = null;
       if (isTauri()) {
-        const path = await openDialog({ multiple: false, filters: [{ name: "Zip", extensions: ["zip"] }] });
+        const path = await openDialog({
+          multiple: false,
+          filters: [{ name: "Zip", extensions: ["zip"] }],
+        });
         if (!path || Array.isArray(path)) return;
-        const bytes = await invoke<number[]>("fs_read", { path });
-        setRestoreFile(new Uint8Array(bytes));
-        setRestoreOpen(true);
+        bytes = new Uint8Array(await invoke<number[]>("fs_read", { path }));
       } else {
         const input = document.createElement("input");
         input.type = "file";
         input.accept = ".zip";
-        input.onchange = async () => {
-          const f = input.files?.[0];
-          if (!f) return;
-          setRestoreFile(new Uint8Array(await f.arrayBuffer()));
-          setRestoreOpen(true);
-        };
-        input.click();
+        const file = await new Promise<File | null>((resolve) => {
+          input.onchange = () => resolve(input.files?.[0] ?? null);
+          input.click();
+        });
+        if (!file) return;
+        bytes = new Uint8Array(await file.arrayBuffer());
       }
+      if (!bytes) return;
+      const summary = await inspectBackup(bytes);
+      setRestoreFile(bytes);
+      setRestoreSummary(summary);
+      setRestoreMode("merge");
+      setReplaceConfirmed(false);
+      setRestoreOpen(true);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Pick failed");
+      setMessage(e instanceof Error ? e.message : "This file could not be read as a backup.");
     }
   };
 
+  const closeRestore = () => {
+    if (busy) return;
+    setRestoreOpen(false);
+    setRestoreFile(null);
+    setRestoreSummary(null);
+    setRestoreError(null);
+    setReplaceConfirmed(false);
+  };
+
   const handleRestore = async () => {
-    if (!restoreFile) return;
+    if (!restoreFile || !restoreSummary) return;
+    if (restoreMode === "replace" && !replaceConfirmed) return;
     setBusy(true);
     setMessage(null);
+    setRestoreError(null);
+    setRestorePhase("reading");
     try {
-      const fs = getLibraryFs();
-      const unzipped = unzipSync(restoreFile);
-      const entries = Object.entries(unzipped);
-      if (restoreMode === "replace") {
-        // Replace: clear library root then write all.
-        try {
-          await fs.delete(LIBRARY_ROOT);
-        } catch {
-          /* ignore */
-        }
-      }
-      for (const [rel, bytes] of entries) {
-        const path = `${LIBRARY_ROOT}/${rel}`;
-        // merge: skip existing files
-        if (restoreMode === "merge") {
-          const exists = await fs.exists(path);
-          if (exists) continue;
-        }
-        await fs.writeBytesAtomic(path, bytes);
-      }
+      const result = await restoreBackup({
+        fs: getLibraryFs(),
+        root: LIBRARY_ROOT,
+        bytes: restoreFile,
+        mode: restoreMode,
+        onPhase: setRestorePhase,
+      });
+      // A restore changes every path the library/session caches know about.
+      useReaderStore.getState().close();
+      await useLibraryUi.getState().refresh();
       setRestoreOpen(false);
       setRestoreFile(null);
-      setMessage(`Restored ${entries.length} files (${restoreMode}).`);
+      setRestoreSummary(null);
+      setReplaceConfirmed(false);
+      setMessage(describeRestore(result));
       await loadStorage();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Restore failed");
+      setRestoreError(
+        e instanceof Error ? e.message : "Restore failed; your library was not changed."
+      );
     } finally {
       setBusy(false);
+      setRestorePhase(null);
     }
   };
 
@@ -344,32 +395,91 @@ export function SettingsScreen() {
 
       <FolioDialog
         open={restoreOpen}
-        onClose={() => setRestoreOpen(false)}
+        onClose={closeRestore}
         title="Restore backup"
         actions={
           <>
-            <FolioButton variant="secondary" onClick={() => setRestoreOpen(false)}>
+            <FolioButton variant="secondary" onClick={closeRestore} disabled={busy}>
               Cancel
             </FolioButton>
-            <FolioButton variant="primary" onClick={() => void handleRestore()} disabled={busy}>
-              Restore
+            <FolioButton
+              variant={restoreMode === "replace" ? "danger" : "primary"}
+              onClick={() => void handleRestore()}
+              disabled={busy || (restoreMode === "replace" && !replaceConfirmed)}
+            >
+              {restoreMode === "replace" ? "Replace library" : "Merge backup"}
             </FolioButton>
           </>
         }
       >
+        {restoreSummary && (
+          <div className="folio-helper" style={{ marginBottom: 12 }}>
+            <div>
+              Backup from {formatDate(restoreSummary.createdAt)}
+              {restoreSummary.appVersion ? ` · Folio ${restoreSummary.appVersion}` : ""}
+            </div>
+            <div>
+              {restoreSummary.docCount} document{restoreSummary.docCount === 1 ? "" : "s"} ·{" "}
+              {restoreSummary.fileCount} file{restoreSummary.fileCount === 1 ? "" : "s"} ·{" "}
+              {formatBytes(restoreSummary.uncompressedBytes)}
+            </div>
+            {restoreSummary.warnings.map((warning) => (
+              <div key={warning}>{warning}</div>
+            ))}
+          </div>
+        )}
+
         <div role="group" aria-label="Restore mode" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <FolioChip selected={restoreMode === "merge"} onClick={() => setRestoreMode("merge")}>
+          <FolioChip
+            selected={restoreMode === "merge"}
+            onClick={() => setRestoreMode("merge")}
+            disabled={busy}
+          >
             Merge
           </FolioChip>
-          <FolioChip selected={restoreMode === "replace"} onClick={() => setRestoreMode("replace")}>
+          <FolioChip
+            selected={restoreMode === "replace"}
+            onClick={() => {
+              setRestoreMode("replace");
+              setReplaceConfirmed(false);
+            }}
+            disabled={busy}
+          >
             Replace
           </FolioChip>
         </div>
         <p className="folio-helper">
           {restoreMode === "merge"
-            ? "Keeps existing files; only missing ones are added."
-            : "Replaces the entire library with the backup contents."}
+            ? "Adds books that are missing and merges notes, progress and collections. Your current library is kept."
+            : "Replaces the entire library with this backup. Your current library is kept only until the restore is verified."}
         </p>
+
+        {restoreMode === "replace" && !busy && (
+          <label className="folio-helper" style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <input
+              type="checkbox"
+              checked={replaceConfirmed}
+              onChange={(e) => setReplaceConfirmed(e.target.checked)}
+            />
+            I understand this replaces my current library.
+          </label>
+        )}
+
+        {busy && restorePhase && (
+          <p className="folio-helper" role="status" style={{ marginTop: 12 }}>
+            {PHASE_LABEL[restorePhase]}
+          </p>
+        )}
+
+        {restoreError && (
+          <p
+            className="folio-helper"
+            role="alert"
+            style={{ marginTop: 12, color: "var(--folio-danger)" }}
+          >
+            {restoreError}
+          </p>
+        )}
       </FolioDialog>
     </>
   );

@@ -68,12 +68,35 @@ pub fn fs_write_atomic(path: String, data: Vec<u8>) -> Result<(), String> {
 #[tauri::command]
 pub fn fs_delete(path: String) -> Result<(), String> {
     let p = guard(&path)?;
-    if p.is_dir() {
-        let _ = fs::remove_dir_all(&p);
+    // Idempotent for a missing path, but never hide permission/IO failures:
+    // restore and library deletion rely on knowing that cleanup succeeded.
+    let result = if p.is_dir() {
+        fs::remove_dir_all(&p)
     } else {
-        let _ = fs::remove_file(&p);
+        fs::remove_file(&p)
+    };
+    match result {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
     }
-    Ok(())
+}
+
+fn rename_with_retry(from: &Path, to: &Path) -> std::io::Result<()> {
+    let mut last_err = None;
+    for delay in [10u64, 50, 250] {
+        match fs::rename(from, to) {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                last_err = Some(e);
+                thread::sleep(Duration::from_millis(delay));
+            }
+        }
+    }
+    match fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(e) => Err(last_err.unwrap_or(e)),
+    }
 }
 
 #[tauri::command]
@@ -83,7 +106,7 @@ pub fn fs_move(from: String, to: String) -> Result<(), String> {
     if let Some(parent) = b.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    fs::rename(&a, &b).map_err(|e| e.to_string())
+    rename_with_retry(&a, &b).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -236,6 +259,16 @@ mod tests {
         // delete is idempotent on a missing path
         fs_delete(s(&b)).unwrap();
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn delete_removes_nonempty_directory() {
+        let dir = temp_dir("delete-dir");
+        fs_write_atomic(s(&dir.join("nested").join("file.txt")), b"x".to_vec()).unwrap();
+        fs_delete(s(&dir)).unwrap();
+        assert!(fs_stat(s(&dir)).unwrap().is_none());
+        // idempotent
+        fs_delete(s(&dir)).unwrap();
     }
 
     #[test]

@@ -16,6 +16,8 @@ export interface FileStore {
   readBytes(path: string): Promise<Uint8Array>;
   writeTextAtomic(path: string, data: string): Promise<void>;
   writeBytesAtomic(path: string, data: Uint8Array): Promise<void>;
+  /** Rename a file or directory tree (same volume). */
+  move(from: string, to: string): Promise<void>;
   delete(path: string): Promise<void>;
   list(dir: string): Promise<Entry[]>;
   stat(path: string): Promise<Stat | null>;
@@ -72,6 +74,25 @@ export class MemoryFileStore implements FileStore {
       // atomic rename overwrites target; nothing else needed
       this.nodes.set(n, { data: new Uint8Array(data), isDir: false, mtimeMs: Date.now() });
       this.nodes.delete(tmp);
+    });
+  }
+
+  async move(from: string, to: string): Promise<void> {
+    await globalMutex.run(`${from}->${to}`, async () => {
+      const a = this.norm(from);
+      const b = this.norm(to);
+      if (a === b) return;
+      const moved: [string, MemNode][] = [];
+      for (const [k, v] of this.nodes) {
+        if (k === a || k.startsWith(a + "/")) moved.push([k, v]);
+      }
+      if (moved.length === 0) throw new Error(`ENOENT: ${from}`);
+      for (const [k] of moved) this.nodes.delete(k);
+      for (const [k, v] of moved) {
+        this.nodes.set(b + k.slice(a.length), v);
+      }
+      const parent = b.split("/").slice(0, -1).join("/");
+      if (parent) this.mkdirp(parent);
     });
   }
 
@@ -159,6 +180,11 @@ export class TauriFileStore implements FileStore {
   async writeBytesAtomic(path: string, data: Uint8Array): Promise<void> {
     await globalMutex.run(path, async () => {
       await invoke("fs_write_atomic", { path, data: Array.from(data) });
+    });
+  }
+  async move(from: string, to: string): Promise<void> {
+    await globalMutex.run(`${from}->${to}`, async () => {
+      await invoke("fs_move", { from, to });
     });
   }
   async delete(path: string): Promise<void> {
