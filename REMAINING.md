@@ -15,7 +15,11 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
       (4.10 MiB).
 - [x] File associations (`.epub`, `.html`/`.htm`, `.txt`) in `tauri.conf.json`.
 - [x] Single-instance handling + open-with hand-off (`open_files.rs`, `folio://launch`).
-- [ ] Taskbar jump list ("Open Folio" / "Import file…") — P1, still open.
+- [x] Taskbar jump list ("Open Folio" / "Import file…")
+      (`src-tauri/src/jumplist.rs`, COM `ICustomDestinationList`, no extra
+      dependency; compiled against the `x86_64-pc-windows-gnu` target and
+      fmt/tests checked — **runtime taskbar behaviour still needs a real
+      Windows run**).
 - [x] Window size/position restore, clamped to the monitor work area
       (`window_state.rs`, preserves unknown `window.json` keys).
 - [x] Native F11 fullscreen + Escape exit (`src/lib/fullscreen.ts`, `Shell.tsx`).
@@ -67,7 +71,8 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
 - The dictionary pack is a release asset, not checked into the repo; until it is
   present Settings shows “Pack not installed” and the meaning card reports the
   missing pack.
-- Jump list and perf/a11y audits remain open (jump list is P1 per 09 §3).
+- Perf/a11y audits remain open. The jump list is implemented but its runtime
+  taskbar behaviour is unverified (needs a real Windows run; P1 per 09 §3).
 
 ## Quick verification commands (run on Windows)
 

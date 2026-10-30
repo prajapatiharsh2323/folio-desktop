@@ -10,7 +10,7 @@ active or known work; move narrative detail to session/audit records.
 |---|---|---|---|---|---|
 | FT-007 | P1 | Backup/restore safety: validated staged restore, document-aware merge, v2 archive | done (code) / blocked (Windows verification) | Linux checks green (`tsc -b`, 127 tests, `vite build`, `cargo fmt`). Windows swap/rollback + `cargo test` still unverified. | [I-20261030-01](plans/implementations/I-20261030-01-backup-restore-hardening.md) |
 | FT-008 | P1 | Reader correctness: resume by `href`+progression+text anchor, relayout on resize, click/tap regions, annotation + bookmark anchoring | done (code) / blocked (Windows verification) | Linux checks green (`tsc -b`, 143 tests, `vite build`, `cargo fmt`). Locator codec + resume + decorations + click passthrough + teardown/prefs fixes done; real webview click/pagination behaviour needs Windows. Resize relayout deliberately stays with `EpubNavigator`. | [I-20261030-02](plans/implementations/I-20261030-02-reader-locator-correctness.md) |
-| FT-001 | P1 | Taskbar jump list (“Open Folio” / “Import file…”) | open | Not started. Needs Windows shell integration + verification. | `REMAINING.md`; `.docs/09` §3 |
+| FT-001 | P1 | Taskbar jump list (“Open Folio” / “Import file…”) | done (code) / blocked (Windows runtime verification) | Linux checks green, including the first full-crate Windows-target compile (`cargo check --all-targets --target x86_64-pc-windows-gnu`, exit 0). COM `ICustomDestinationList` impl with the `windows` crate already in the tree; no new dependency. Runtime taskbar behaviour needs a real Windows run. | [I-20261030-03](plans/implementations/I-20261030-03-taskbar-jump-list.md); `.docs/09` §3 |
 | FT-005 | P2 | Performance budget checks: cold open ≤ 1.2 s, page turn ≤ 80 ms, 200 highlights ≤ 400 ms | open | No harness yet. Define measurement method, then record results under `audits/results/`. | `.docs/04` §12 |
 | FT-006 | P2 | Accessibility pass: focus rings, tab order, ARIA, contrast | open | Run a structured audit, file findings under `audits/ui-ux/`. | `.docs/03` §7 |
 
@@ -29,6 +29,7 @@ active or known work; move narrative detail to session/audit records.
 | KB-001 | Establish persistent development knowledge base + recovery rules | done | [`I-20261029-01`](plans/implementations/I-20261029-01-development-knowledge-system.md), [`R-20261029-01`](audits/results/R-20261029-01-knowledge-bootstrap.md) |
 | FT-007 | Backup/restore hardening (Linux side) | done | [`I-20261030-01`](plans/implementations/I-20261030-01-backup-restore-hardening.md), [`S-20261030-01`](sessions/S-20261030-01-backup-restore-hardening.md) |
 | FT-008 | Reader locator correctness (Linux side) | done | [`I-20261030-02`](plans/implementations/I-20261030-02-reader-locator-correctness.md), [`S-20261030-02`](sessions/S-20261030-02-reader-locator-correctness.md) |
+| FT-001 | Taskbar jump list (Linux side) | done | [`I-20261030-03`](plans/implementations/I-20261030-03-taskbar-jump-list.md), [`S-20261030-03`](sessions/S-20261030-03-taskbar-jump-list.md) |
 
 ## Verified state
 
