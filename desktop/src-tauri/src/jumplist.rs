@@ -39,11 +39,11 @@ mod imp {
     use super::JumpListTask;
     use std::thread;
     use windows::core::{IUnknown, Interface, GUID, HSTRING, PWSTR};
-    use windows::Win32::Foundation::{E_FAIL, PROPERTYKEY};
+    use windows::Win32::Foundation::{E_FAIL, E_OUTOFMEMORY, PROPERTYKEY};
     use windows::Win32::Storage::EnhancedStorage::PKEY_Title;
-    use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
+    use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PROPVARIANT};
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+        CoCreateInstance, CoInitializeEx, CoTaskMemAlloc, CoUninitialize, CLSCTX_INPROC_SERVER,
         COINIT_APARTMENTTHREADED,
     };
     use windows::Win32::System::Variant::VT_LPWSTR;
@@ -129,27 +129,43 @@ mod imp {
                 link.SetArguments(&HSTRING::from(args))?;
             }
 
-            // Jump-list tasks need PKEY_Title in the link's property store,
-            // otherwise the taskbar shows the file name, not the label. The
-            // UTF-16 buffer behind the PROPVARIANT pointer must stay alive for
-            // the whole SetValue/Commit exchange, which it does: it lives to
-            // the end of this function.
+            // Jump-list tasks need PKEY_Title in the link's property store:
+            // without it the taskbar shows the file name and `AddUserTasks`
+            // rejects the item with E_INVALIDARG.
+            //
+            // The VT_LPWSTR payload must live in COM task memory. The shell
+            // frees property values with CoTaskMemFree, and an earlier version
+            // handed it a Rust `Vec<u16>` buffer instead — that freed a block
+            // the Rust allocator still owned and killed the app at startup
+            // with STATUS_HEAP_CORRUPTION (0xC0000374). Never do that again.
             let store: IPropertyStore = link.cast()?;
-            let mut wide: Vec<u16> = task
+            let title: Vec<u16> = task
                 .title
                 .encode_utf16()
                 .chain(std::iter::once(0))
                 .collect();
+            let title_mem = CoTaskMemAlloc(title.len() * std::mem::size_of::<u16>()) as *mut u16;
+            if title_mem.is_null() {
+                return Err(E_OUTOFMEMORY.into());
+            }
+            std::ptr::copy_nonoverlapping(title.as_ptr(), title_mem, title.len());
+
             let mut propvar = PROPVARIANT::default();
             // `PROPVARIANT`'s middle field is a `ManuallyDrop` inside a union,
             // so the write must dereference it explicitly (rustc's
             // union-DerefMut lint rejects the implicit form).
             let fields = core::ops::DerefMut::deref_mut(&mut propvar.Anonymous.Anonymous);
             fields.vt = VT_LPWSTR;
-            fields.Anonymous.pwszVal = PWSTR(wide.as_mut_ptr());
-            store.SetValue(&PKEY_Title as *const PROPERTYKEY, &propvar)?;
-            store.Commit()?;
-            drop(propvar); // no PropVariantClear: the buffer was caller-owned
+            fields.Anonymous.pwszVal = PWSTR(title_mem);
+
+            // SetValue copies the value into the store, so the PROPVARIANT is
+            // still ours: clear it after committing, which is also what frees
+            // `title_mem`.
+            let written = store
+                .SetValue(&PKEY_Title as *const PROPERTYKEY, &propvar)
+                .and_then(|()| store.Commit());
+            let _ = PropVariantClear(&mut propvar);
+            written?;
 
             Ok(link)
         }
