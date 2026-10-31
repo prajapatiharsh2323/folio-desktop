@@ -66,3 +66,20 @@ Committed and pushed to `origin/main` on 2026-10-31 (four topic commits,
   (`db9708b` run 11) and the records commit (`86ba918` run 12).
 - Remaining FT-012 halves stay visual (Windows session); right-click behaviour
   inside the real webview also needs a Windows run.
+
+## 2026-10-31 (later): keyboard/global matrix parity patch (Linux, this commit)
+
+- **Library keys (07 §1/§4):** `Ctrl+F` opens the library search panel (same
+  as `/`); `Ctrl+I` opens the import picker; both case-tolerant and
+  typing-target guarded.
+- **Reader media keys (07 §2):** `MediaTrackNext` / `MediaTrackPrevious`
+  page turn (the spec's only two bound HID keys).
+- **Overscroll (04 §5):** `overscroll-behavior: none` on body — body
+  overscroll can no longer navigate/reload the webview.
+- Already present and verified by inspection: window min size 720×560
+  (tauri.conf.json), `Ctrl+,` and `Ctrl+1..4` (Shell), `Ctrl+F` in-reader.
+- `Ctrl+Q` quit-with-confirm is **not** implemented (needs a confirm dialog +
+  a Rust/Tauri exit path — queued for the Windows pass; see the manual
+  checklist).
+- Linux verification: `tsc -b` clean; Vitest **173/173** (18 files); `vite
+  build` success.

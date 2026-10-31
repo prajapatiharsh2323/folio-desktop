@@ -107,13 +107,23 @@ export function LibraryScreen() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "/" && !(e.target as HTMLElement)?.closest("input, textarea, select")) {
+      if ((e.target as HTMLElement)?.closest("input, textarea, select")) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        setSearchOpen(true);
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === "i" || e.key === "I")) {
+        // Ctrl+I import (07 §1 global matrix) — same picker as the toolbar.
+        e.preventDefault();
+        void onImport();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
+        // Ctrl+F in-library opens the search panel (07 §1 global matrix).
         e.preventDefault();
         setSearchOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

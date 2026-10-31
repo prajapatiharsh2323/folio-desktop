@@ -5,6 +5,9 @@ src-tauri/gen/
 *.log
 tsconfig.tsbuildinfo
 
+# Vite config temp files (created when the config is bundled for loading)
+vite.config.ts.timestamp-*.mjs
+
 # Local OAuth client configuration (never commit)
 .env
 .env.*

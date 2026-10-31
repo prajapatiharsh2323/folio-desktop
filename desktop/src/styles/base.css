@@ -20,6 +20,8 @@ body {
   font-size: var(--folio-type-body-size);
   line-height: var(--folio-type-body-line);
   font-weight: var(--folio-type-body-weight);
+  /* Body overscroll must never navigate/reload the webview (04 §5). */
+  overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
 }
 

@@ -543,6 +543,15 @@ export function ReaderScreen() {
           event.preventDefault();
           jump(100);
           break;
+        case "MediaTrackNext":
+          // Hardware/media-key HID page turns (07 §2; only these two are bound).
+          event.preventDefault();
+          turn("next");
+          break;
+        case "MediaTrackPrevious":
+          event.preventDefault();
+          turn("previous");
+          break;
         case "t":
         case "T":
           event.preventDefault();
