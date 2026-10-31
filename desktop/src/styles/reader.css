@@ -483,6 +483,21 @@
   color: var(--folio-text-muted, #87897F);
 }
 
+/* ---- Reduced right-click menu over the canvas (07 §3) --------------------- */
+.folio-reader-ctxmenu {
+  position: fixed;
+  z-index: 65;
+  min-width: 220px;
+  padding: var(--folio-space-2) 0;
+  background: var(--folio-surface, #FFFEFB);
+  color: var(--folio-text-primary, #22251F);
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+/* ---- Bottom-pillar hover reveal zone is handled in JS (07 §2) ------------- */
+
 /* ---- Reader empty state (no request) -------------------------------------- */
 .folio-reader-empty {
   position: absolute;

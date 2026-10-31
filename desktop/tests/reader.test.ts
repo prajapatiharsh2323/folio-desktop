@@ -370,6 +370,39 @@ describe("ChromeStateMachine", () => {
     expect(intentForReaderClick({ x: 290, width: 300, interactive: false, defaultPrevented: false })).toBe("forward");
   });
 
+  it("pillar hover holds for 3 s even at rest (07 §2)", () => {
+    let now = 0;
+    const chrome = new ChromeStateMachine(() => now);
+    // A resting cursor: no onActivity after the hover begins.
+    chrome.onActivity();
+    now = 1000;
+    chrome.onPillarHover();
+    now = 3500; // beyond the 3 s idle window
+    expect(chrome.tick()).toBe("visible"); // within the 3 s hover grace
+    now = 4200; // hover started at 1000 + 3000
+    expect(chrome.tick()).toBe("hidden");
+  });
+
+  it("pillar hover grace clears on normal activity, toggle, and beyond", () => {
+    let now = 0;
+    const chrome = new ChromeStateMachine(() => now);
+    chrome.onPillarHover();
+    now = 500;
+    chrome.onActivity(); // moving elsewhere leaves idle scheduling
+    now = 3400;
+    expect(chrome.tick()).toBe("visible"); // idle rescheduled at 500
+    now = 4000;
+    expect(chrome.tick()).toBe("hidden");
+
+    const chrome2 = new ChromeStateMachine(() => now);
+    chrome2.toggle(); // user-hidden chrome is still revealed by the hover zone
+    chrome2.onPillarHover();
+    now = 5000;
+    expect(chrome2.tick()).toBe("visible"); // hover reveal wins over toggle
+    now = 8600; // 5000 + 3000 grace + tick margin
+    expect(chrome2.tick()).toBe("hidden");
+  });
+
   it("scrub grace hides after 1.2 s", () => {
     let now = 0;
     const chrome = new ChromeStateMachine(() => now);

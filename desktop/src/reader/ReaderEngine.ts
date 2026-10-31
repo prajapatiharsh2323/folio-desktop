@@ -87,6 +87,9 @@ export interface ReaderEngine {
   onLink(cb: (href: string) => boolean): () => void;
   /** Click events in the spine frame; return true when consumed. */
   onClick(cb: (info: ReaderClickInfo) => boolean): () => void;
+  /** Right-click in the spine frame (native menu is suppressed by the
+   *  navigator); return true when a menu was shown (07 §3). */
+  onContextMenu(cb: (info: ReaderClickInfo) => boolean): () => void;
   /** Anchored jump used as the second step of two-step jumps (04 §8). */
   goAnchored?(quote: string, prefix: string, suffix: string): Promise<boolean>;
 }

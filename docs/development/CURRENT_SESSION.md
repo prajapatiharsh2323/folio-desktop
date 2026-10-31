@@ -43,3 +43,26 @@ Committed and pushed to `origin/main` on 2026-10-31 (four topic commits,
 - **Uncommitted** — commit/push needs explicit user authorization. Remaining
   FT-012 halves are visual (Windows session) and were deliberately not
   attempted here.
+
+## 2026-10-31 (later): FT-012 slice 2 — pointer parity (Linux, this commit)
+
+- **Pillar hover reveal (07 §2):** `ChromeStateMachine.onPillarHover()` holds
+  the chrome visible 3 s after a cursor enters the bottom 40 px, even at rest;
+  `onActivity`/`toggle` clear the grace. `ReaderScreen.onMouseMove` now zones.
+- **Right-click menu (07 §3):** the engine seam gained `onContextMenu` — the
+  Readium toolkit already blocks the native menu inside the spine frame and
+  reports `(x, y)`; `ReaderScreen` shows a reduced anchored menu
+  (`ReaderContextMenu`: toggle toolbar / TOC / bookmark) or, with an active
+  selection, re-anchors the selection toolbar at the cursor. Root-level
+  fallback covers right-clicks outside the iframe; overlays excluded. Escape
+  ladder: menu → ctx menu → panel → search → selection.
+- **Tooltips:** Back and More chrome buttons carry `title` (Appearance/Search
+  already did).
+- Tests: 4 ChromeStateMachine pillar-hover cases; 4 `ReaderContextMenu`
+  component cases (`readerContextMenu.test.tsx`).
+- Linux verification: `tsc -b` clean; **173 Vitest tests / 18 files** passing;
+  `vite build` success.
+- CI (observed on GitHub): windows-latest green for the pushed batch-1 commits
+  (`db9708b` run 11) and the records commit (`86ba918` run 12).
+- Remaining FT-012 halves stay visual (Windows session); right-click behaviour
+  inside the real webview also needs a Windows run.

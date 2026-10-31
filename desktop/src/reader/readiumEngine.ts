@@ -48,6 +48,7 @@ export class ReadiumEngine implements ReaderEngine {
   private selectionCbs = new Set<(sel: TextSelectionInfo | null) => void>();
   private linkCbs = new Set<(href: string) => boolean>();
   private clickCbs = new Set<(info: ReaderClickInfo) => boolean>();
+  private contextMenuCbs = new Set<(info: ReaderClickInfo) => boolean>();
   private lastLocator: ReaderLocator | null = null;
   private systemDark = false;
 
@@ -87,7 +88,9 @@ export class ReadiumEngine implements ReaderEngine {
         this.selectionCbs.forEach((cb) => cb(info));
       },
       contentProtection: () => {},
-      contextMenu: () => {},
+      // The toolkit blocks the native menu inside the spine frame and reports
+      // the event here; ReaderScreen decides what (07 §3) replaces it.
+      contextMenu: (e) => this.handleContextMenu(e),
       peripheral: () => {},
     };
 
@@ -289,6 +292,11 @@ export class ReadiumEngine implements ReaderEngine {
     return () => this.clickCbs.delete(cb);
   }
 
+  onContextMenu(cb: (info: ReaderClickInfo) => boolean): () => void {
+    this.contextMenuCbs.add(cb);
+    return () => this.contextMenuCbs.delete(cb);
+  }
+
   private onPositionChanged(locator: Locator): void {
     const nav = this.navigator;
     let title: string | undefined;
@@ -315,6 +323,28 @@ export class ReadiumEngine implements ReaderEngine {
     }
     this.navigator?.go(locator, true, () => {});
     return true;
+  }
+
+  private handleContextMenu(e: {
+    x?: number;
+    y?: number;
+    clientX?: number;
+    clientY?: number;
+    defaultPrevented?: boolean;
+  }): boolean {
+    const dpr = this.frameDpr || 1;
+    const info: ReaderClickInfo = {
+      x: (e.x ?? e.clientX ?? 0) / dpr,
+      y: (e.y ?? e.clientY ?? 0) / dpr,
+      width: this.container?.clientWidth ?? 0,
+      height: this.container?.clientHeight ?? 0,
+      // The blocked menu event carries no interactive-element info.
+      interactive: false,
+      defaultPrevented: Boolean(e.defaultPrevented),
+    };
+    let consumed = false;
+    for (const cb of this.contextMenuCbs) if (cb(info)) consumed = true;
+    return consumed;
   }
 
   private handleClick(e: {

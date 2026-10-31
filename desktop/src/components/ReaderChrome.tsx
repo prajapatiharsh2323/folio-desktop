@@ -62,7 +62,13 @@ export function ReaderChrome({
   return (
     <div className={`folio-reader-chrome${visible ? " is-visible" : ""}`} aria-hidden={!visible}>
       <header className="folio-reader-top" role="toolbar" aria-label="Reader controls">
-        <button type="button" className="folio-reader-icon" onClick={onBack} aria-label="Back to library">
+        <button
+          type="button"
+          className="folio-reader-icon"
+          onClick={onBack}
+          aria-label="Back to library"
+          title="Back to library"
+        >
           <FolioIcons.Back />
         </button>
         <div className="folio-reader-top__title" title={title}>
@@ -93,6 +99,7 @@ export function ReaderChrome({
             id="folio-reader-more"
             className="folio-reader-icon"
             aria-label="More"
+            title="More"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => onMenuChange(!menuOpen)}

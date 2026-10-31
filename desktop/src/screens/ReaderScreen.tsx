@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { invoke } from "@tauri-apps/api/core";
 import { AppearancePanel } from "../components/AppearancePanel";
 import { ReaderChrome } from "../components/ReaderChrome";
+import { ReaderContextMenu } from "../components/ReaderContextMenu";
 import { ReaderSplash, type SplashPhase } from "../components/ReaderSplash";
 import { TocPanel } from "../components/TocPanel";
 import { SelectionToolbar } from "../components/SelectionToolbar";
@@ -39,6 +40,8 @@ import { resolveReaderTheme, scrimAlpha } from "../reader/readerThemes";
 
 const SPLASH_FADE_MS = 300;
 const SPLASH_FAILSAFE_MS = 8000;
+/** Bottom-pillar hover reveal zone height (07 §2). */
+const PILLAR_REVEAL_ZONE_PX = 40;
 
 /** Outcome of a bookmark toggle, surfaced as a user-facing notice (07 §2). */
 type BookmarkResult = "added" | "removed" | "failed";
@@ -169,6 +172,21 @@ export function ReaderScreen() {
   const inbookSearchSeqRef = useRef(0);
   const [selection, setSelection] = useState<TextSelectionInfo | null>(null);
   const [quoteSelection, setQuoteSelection] = useState<TextSelectionInfo | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  /** Latest context-menu launcher, so engine events (long-lived lifecycle) never
+   *  act on stale state (07 §3). */
+  const contextMenuRef = useRef<(x: number, y: number) => void>(() => {});
+  useEffect(() => {
+    contextMenuRef.current = (x, y) => {
+      if (selection) {
+        // With text selected, right-click re-anchors the selection toolbar at
+        // the cursor (07 §3: "the same actions as the selection toolbar").
+        setSelection({ ...selection, rect: { top: y, left: x, bottom: y + 4, right: x } });
+      } else {
+        setCtxMenu({ x, y });
+      }
+    };
+  }, [selection]);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [quoteCardOpen, setQuoteCardOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -215,6 +233,7 @@ export function ReaderScreen() {
     setLocator(null);
     setToc([]);
     setPanel(null);
+    setCtxMenu(null);
     previousPercentRef.current = null;
   }, [doc?.docId, retryNonce]);
 
@@ -378,6 +397,11 @@ export function ReaderScreen() {
     });
 
     const offLink = engine.onLink((href) => openExternal(href));
+    // Blocked native context menus from the spine frame (07 §3).
+    const offCtxMenu = engine.onContextMenu((info) => {
+      contextMenuRef.current(info.x, info.y);
+      return true; // our menu replaced the native one
+    });
 
     void (async () => {
       try {
@@ -410,6 +434,7 @@ export function ReaderScreen() {
       offClick();
       offSelection();
       offLink();
+      offCtxMenu();
       void writer.flush();
       void engine.destroy();
       if (engineRef.current === engine) engineRef.current = null;
@@ -554,7 +579,8 @@ export function ReaderScreen() {
           if (menuOpenRef.current) {
             setMenu(false);
             document.getElementById("folio-reader-more")?.focus();
-          } else if (panel) setPanel(null);
+          } else if (ctxMenu) setCtxMenu(null);
+          else if (panel) setPanel(null);
           else if (inbookSearchOpen) setInbookSearchOpen(false);
           else if (selection) setSelection(null);
           break;
@@ -564,7 +590,7 @@ export function ReaderScreen() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, panel, inbookSearchOpen, selection]);
+  }, [doc, panel, inbookSearchOpen, selection, ctxMenu]);
 
   // Best-effort flush if the window is closed from the OS (07 §5).
   useEffect(() => {
@@ -824,11 +850,34 @@ export function ReaderScreen() {
     [showNavNotice]
   );
 
-  const onMouseMove = useCallback(() => {
+  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const chrome = chromeRef.current;
     if (!chrome) return;
-    chrome.onActivity();
+    // Bottom 40 px of the reader = pillar reveal zone (07 §2): the pillar stays
+    // up ~3 s even after the cursor stops. Elsewhere, normal activity tracking.
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.height > 0 && e.clientY >= rect.bottom - PILLAR_REVEAL_ZONE_PX) {
+      chrome.onPillarHover();
+    } else {
+      chrome.onActivity();
+    }
     setChromeVisible((visible) => (visible ? visible : true));
+  }, []);
+
+  /** Root fallback for right-clicks that happen outside the spine frame (the
+   *  iframe's own right-clicks arrive through engine.onContextMenu). Overlays
+   *  (panels, chrome, dialogs, menus) keep their native/default behaviour. */
+  const onReaderContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.closest(
+        ".folio-panel, .folio-overlay, .folio-reader-top, .folio-reader-pillar, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search, .folio-selection-toolbar, [role='dialog'], .folio-snackbar, .folio-reader-splash"
+      )
+    ) {
+      return;
+    }
+    e.preventDefault();
+    contextMenuRef.current(e.clientX, e.clientY);
   }, []);
 
   const title = doc?.title ?? (request ? "Opening book…" : "Reader");
@@ -861,6 +910,7 @@ export function ReaderScreen() {
         } as CSSProperties
       }
       onMouseMove={onMouseMove}
+      onContextMenu={onReaderContextMenu}
     >
       <div
         ref={canvasRef}
@@ -931,6 +981,20 @@ export function ReaderScreen() {
                 </div>
               )}
             </div>
+          )}
+
+          {ctxMenu && (
+            <ReaderContextMenu
+              x={ctxMenu.x}
+              y={ctxMenu.y}
+              onClose={() => setCtxMenu(null)}
+              onToggleChrome={() => {
+                chromeRef.current?.toggle();
+                setChromeVisible(chromeRef.current?.visible ?? false);
+              }}
+              onToc={() => openPanel("toc")}
+              onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
+            />
           )}
 
           <AppearancePanel

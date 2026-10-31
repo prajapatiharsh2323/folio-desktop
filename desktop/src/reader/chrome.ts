@@ -5,6 +5,9 @@
 
 export const CHROME_IDLE_MS = 3000;
 export const SCRUB_GRACE_MS = 1200;
+/** Hovering the bottom 40 px reveals the pillar for this long, even with the
+ *  cursor at rest (07 §2: "hovering the bottom 40 px reveals the pillar for 3 s"). */
+export const PILLAR_HOVER_MS = 3000;
 
 export type ChromeVisibility = "visible" | "hidden";
 
@@ -13,6 +16,7 @@ export class ChromeStateMachine {
   private lastActivityTs = 0;
   private scrubEndTs: number | null = null;
   private scrubbing = false;
+  private pillarHoverUntil = 0;
 
   constructor(private now: () => number = () => Date.now()) {
     this.lastActivityTs = this.now();
@@ -25,12 +29,21 @@ export class ChromeStateMachine {
   /** Pointer activity / menu hover — show and reschedule the hide. */
   onActivity(): void {
     this.lastActivityTs = this.now();
+    this.pillarHoverUntil = 0;
+    this.visibility = "visible";
+  }
+
+  /** Cursor rests in the bottom 40 px reveal zone (07 §2): show the pillar and
+   *  hold it for the grace window even if the cursor stops moving. */
+  onPillarHover(): void {
+    this.pillarHoverUntil = this.now() + PILLAR_HOVER_MS;
     this.visibility = "visible";
   }
 
   /** Middle-third click toggles chrome (04 §5). */
   toggle(): void {
     this.visibility = this.visible ? "hidden" : "visible";
+    this.pillarHoverUntil = 0;
     if (this.visible) this.lastActivityTs = this.now();
   }
 
@@ -56,6 +69,7 @@ export class ChromeStateMachine {
       }
       return this.visibility;
     }
+    if (this.visible && this.pillarHoverUntil > now) return this.visibility;
     if (this.visible && now - this.lastActivityTs >= CHROME_IDLE_MS) {
       this.visibility = "hidden";
     }
