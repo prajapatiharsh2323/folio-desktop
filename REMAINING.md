@@ -54,8 +54,10 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
 
 ## Phase 11 — Polish
 
-- [ ] Performance budget checks (04 §12): cold open ≤ 1.2 s, page turn ≤ 80 ms,
-      200 highlights ≤ 400 ms.
+- [x] Performance budget checks (04 §12): cold open ≤ 1.2 s, page turn ≤ 80 ms,
+      200 highlights ≤ 400 ms — harness + method + Linux baseline done
+      (`scripts/perf.ts`; reader-parse 316 ms). **Runtime verdicts still need
+      a real Windows run** (procedure in `docs/development/audits/results/`).
 - [ ] Accessibility pass (03 §7): focus rings, tab order, ARIA, contrast.
 - [x] CI workflow (`.github/workflows/desktop-ci.yml`): Windows runner, pnpm,
       tsc, Vitest, Vite build, `cargo fmt --check`, `cargo test`, NSIS build,
@@ -71,8 +73,10 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
 - The dictionary pack is a release asset, not checked into the repo; until it is
   present Settings shows “Pack not installed” and the meaning card reports the
   missing pack.
-- Perf/a11y audits remain open. The jump list is implemented but its runtime
-  taskbar behaviour is unverified (needs a real Windows run; P1 per 09 §3).
+- Perf/a11y: code-side audit + harness are recorded (`A-20261031-01`,
+  `R-20261031-02`); the **runtime** halves (performance verdicts, screen
+  reader, jump-list taskbar behaviour) still need a real Windows run (P2;
+  jump list is P1 per 09 §3).
 
 ## Quick verification commands (run on Windows)
 

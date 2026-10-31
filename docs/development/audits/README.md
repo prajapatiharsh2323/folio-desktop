@@ -24,7 +24,10 @@ IDs:
 - `A-BUG-YYYYMMDD-NN` — bug investigation.
 - `R-YYYYMMDD-NN` — verification result.
 
-Audits recorded so far: accessibility core pass
-([`A-20261031-01`](ui-ux/A-20261031-01-accessibility.md)). Remaining open audit
-tasks: FT-005 (performance) and the unresolved Windows-runtime accessibility
-items from the accessibility pass.
+Audits recorded so far: the accessibility core pass
+([`A-20261031-01`](ui-ux/A-20261031-01-accessibility.md)) and the perf-budget
+harness/method with a Linux baseline
+([`R-20261031-02`](results/R-20261031-02-performance-method.md)). Remaining:
+the perf runtime measurements on a Windows session (procedure defined in the
+R- record) and the unresolved Windows-runtime accessibility items from the
+accessibility pass.
