@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { FolioIcons } from "./FolioIcons";
 
 export interface ReaderChromeProps {
@@ -10,6 +10,9 @@ export interface ReaderChromeProps {
   timeLeft: string | null;
   /** value while dragging the scrubber, otherwise null */
   scrubValue: number | null;
+  /** Controlled More-menu state (ReaderScreen owns Escape/auto-hide). */
+  menuOpen: boolean;
+  onMenuChange: (open: boolean) => void;
   onBack: () => void;
   onAppearance: () => void;
   onToc: () => void;
@@ -31,6 +34,8 @@ export function ReaderChrome({
   percent,
   timeLeft,
   scrubValue,
+  menuOpen,
+  onMenuChange,
   onBack,
   onAppearance,
   onToc,
@@ -42,22 +47,17 @@ export function ReaderChrome({
   onScrubChange,
   onScrubEnd,
 }: ReaderChromeProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const value = scrubValue ?? percent;
 
   useEffect(() => {
-    if (!visible) setMenuOpen(false);
-  }, [visible]);
-
-  useEffect(() => {
     if (!menuOpen) return;
     const onDocDown = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+      if (!menuRef.current?.contains(e.target as Node)) onMenuChange(false);
     };
     document.addEventListener("mousedown", onDocDown);
     return () => document.removeEventListener("mousedown", onDocDown);
-  }, [menuOpen]);
+  }, [menuOpen, onMenuChange]);
 
   return (
     <div className={`folio-reader-chrome${visible ? " is-visible" : ""}`} aria-hidden={!visible}>
@@ -90,11 +90,12 @@ export function ReaderChrome({
         <div className="folio-reader-menu" ref={menuRef}>
           <button
             type="button"
+            id="folio-reader-more"
             className="folio-reader-icon"
             aria-label="More"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={() => onMenuChange(!menuOpen)}
           >
             <FolioIcons.More />
           </button>
@@ -105,7 +106,7 @@ export function ReaderChrome({
                 role="menuitem"
                 className="folio-reader-menu__item"
                 onClick={() => {
-                  setMenuOpen(false);
+                  onMenuChange(false);
                   onToc();
                 }}
               >
@@ -116,15 +117,13 @@ export function ReaderChrome({
                 type="button"
                 role="menuitem"
                 className="folio-reader-menu__item"
-                disabled
-                title="Bookmarks arrive in Phase 5"
                 onClick={() => {
-                  setMenuOpen(false);
+                  onMenuChange(false);
                   onBookmark();
                 }}
               >
                 <FolioIcons.Bookmark size="sm" />
-                Add bookmark — Phase 5
+                Toggle bookmark
               </button>
               {onShareQuote && (
                 <button
@@ -134,7 +133,7 @@ export function ReaderChrome({
                   disabled={!shareEnabled}
                   title={shareEnabled ? "Share as image" : "Select text first"}
                   onClick={() => {
-                    setMenuOpen(false);
+                    onMenuChange(false);
                     onShareQuote();
                   }}
                 >

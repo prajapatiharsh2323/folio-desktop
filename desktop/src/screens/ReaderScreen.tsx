@@ -6,7 +6,6 @@ import { ReaderSplash, type SplashPhase } from "../components/ReaderSplash";
 import { TocPanel } from "../components/TocPanel";
 import { SelectionToolbar } from "../components/SelectionToolbar";
 import { QuoteCard } from "../components/QuoteCard";
-import { MeaningCard } from "../components/MeaningCard";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioButton } from "../components/FolioButton";
 import { tintIndexFromHash } from "../import/cover";
@@ -25,6 +24,7 @@ import type {
   TocEntry,
 } from "../reader/ReaderEngine";
 import { ChromeStateMachine, CHROME_IDLE_MS, intentForReaderClick } from "../reader/chrome";
+import { createNavigationCoordinator, type ReaderNavigationCoordinator } from "../reader/navigation";
 import { ProgressWriter } from "../reader/progress";
 import { ReadingPaceStats, formatTimeLeft } from "../reader/pace";
 import { resumePlan, type ResumePlan } from "../reader/resume";
@@ -39,6 +39,9 @@ import { resolveReaderTheme, scrimAlpha } from "../reader/readerThemes";
 
 const SPLASH_FADE_MS = 300;
 const SPLASH_FAILSAFE_MS = 8000;
+
+/** Outcome of a bookmark toggle, surfaced as a user-facing notice (07 §2). */
+type BookmarkResult = "added" | "removed" | "failed";
 
 function planTarget(plan: ResumePlan): ReaderOpenTarget | null {
   switch (plan.kind) {
@@ -110,8 +113,12 @@ function decorationsFor(annotations: Annotation[]): DecorationSpec[] {
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
+  // Focused controls (toolbar buttons, TOC entries, the scrubber, selects)
+  // own their keys: keyboard page-turn shortcuts must not fight them (07 §2).
   return Boolean(
-    target.closest("input, textarea, select, [contenteditable='true'], [role='textbox']")
+    target.closest(
+      "input, textarea, select, button, a, [contenteditable='true'], [role='textbox'], [role='button'], [role='menuitem']"
+    )
   );
 }
 
@@ -130,6 +137,7 @@ export function ReaderScreen() {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<ReaderEngine | null>(null);
+  const navRef = useRef<ReaderNavigationCoordinator | null>(null);
   const writerRef = useRef<ProgressWriter | null>(null);
   const paceRef = useRef<ReadingPaceStats | null>(null);
   const keepAwakeRef = useRef<KeepAwakeController | null>(null);
@@ -140,13 +148,15 @@ export function ReaderScreen() {
   const seekingRef = useRef(false);
   const disposedRef = useRef(false);
   const previousPercentRef = useRef<number | null>(null);
-  const bookmarkToggleRef = useRef<() => void>(() => {});
+  const bookmarkToggleRef = useRef<() => Promise<BookmarkResult>>(async () => "failed");
 
   const [prefs, setPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS);
   const [splash, setSplash] = useState<SplashPhase>("loading");
   const [engineError, setEngineError] = useState<string | null>(null);
   const [locator, setLocator] = useState<ReaderLocator | null>(null);
   const [chromeVisible, setChromeVisible] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuOpenRef = useRef(false);
   const [scrubValue, setScrubValue] = useState<number | null>(null);
   const [panel, setPanel] = useState<"appearance" | "toc" | null>(null);
   const [toc, setToc] = useState<TocEntry[]>([]);
@@ -156,15 +166,16 @@ export function ReaderScreen() {
     { chapterTitle: string; snippetHtml: string; locator: string }[]
   >([]);
   const inbookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inbookSearchSeqRef = useRef(0);
   const [selection, setSelection] = useState<TextSelectionInfo | null>(null);
-  const [meaningOpen, setMeaningOpen] = useState(false);
-  const [meaningTerm, setMeaningTerm] = useState("");
   const [quoteSelection, setQuoteSelection] = useState<TextSelectionInfo | null>(null);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [quoteCardOpen, setQuoteCardOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingSelection, setPendingSelection] = useState<TextSelectionInfo | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [navNotice, setNavNotice] = useState<string | null>(null);
+  const navNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [systemDark, setSystemDark] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -205,6 +216,9 @@ export function ReaderScreen() {
   useEffect(() => {
     if (!inbookSearchOpen) return;
     if (inbookTimerRef.current) clearTimeout(inbookTimerRef.current);
+    // Request token: a slow older search must never replace the results of a
+    // newer query (04 §6).
+    const token = ++inbookSearchSeqRef.current;
     inbookTimerRef.current = setTimeout(async () => {
       const engine = engineRef.current;
       if (!engine || !inbookQuery.trim()) {
@@ -213,9 +227,9 @@ export function ReaderScreen() {
       }
       try {
         const hits = await engine.search(inbookQuery);
-        setInbookResults(hits);
+        if (token === inbookSearchSeqRef.current) setInbookResults(hits);
       } catch {
-        setInbookResults([]);
+        if (token === inbookSearchSeqRef.current) setInbookResults([]);
       }
     }, 250);
     return () => {
@@ -259,6 +273,17 @@ export function ReaderScreen() {
       initial: target,
     });
     engineRef.current = engine;
+
+    // Every navigation goes through one coordinator: page clicks, keyboard,
+    // scrubbing, TOC, search. It never recreates the navigator — it gates the
+    // seek state, sequences overlapping requests and returns success/failure.
+    const nav = createNavigationCoordinator(engine, {
+      onBeforeMove: () => pace.breakSession(Date.now()),
+      onSeekingChanged: (seeking) => {
+        seekingRef.current = seeking;
+      },
+    });
+    navRef.current = nav;
 
     const pace = new ReadingPaceStats(doc.progress?.pace ?? null);
     paceRef.current = pace;
@@ -333,9 +358,9 @@ export function ReaderScreen() {
         setChromeVisible(chrome.visible);
         return true;
       }
-      pace.breakSession(Date.now());
-      if (intent === "forward") void engine.goForward();
-      else void engine.goBackward();
+      // Coordinator's onBeforeMove breaks the pace session.
+      if (intent === "forward") void nav.next();
+      else void nav.previous();
       return true;
     });
 
@@ -383,6 +408,7 @@ export function ReaderScreen() {
       void writer.flush();
       void engine.destroy();
       if (engineRef.current === engine) engineRef.current = null;
+      if (navRef.current === nav) navRef.current = null;
       writerRef.current = null;
       paceRef.current = null;
     };
@@ -395,6 +421,12 @@ export function ReaderScreen() {
     const chromeTimer = setInterval(() => {
       const chrome = chromeRef.current;
       if (!chrome) return;
+      // An open menu means an active interaction: do not hide the toolbar
+      // underneath it (04 §5 menu lifecycle).
+      if (menuOpenRef.current) {
+        chrome.onActivity();
+        return;
+      }
       setChromeVisible(chrome.tick() === "visible");
     }, Math.min(250, CHROME_IDLE_MS / 4));
     return () => clearInterval(chromeTimer);
@@ -448,20 +480,11 @@ export function ReaderScreen() {
       const engine = engineRef.current;
       if (!engine) return;
 
-      const forward = () => {
-        paceRef.current?.breakSession(Date.now());
-        void engine.goForward();
-      };
-      const backward = () => {
-        paceRef.current?.breakSession(Date.now());
-        void engine.goBackward();
+      const turn = (direction: "next" | "previous") => {
+        void navRef.current?.[direction]();
       };
       const jump = (percent: number) => {
-        paceRef.current?.breakSession(Date.now());
-        seekingRef.current = true;
-        void engine.go({ percent }).finally(() => {
-          seekingRef.current = false;
-        });
+        void navRef.current?.goToPercent(percent);
       };
 
       switch (event.key) {
@@ -469,18 +492,18 @@ export function ReaderScreen() {
         case "PageDown":
         case "ArrowDown":
           event.preventDefault();
-          forward();
+          turn("next");
           break;
         case "ArrowLeft":
         case "PageUp":
         case "ArrowUp":
           event.preventDefault();
-          backward();
+          turn("previous");
           break;
         case " ":
           event.preventDefault();
-          if (event.shiftKey) backward();
-          else forward();
+          if (event.shiftKey) turn("previous");
+          else turn("next");
           break;
         case "Home":
           event.preventDefault();
@@ -501,7 +524,7 @@ export function ReaderScreen() {
         case "B":
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            void bookmarkToggleRef.current();
+            void bookmarkToggleRef.current().then(announceBookmark);
           }
           break;
         case "m":
@@ -520,7 +543,13 @@ export function ReaderScreen() {
           }
           break;
         case "Escape":
-          if (panel) setPanel(null);
+          // Close the topmost interaction only (07 §2): More menu → panel →
+          // search → selection. The menu lives in controlled state, so it is
+          // first here; focus returns to the control that opened it.
+          if (menuOpenRef.current) {
+            setMenu(false);
+            document.getElementById("folio-reader-more")?.focus();
+          } else if (panel) setPanel(null);
           else if (inbookSearchOpen) setInbookSearchOpen(false);
           else if (selection) setSelection(null);
           break;
@@ -542,6 +571,12 @@ export function ReaderScreen() {
     window.addEventListener("beforeunload", flush);
     return () => window.removeEventListener("beforeunload", flush);
   }, [doc?.docId]);
+
+  useEffect(() => {
+    return () => {
+      if (navNoticeTimerRef.current) clearTimeout(navNoticeTimerRef.current);
+    };
+  }, []);
 
   const handleBack = useCallback(async () => {
     // Effect teardown destroys the engine; only flush and navigate here.
@@ -658,8 +693,7 @@ export function ReaderScreen() {
     [doc, createAnnotation]
   );
 
-  const handleCopySelection = useCallback(async (quote: string) => {
-    try {
+  const handleCopySelection = useCallback(async (quote: string) => {    try {
       await navigator.clipboard.writeText(quote);
     } catch {
       /* ignore */
@@ -682,18 +716,21 @@ export function ReaderScreen() {
     setNoteDraft("");
   }, [pendingSelection, noteDraft, createAnnotation]);
 
-  const handleBookmarkToggle = useCallback(async () => {
-    if (!doc) return;
+  const handleBookmarkToggle = useCallback(async (): Promise<BookmarkResult> => {
+    if (!doc) return "failed";
     const loc = engineRef.current?.currentLocator();
-    if (!loc) return;
-    const lm = getLibraryManager();
-    // Compare by href + progression, not string equality: the engine reports
-    // slightly different progressions for the same page as layout settles.
-    const existing = (await lm.annotations.listForDoc(doc.docId)).find(
-      (a) => a.kind === "bookmark" && sameLocation(a.location, loc.location)
-    );
-    if (existing) await lm.annotations.remove(existing.id);
-    else {
+    if (!loc) return "failed";
+    try {
+      const lm = getLibraryManager();
+      // Compare by href + progression, not string equality: the engine reports
+      // slightly different progressions for the same page as layout settles.
+      const existing = (await lm.annotations.listForDoc(doc.docId)).find(
+        (a) => a.kind === "bookmark" && sameLocation(a.location, loc.location)
+      );
+      if (existing) {
+        await lm.annotations.remove(existing.id);
+        return "removed";
+      }
       const annotation: Annotation = {
         id: crypto.randomUUID(),
         docId: doc.docId,
@@ -709,6 +746,10 @@ export function ReaderScreen() {
         updatedAt: nowIso(),
       };
       await lm.annotations.add(annotation);
+      return "added";
+    } catch {
+      // A failed write must not look like success; the notice surfaces it.
+      return "failed";
     }
   }, [doc, resolveChapterId]);
 
@@ -723,17 +764,34 @@ export function ReaderScreen() {
     setPanel(next);
   }, []);
 
-  const goToHref = useCallback(async (href: string) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    paceRef.current?.breakSession(Date.now());
-    seekingRef.current = true;
-    try {
-      await engine.go(href);
-    } finally {
-      seekingRef.current = false;
-    }
+  const goToHref = useCallback(
+    async (href: string): Promise<boolean> => {
+      const nav = navRef.current;
+      if (!nav) return false;
+      return nav.goToHref(href);
+    },
+    []
+  );
+
+  /** Unresolved TOC / search / scrub jumps surface here instead of vanishing. */
+  const showNavNotice = useCallback((message: string) => {
+    if (navNoticeTimerRef.current) clearTimeout(navNoticeTimerRef.current);
+    setNavNotice(message);
+    navNoticeTimerRef.current = setTimeout(() => setNavNotice(null), 4000);
   }, []);
+
+  /** The More menu is controlled here so keyboard (07 §2) and the auto-hide
+   * tick honour it; the component-owned state in ReaderChrome could not. */
+  const setMenu = useCallback((open: boolean) => {
+    menuOpenRef.current = open;
+    setMenuOpen(open);
+  }, []);
+
+  const announceBookmark = useCallback((result: BookmarkResult) => {
+    if (result === "added") showNavNotice("Bookmark added.");
+    else if (result === "removed") showNavNotice("Bookmark removed.");
+    else if (result === "failed") showNavNotice("Couldn't update the bookmark.");
+  }, [showNavNotice]);
 
   const handleScrubStart = useCallback(() => {
     chromeRef.current?.onScrubStart();
@@ -752,15 +810,13 @@ export function ReaderScreen() {
     (percent: number) => {
       chromeRef.current?.onScrubEnd();
       setScrubValue(null);
-      const engine = engineRef.current;
-      if (!engine) return;
-      paceRef.current?.breakSession(Date.now());
-      seekingRef.current = true;
-      void engine.go({ percent }).finally(() => {
-        seekingRef.current = false;
+      const nav = navRef.current;
+      if (!nav) return;
+      void nav.goToPercent(percent).then((ok) => {
+        if (!ok) showNavNotice("Couldn't jump to that position.");
       });
     },
-    []
+    [showNavNotice]
   );
 
   const onMouseMove = useCallback(() => {
@@ -818,13 +874,13 @@ export function ReaderScreen() {
             percent={percent}
             timeLeft={timeLeft}
             scrubValue={scrubValue}
+            menuOpen={menuOpen}
+            onMenuChange={setMenu}
             onBack={() => void handleBack()}
             onAppearance={() => openPanel("appearance")}
             onToc={() => openPanel("toc")}
             onSearch={() => setInbookSearchOpen((v) => !v)}
-            onBookmark={() => {
-              /* Phase 5 */
-            }}
+            onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
             onShareQuote={() => setQuoteCardOpen(true)}
             shareEnabled={!!quoteSelection}
             onScrubStart={handleScrubStart}
@@ -850,8 +906,10 @@ export function ReaderScreen() {
                       type="button"
                       className="folio-inbook-search__result"
                       onClick={() => {
-                        void goToHref(r.locator);
                         setInbookSearchOpen(false);
+                        void goToHref(r.locator).then((ok) => {
+                          if (!ok) showNavNotice("Couldn't reach that search result.");
+                        });
                       }}
                     >
                       <div className="folio-inbook-search__chapter">{r.chapterTitle}</div>
@@ -879,14 +937,12 @@ export function ReaderScreen() {
             entries={toc}
             currentHref={locator?.chapterHref}
             onClose={() => setPanel(null)}
-            onSelect={(href) => void goToHref(href)}
-          />
-
-          <MeaningCard
-            open={meaningOpen}
-            term={meaningTerm}
-            theme={activePrefs.theme}
-            onClose={() => setMeaningOpen(false)}
+            onSelect={(href) => {
+              setPanel(null);
+              void goToHref(href).then((ok) => {
+                if (!ok) showNavNotice("Couldn't reach that section.");
+              });
+            }}
           />
 
           <QuoteCard
@@ -903,11 +959,6 @@ export function ReaderScreen() {
               onHighlight={(color) => void toggleHighlight(color, selection)}
               onNote={() => openNoteEditor(selection)}
               onCopy={() => void handleCopySelection(selection.quote)}
-              onMeaning={() => {
-                setMeaningTerm(selection.quote);
-                setMeaningOpen(true);
-                setSelection(null);
-              }}
             />
           )}
 
@@ -948,6 +999,12 @@ export function ReaderScreen() {
             />
           </FolioDialog>
         </>
+      )}
+
+      {navNotice && (
+        <div className="folio-snackbar folio-snackbar--warn" role="status">
+          {navNotice}
+        </div>
       )}
 
       <ReaderSplash

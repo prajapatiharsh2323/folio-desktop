@@ -14,10 +14,26 @@ function withoutFragment(href: string): string {
   return href.split("#")[0];
 }
 
+function decoded(href: string): string {
+  try {
+    return decodeURIComponent(href);
+  } catch {
+    return href;
+  }
+}
+
+/** Tolerant chapter-href comparison: entries, the locator and the stored
+ * meta can carry different encodings/leading directories for one chapter.
+ * Mirrors the comparison ReaderScreen applies to saved locations. */
+export function tocHrefMatches(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const x = decoded(withoutFragment(a));
+  const y = decoded(withoutFragment(b));
+  return x === y || x.endsWith(`/${y}`) || y.endsWith(`/${x}`);
+}
+
 /** Table of contents panel (03 §5.3/§5.4): 360px, section-maintains. */
 export function TocPanel({ open, entries, currentHref, onClose, onSelect }: TocPanelProps) {
-  const current = currentHref ? withoutFragment(currentHref) : null;
-
   return (
     <FolioPanel open={open} onClose={onClose} title="Contents">
       {entries.length === 0 ? (
@@ -26,7 +42,7 @@ export function TocPanel({ open, entries, currentHref, onClose, onSelect }: TocP
         <nav aria-label="Table of contents">
           <ul className="folio-toc">
             {entries.map((entry, i) => {
-              const active = current !== null && withoutFragment(entry.href) === current;
+              const active = tocHrefMatches(entry.href, currentHref);
               return (
                 <li key={`${entry.href}-${i}`}>
                   <button
