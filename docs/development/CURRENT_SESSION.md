@@ -20,7 +20,9 @@ Google OAuth client ID, or the dictionary pack asset.
     scripts/perf.ts` (`pnpm perf`) — runs end-to-end with machine-readable
     JSON output, see
     [`R-20261031-02`](audits/results/R-20261031-02-performance-method.md)
-- CI `desktop-ci` green for the FT-006 push (Rust 31/0 + frontend).
+- CI `desktop-ci` green for the FT-005 push `90eb62e` (run 41168220633:
+  Windows build + tests, success; cargo test ran on the Windows runner as
+  usual — locally only `cargo fmt` was checked).
 - Not run here: `cargo test` locally (webkit; CI covers it), any Windows
   desktop behaviour.
 
