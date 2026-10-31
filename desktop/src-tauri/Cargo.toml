@@ -22,7 +22,6 @@ serde_json = "1"
 sha2 = "0.10"
 zip = "2"
 thiserror = "1"
-rusqlite = { version = "0.32", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }

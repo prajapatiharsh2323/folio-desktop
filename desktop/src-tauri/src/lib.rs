@@ -5,7 +5,7 @@ mod jumplist;
 mod open_files;
 mod window_state;
 
-use commands::{dict, fs, hash, power, shell, zip};
+use commands::{fs, hash, power, shell, zip};
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {
@@ -32,9 +32,6 @@ pub fn run() {
             shell::open_app_dir,
             shell::library_path,
             power::prevent_display_sleep,
-            dict::dict_sqlite_query,
-            dict::dict_lookup,
-            dict::dict_status,
             open_files::take_pending_launch
         ])
         .setup(|app| {
@@ -44,11 +41,6 @@ pub fn run() {
             let _ = std::fs::create_dir_all(app_dir.join("library"));
             let _ = std::fs::create_dir_all(app_dir.join("user"));
             appdir::set_app_dir(app_dir);
-
-            // Copy + verify the bundled dictionary pack on first run (06 §5).
-            if let Ok(resources) = app.path().resource_dir() {
-                let _ = dict::ensure_installed(Some(resources.as_path()));
-            }
 
             // Open-with / command-line paths for this first launch.
             open_files::remember(open_files::parse_args(std::env::args()));

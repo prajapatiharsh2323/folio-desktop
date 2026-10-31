@@ -16,7 +16,6 @@ import {
 import { useReaderStore } from "../store/readerStore";
 import { DEFAULT_READING_PREFS, READER_THEME_COLORS } from "../model/defaults";
 import type { ReadingPrefs } from "../model/types";
-import { dictStatus, type DictStatus } from "../dict/lookup";
 import {
   createBackup,
   inspectBackup,
@@ -100,7 +99,6 @@ export function SettingsScreen() {
   const [replaceConfirmed, setReplaceConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [dict, setDict] = useState<DictStatus | null>(null);
   const [libPath, setLibPath] = useState(LIBRARY_ROOT);
 
   const loadPrefs = useCallback(async () => {
@@ -138,7 +136,6 @@ export function SettingsScreen() {
   useEffect(() => {
     void loadPrefs();
     void loadStorage();
-    void dictStatus().then(setDict);
     if (isTauri()) {
       void invoke<string>("library_path")
         .then(setLibPath)
@@ -375,18 +372,6 @@ export function SettingsScreen() {
         <FolioSettingsRow
           title="Version"
           helper="0.1.0"
-        />
-        <FolioSettingsRow
-          title="Offline dictionary"
-          helper={
-            dict?.installed
-              ? `${dict.entries?.toLocaleString() ?? "—"} entries · pack installed`
-              : "Pack not installed — see src-tauri/dict/README.md"
-          }
-        />
-        <FolioSettingsRow
-          title="Dictionary attribution"
-          helper="Folio Dictionary (English→Hindi) — FreeDict, GPL-2.0"
         />
       </div>
 
