@@ -4,6 +4,7 @@ import { FolioDialog } from "../components/FolioDialog";
 import { FolioEmptyState } from "../components/FolioEmptyState";
 import { FolioIcons } from "../components/FolioIcons";
 import { FolioRow } from "../components/FolioRow";
+import { useRouteStore, type ReaderOrigin } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
 import type { Collection, ManifestDoc } from "../model/types";
 
@@ -22,8 +23,14 @@ const TINT_VARS = [
 export function CollectionsScreen() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [manifestDocs, setManifestDocs] = useState<ManifestDoc[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Returning from the reader restores the collection the user came from;
+  // readerOrigin survives closeReader exactly long enough to be read here.
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => useRouteStore.getState().readerOrigin?.collectionId ?? null
+  );
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
@@ -31,6 +38,8 @@ export function CollectionsScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
+
+  const openReader = useRouteStore((s) => s.openReader);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,53 +59,88 @@ export function CollectionsScreen() {
 
   const selected = collections.find((c) => c.id === selectedId) ?? null;
 
-  const createCollection = async () => {
-    const name = createName.trim();
-    if (!name) return;
-    const lm = getLibraryManager();
-    await lm.createCollection(name);
-    setCreateName("");
-    setCreateOpen(false);
-    await load();
-  };
+  /**
+   * One gate for every collection action: prevents concurrent submissions,
+   * clears the previous error, and keeps dialogs open on failure so the user
+   * can retry or cancel instead of losing their input.
+   */
+  const runOp = useCallback(
+    async (fn: () => Promise<void>) => {
+      if (busy) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await fn();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "That change didn't go through.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy]
+  );
 
-  const renameCollection = async () => {
-    if (!selected) return;
-    const name = renameName.trim();
-    if (!name) return;
-    const lm = getLibraryManager();
-    await lm.renameCollection(selected.id, name);
-    setRenameOpen(false);
-    await load();
-  };
+  const createCollection = () =>
+    runOp(async () => {
+      const name = createName.trim();
+      if (!name) return;
+      const lm = getLibraryManager();
+      await lm.createCollection(name);
+      setCreateName("");
+      setCreateOpen(false);
+      await load();
+    });
 
-  const deleteCollection = async () => {
-    if (!selected) return;
-    const lm = getLibraryManager();
-    await lm.deleteCollection(selected.id);
-    setSelectedId(null);
-    setDeleteOpen(false);
-    await load();
-  };
+  const renameCollection = () =>
+    runOp(async () => {
+      if (!selected) return;
+      const name = renameName.trim();
+      if (!name) return;
+      const lm = getLibraryManager();
+      await lm.renameCollection(selected.id, name);
+      setRenameOpen(false);
+      await load();
+    });
 
-  const addMembers = async () => {
-    if (!selected) return;
-    const lm = getLibraryManager();
-    await lm.mutateCollectionDocs(selected.id, { add: [...pickerSelected] });
-    setPickerSelected(new Set());
-    setPickerOpen(false);
-    await load();
-  };
+  const deleteCollection = () =>
+    runOp(async () => {
+      if (!selected) return;
+      const lm = getLibraryManager();
+      await lm.deleteCollection(selected.id);
+      setSelectedId(null);
+      setDeleteOpen(false);
+      await load();
+    });
 
-  const removeMember = async (docId: string) => {
-    if (!selected) return;
-    const lm = getLibraryManager();
-    await lm.mutateCollectionDocs(selected.id, { remove: [docId] });
-    await load();
-  };
+  const addMembers = () =>
+    runOp(async () => {
+      if (!selected) return;
+      const lm = getLibraryManager();
+      await lm.mutateCollectionDocs(selected.id, { add: [...pickerSelected] });
+      setPickerSelected(new Set());
+      setPickerOpen(false);
+      await load();
+    });
 
-  const titleOf = (id: string) =>
-    manifestDocs.find((d) => d.id === id)?.title ?? "Untitled";
+  const removeMember = (docId: string) =>
+    runOp(async () => {
+      if (!selected) return;
+      const lm = getLibraryManager();
+      await lm.mutateCollectionDocs(selected.id, { remove: [docId] });
+      await load();
+    });
+
+  const openMember = (docId: string) =>
+    runOp(async () => {
+      if (!selected) return;
+      const origin: ReaderOrigin = {
+        route: "collections",
+        collectionId: selected.id,
+      };
+      openReader({ docId }, origin);
+    });
+
+  const titleOf = (id: string) => manifestDocs.find((d) => d.id === id)?.title ?? null;
 
   // ---- Gallery ----
   if (!selected) {
@@ -146,7 +190,7 @@ export function CollectionsScreen() {
                           transform: `rotate(${(i - 1) * 6}deg) translateX(${(i - 1) * 6}px)`,
                         }}
                       >
-                        {titleOf(id).slice(0, 2).toUpperCase()}
+                        {(titleOf(id) ?? "Untitled").slice(0, 2).toUpperCase()}
                       </span>
                     ))}
                     {c.docIds.length === 0 && (
@@ -172,10 +216,10 @@ export function CollectionsScreen() {
           title="New collection"
           actions={
             <>
-              <FolioButton variant="secondary" onClick={() => setCreateOpen(false)}>
+              <FolioButton variant="secondary" onClick={() => setCreateOpen(false)} disabled={busy}>
                 Cancel
               </FolioButton>
-              <FolioButton variant="primary" onClick={() => void createCollection()}>
+              <FolioButton variant="primary" onClick={() => void createCollection()} disabled={busy}>
                 Create
               </FolioButton>
             </>
@@ -191,15 +235,28 @@ export function CollectionsScreen() {
             autoFocus
           />
         </FolioDialog>
+
+        {error && (
+          <div className="folio-snackbar folio-snackbar--warn" role="alert">
+            {error}
+          </div>
+        )}
       </>
     );
   }
 
   // ---- Detail ----
-  const members = selected.docIds.map((id) => ({
-    id,
-    title: titleOf(id),
-  }));
+  const members = selected.docIds.map((id) => {
+    const found = titleOf(id);
+    // Collections keep docIds of docs the manifest no longer lists (a damaged
+    // folder was pruned, or a backup merge removed it): surface that instead
+    // of offering a dead open action.
+    return {
+      id,
+      title: found ?? "Untitled",
+      missing: found === null,
+    };
+  });
   const available = manifestDocs.filter((d) => !selected.docIds.includes(d.id));
 
   return (
@@ -263,12 +320,31 @@ export function CollectionsScreen() {
         ) : (
           <div className="folio-collection-members">
             {members.map((m) => (
-              <FolioRow key={m.id} className="folio-row--clickable">
-                <div className="folio-collection-member__title">{m.title}</div>
+              // Row stays a div: a row-level button wrapping the remove action
+              // would nest buttons. Title and remove are separate controls.
+              <FolioRow key={m.id}>
+                <button
+                  type="button"
+                  className="folio-collection-member__open"
+                  onClick={() => void openMember(m.id)}
+                  title={m.missing ? "This book is no longer in your library" : m.title}
+                  aria-label={
+                    m.missing ? `${m.title} (missing from library)` : `Open ${m.title}`
+                  }
+                  disabled={m.missing}
+                >
+                  <span className="folio-collection-member__title">
+                    {m.title}
+                    {m.missing && (
+                      <span className="folio-collection-member__missing"> · missing</span>
+                    )}
+                  </span>
+                </button>
                 <button
                   type="button"
                   className="folio-iconbtn"
                   aria-label={`Remove ${m.title}`}
+                  disabled={busy}
                   onClick={() => void removeMember(m.id)}
                 >
                   <FolioIcons.Close size="sm" />
@@ -279,16 +355,22 @@ export function CollectionsScreen() {
         )}
       </div>
 
+      {error && (
+        <div className="folio-snackbar folio-snackbar--warn" role="alert">
+          {error}
+        </div>
+      )}
+
       <FolioDialog
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
         title="Rename collection"
         actions={
           <>
-            <FolioButton variant="secondary" onClick={() => setRenameOpen(false)}>
+            <FolioButton variant="secondary" onClick={() => setRenameOpen(false)} disabled={busy}>
               Cancel
             </FolioButton>
-            <FolioButton variant="primary" onClick={() => void renameCollection()}>
+            <FolioButton variant="primary" onClick={() => void renameCollection()} disabled={busy}>
               Save
             </FolioButton>
           </>
@@ -310,10 +392,10 @@ export function CollectionsScreen() {
         title="Delete this collection?"
         actions={
           <>
-            <FolioButton variant="secondary" onClick={() => setDeleteOpen(false)}>
+            <FolioButton variant="secondary" onClick={() => setDeleteOpen(false)} disabled={busy}>
               Cancel
             </FolioButton>
-            <FolioButton variant="danger" onClick={() => void deleteCollection()}>
+            <FolioButton variant="danger" onClick={() => void deleteCollection()} disabled={busy}>
               Delete
             </FolioButton>
           </>
@@ -335,7 +417,7 @@ export function CollectionsScreen() {
             </FolioButton>
             <FolioButton
               variant="primary"
-              disabled={pickerSelected.size === 0}
+              disabled={pickerSelected.size === 0 || busy}
               onClick={() => void addMembers()}
             >
               Add

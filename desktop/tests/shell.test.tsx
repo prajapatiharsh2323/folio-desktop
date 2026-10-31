@@ -20,7 +20,7 @@ function render(ui: React.ReactElement) {
 
 describe("shell", () => {
   beforeEach(() => {
-    useRouteStore.setState({ route: "library" });
+    useRouteStore.setState({ route: "library", readerRequest: null, readerOrigin: null });
     render(<Shell />);
     return () => {
       act(() => root?.unmount());
@@ -60,5 +60,58 @@ describe("shell", () => {
     });
     expect(useRouteStore.getState().route).toBe("collections");
     expect(document.querySelector(".folio-toolbar__title")?.textContent).toBe("Collections");
+  });
+});
+
+describe("reader origin tracking (04 §5 navigation)", () => {
+  beforeEach(() => {
+    useRouteStore.setState({ route: "library", readerRequest: null, readerOrigin: null });
+  });
+
+  it("captures the current route as the origin when none is given", () => {
+    useRouteStore.setState({ route: "notes" });
+    useRouteStore.getState().openReader({ docId: "d1" });
+    const state = useRouteStore.getState();
+    expect(state.route).toBe("reader");
+    expect(state.readerOrigin?.route).toBe("notes");
+  });
+
+  it("returns to the origin route on closeReader", () => {
+    useRouteStore.getState().openReader(
+      { docId: "d1" },
+      { route: "collections", collectionId: "c1" }
+    );
+    useRouteStore.getState().closeReader();
+    const state = useRouteStore.getState();
+    expect(state.route).toBe("collections");
+    expect(state.readerRequest).toBeNull();
+    // Origin survives close so CollectionsScreen can restore its selection.
+    expect(state.readerOrigin?.collectionId).toBe("c1");
+  });
+
+  it("falls back to the library when no origin exists", () => {
+    useRouteStore.setState({ route: "reader", readerOrigin: null });
+    useRouteStore.getState().closeReader();
+    expect(useRouteStore.getState().route).toBe("library");
+  });
+
+  it("clears the origin on sidebar navigation", () => {
+    useRouteStore.getState().openReader(
+      { docId: "d1" },
+      { route: "collections", collectionId: "c1" }
+    );
+    useRouteStore.getState().closeReader();
+    expect(useRouteStore.getState().readerOrigin).not.toBeNull();
+    useRouteStore.getState().setRoute("settings");
+    expect(useRouteStore.getState().readerOrigin).toBeNull();
+  });
+
+  it("re-opening from inside the reader keeps the previous origin", () => {
+    useRouteStore.getState().openReader(
+      { docId: "d1" },
+      { route: "notes" }
+    );
+    useRouteStore.getState().openReader({ docId: "d2" });
+    expect(useRouteStore.getState().readerOrigin?.route).toBe("notes");
   });
 });

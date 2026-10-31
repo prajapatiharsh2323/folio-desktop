@@ -484,6 +484,12 @@
   to { transform: translate(-50%, 0); opacity: 1; }
 }
 
+/* Operation-failure tone (collections errors) */
+.folio-snackbar--warn {
+  background: var(--folio-danger);
+  color: var(--folio-on-accent);
+}
+
 /* ---- Notes screen (03 §5.6) ---- */
 .folio-notes-list {
   display: flex;
@@ -719,11 +725,45 @@
   flex-direction: column;
 }
 
+/* Title as the actual open action; the row itself is not a button so that
+   the remove action stays independent (no nested buttons). */
+.folio-collection-member__open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: var(--folio-space-2) var(--folio-space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--folio-radius-card);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--folio-motion-hover) ease;
+}
+
+.folio-collection-member__open:hover:not(:disabled) {
+  background: var(--folio-surface-subtle);
+}
+
+.folio-collection-member__open:disabled {
+  color: var(--folio-text-secondary);
+  cursor: default;
+}
+
 .folio-collection-member__title {
   flex: 1;
   font-size: var(--folio-type-body-strong-size);
   color: var(--folio-text-primary);
+  overflow-wrap: anywhere;
 }
+
+.folio-collection-member__missing {
+  font-size: var(--folio-type-micro-size);
+  color: var(--folio-text-secondary);
+}
+
 
 .folio-picker-list {
   display: flex;
@@ -762,51 +802,6 @@
 .folio-library-row__check {
   width: 20px;
   height: 20px;
-}
-
-/* ---- Dictionary meaning card (06 �5) ---- */
-.folio-meaning {
-  border-radius: var(--folio-radius-md);
-  padding: var(--folio-space-4);
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-.folio-meaning__entry + .folio-meaning__entry {
-  margin-top: var(--folio-space-4);
-}
-
-.folio-meaning__headword {
-  margin: 0 0 var(--folio-space-2);
-  font-size: var(--folio-type-title-size);
-  font-weight: 600;
-}
-
-.folio-meaning__sense {
-  margin: 0 0 var(--folio-space-2);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--folio-space-2);
-  align-items: baseline;
-}
-
-.folio-meaning__pos {
-  font-style: italic;
-  opacity: 0.7;
-  font-size: var(--folio-type-micro-size);
-}
-
-.folio-meaning__example {
-  display: block;
-  width: 100%;
-  opacity: 0.7;
-  font-size: var(--folio-type-micro-size);
-}
-
-.folio-meaning__attribution {
-  margin: var(--folio-space-3) 0 0;
-  font-size: var(--folio-type-micro-size);
-  color: var(--folio-text-secondary);
 }
 
 .folio-link {
