@@ -19,9 +19,12 @@ history.
 
 IDs:
 
-- `A-UI-YYYYMMDD-NN` — UI/UX finding.
+- `A-UI-YYYYMMDD-NN` — finding ID *inside* an audit report.
+- `A-YYYYMMDD-NN` — audit report file (e.g. `A-20261031-01-accessibility.md`).
 - `A-BUG-YYYYMMDD-NN` — bug investigation.
 - `R-YYYYMMDD-NN` — verification result.
 
-No audit findings have been recorded yet. The open audit tasks are FT-005
-(performance) and FT-006 (accessibility) in [`../TASKS.md`](../TASKS.md).
+Audits recorded so far: accessibility core pass
+([`A-20261031-01`](ui-ux/A-20261031-01-accessibility.md)). Remaining open audit
+tasks: FT-005 (performance) and the unresolved Windows-runtime accessibility
+items from the accessibility pass.

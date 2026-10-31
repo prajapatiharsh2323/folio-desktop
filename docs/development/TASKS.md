@@ -12,7 +12,7 @@ active or known work; move narrative detail to session/audit records.
 | FT-008 | P1 | Reader correctness: resume by `href`+progression+text anchor, relayout on resize, click/tap regions, annotation + bookmark anchoring | done (code) / blocked (Windows verification) | Linux checks green (`tsc -b`, 143 tests, `vite build`, `cargo fmt`). Locator codec + resume + decorations + click passthrough + teardown/prefs fixes done; real webview click/pagination behaviour needs Windows. Resize relayout deliberately stays with `EpubNavigator`. | [I-20261030-02](plans/implementations/I-20261030-02-reader-locator-correctness.md) |
 | FT-001 | P1 | Taskbar jump list (“Open Folio” / “Import file…”) | done (code) / blocked (Windows runtime verification) | Linux checks green, including the first full-crate Windows-target compile (`cargo check --all-targets --target x86_64-pc-windows-gnu`, exit 0). COM `ICustomDestinationList` impl with the `windows` crate already in the tree; no new dependency. Runtime taskbar behaviour needs a real Windows run. | [I-20261030-03](plans/implementations/I-20261030-03-taskbar-jump-list.md); `.docs/09` §3 |
 | FT-005 | P2 | Performance budget checks: cold open ≤ 1.2 s, page turn ≤ 80 ms, 200 highlights ≤ 400 ms | open | No harness yet. Define measurement method, then record results under `audits/results/`. | `.docs/04` §12 |
-| FT-006 | P2 | Accessibility pass: focus rings, tab order, ARIA, contrast | open | Run a structured audit, file findings under `audits/ui-ux/`. | `.docs/03` §7 |
+| FT-006 | P2 | Accessibility pass: focus rings, tab order, ARIA, contrast | done (code) / partial (runtime) | Audit ran (Linux source + jsdom + token-fixture contrast): 3 findings fixed (dialog focus restore, chip radiogroup ARIA, muted-on-functional-labels), contrast + a11y unit tests added (149 tests / 15 files). Screen-reader pass + ≥48px target decision need a Windows session. | [A-20261031-01](audits/ui-ux/A-20261031-01-accessibility.md) |
 
 ## Blocked work
 
@@ -30,6 +30,7 @@ active or known work; move narrative detail to session/audit records.
 | FT-007 | Backup/restore hardening (Linux side) | done | [`I-20261030-01`](plans/implementations/I-20261030-01-backup-restore-hardening.md), [`S-20261030-01`](sessions/S-20261030-01-backup-restore-hardening.md) |
 | FT-008 | Reader locator correctness (Linux side) | done | [`I-20261030-02`](plans/implementations/I-20261030-02-reader-locator-correctness.md), [`S-20261030-02`](sessions/S-20261030-02-reader-locator-correctness.md) |
 | FT-001 | Taskbar jump list (Linux side) | done | [`I-20261030-03`](plans/implementations/I-20261030-03-taskbar-jump-list.md), [`S-20261030-03`](sessions/S-20261030-03-taskbar-jump-list.md) |
+| FT-006 | Accessibility core pass (audit + fixes) | done | [`A-20261031-01`](audits/ui-ux/A-20261031-01-accessibility.md) |
 
 *(pushed: FT-007–FT-008 by user authorization on 2026-10-30; FT-001 code
 `4cce075` / docs `a5e4a94` likewise)*

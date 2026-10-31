@@ -1,73 +1,59 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261030-03` — taskbar jump list (FT-001)
-**Updated:** 2026-10-31 (CI outcome)
-**Status:** FT-001 committed (`4cce075` code, `a5e4a94` docs, `0b26cab`
-status fix-up) and **pushed to origin/main** with the user's authorization —
-`main` and `origin/main` are in sync. **CI `desktop-ci` is green**, including
-`cargo test --all-targets` (31 passed / 0 failed — the two new `jumplist`
-tests ran on the Windows runner) and the NSIS installer build.
-`session.json` (previous transcript dump) remains the only untracked file.
+**Session:** `S-20261031-01` — accessibility pass (FT-006)
+**Updated:** 2026-10-31
+**Status:** FT-006 core audit + fixes **implemented and pushed**; FT-001–008
+all committed and CI-green on `origin/main`. `session.json` (previous
+transcript dump) remains the only untracked file.
 
 ## Verified current state
 
-- Branch `main`; local commits `2211d7f … 43a6b0b` (6 ahead). Uncommitted:
-  FT-001 code (`jumplist.rs` new, `lib.rs`, `Cargo.toml`, `Cargo.lock`) and
-  these records. `session.json` at the repo root is still the old transcript
-  dump of the failed build session (not code; safe to delete).
-- Linux verification from `desktop/` (2026-10-30, after FT-001 changes):
+- Branch `main` in sync with `origin/main`; all FT work committed and pushed.
+- Linux verification (2026-10-31, after FT-006 changes), from `desktop/`:
   - `./node_modules/.bin/tsc -b` — clean
-  - `./node_modules/.bin/vitest run` — **143 tests / 13 files** passing
-  - `./node_modules/.bin/vite build` — success (existing >500 kB chunk warning)
+  - `./node_modules/.bin/vitest run` — **149 tests / 15 files** passing
+    (+3 contrast, +3 a11y vs. 143/13 before)
+  - `./node_modules/.bin/vite build` — success
   - `cd src-tauri && cargo fmt --all -- --check` — clean
-  - **New gate:** `cargo check --all-targets
-    --target x86_64-pc-windows-gnu` — **exit 0, no warnings** (2m 18s), the
-    first full-crate Windows-target compile on this host. Replication notes:
-    `CARGO_TARGET_DIR=/tmp/...` (the 4.8 GB `/home` partitions fills at 100%
-    mid-build) and `sudo apt-get install mingw-w64` (needed by the
-    `zstd-sys` build script).
-- `cargo test`, `pnpm tauri:dev`/`tauri:build` and all *runtime* behaviours
-  were **not** run here. The jump list's runtime taskbar behaviour also needs
-  a real Windows run. Do not describe them as verified.
+- **CI `desktop-ci` green** for the FT-001 push (Windows runner):
+  `cargo test --all-targets` **31 passed / 0 failed** (the two new
+  `jumplist::tests` ran), NSIS installer built.
+- Not run here: `cargo test` locally (webkit; CI covers it), any Windows
+  desktop session (jump-list runtime behaviour, focus-restore visuals,
+  screen-reader pass, ≥48 px target decision).
 
-## Completed in this session
+## Completed in this session (FT-006 audit, [`A-20261031-01`](audits/ui-ux/A-20261031-01-accessibility.md))
 
-1. FT-001 in `desktop/src-tauri/src/jumplist.rs` (new): two user tasks —
-   "Open Folio" (no args) and "Import file…" (`--import`) — built through COM
-   `ICustomDestinationList` on a dedicated STA thread, best-effort (shell
-   failures can never block launch). Uses the `windows` 0.62 crate already in
-   the dependency tree (only feature flags added to `Cargo.toml` +
-   one-line `Cargo.lock` refresh); `jumplist_win` was audited and rejected as
-   a dependency. Registered as `mod jumplist;` + `jumplist::install()` in the
-   `lib.rs` setup hook, after launch-args parsing (the tasks' argv flows
-   through the existing `open_files::parse_args` pipeline; frontend needs no
-   change).
-2. All records written:
-   [`I-20261030-03`](plans/implementations/I-20261030-03-taskbar-jump-list.md),
-   [`S-20261030-03`](sessions/S-20261030-03-taskbar-jump-list.md);
-   `TASKS.md`, `REMAINING.md`, and both record indexes updated.
-3. Caught 6 real compile errors early via a scratch windows-target check
-   before CI (missing `Win32_UI_Shell_PropertiesSystem` feature, missing
-   `Interface` import for `cast()`, rustc's union-`DerefMut` lint on
-   `ManuallyDrop<PROPVARIANT_0_0>`).
+1. **Contrast made mechanical**: new pure `src/lib/contrast.ts` (WCAG 2.1
+   ratio) + `tests/contrast.test.ts` over the pinned `tokens.json` fixture —
+   approved pairs must be ≥ 4.5:1 on both themes; muted failures are encoded
+   as documented negative cases.
+2. **Fixed A-UI-20261031-01** — `FolioPanel`/`FolioDialog` captured
+   `prevActive` *after* `focusFirstIn` had moved focus, so close never
+   restored focus outside; now captured before. Asserted by
+   `tests/a11y.test.tsx`.
+3. **Fixed A-UI-20261031-02** — `FolioChip` always emitted `aria-pressed`
+   even when callers added `role="radio"`; new `asRadio` prop renders
+   `role="radio"` + `aria-checked` without the clash. Typeface **and now
+   Layout** chips are proper `radiogroup`s.
+4. **Fixed A-UI-20261031-03** — `.folio-section-header` and
+   `.folio-book-row__progress-label` switched from 3.1–3.5:1 muted to
+   `--folio-text-secondary` (§7: muted never for functional labels).
+5. **Recorded unresolved**: interactive targets 40/32 px vs. §7's ≥ 48 px
+   (spec §4/§7 conflict + needs visual verify), screen-reader live-region
+   pass, and the `.docs/03` §7 "7:1" parenthetical discrepancy (measured
+   5.09:1) as a spec note.
+6. Audits indexes (`audits/README.md`, `audits/ui-ux/README.md`),
+   `TASKS.md` updated; `S-20261031-01` session record written.
 
 ## Open work
 
-See [`TASKS.md`](TASKS.md). All of FT-001/007/008 still need Windows runtime
-verification; remaining open items: perf budgets (FT-005), a11y audit
-(FT-006), scaling check (FT-002), Drive E2E (FT-003), dictionary pack (FT-004).
-Committing/pushing requires explicit user authorization.
+See [`TASKS.md`](TASKS.md). Remaining: FT-005 perf budgets (no harness yet),
+Windows-runtime verifications (jump list, reader, focus visuals,
+screen reader, scaling), FT-003 Drive E2E, FT-004 dictionary pack.
 
 ## Exact next action
 
-1. ~Nothing pending on Git: committed (`4cce075` code, `a5e4a94` docs,
-   `0b26cab` status fix-up) and pushed to `origin/main` with user
-   authorization; both CI `desktop-ci` runs green (Windows runner):
-   `cargo test --all-targets` **31 passed / 0 failed** (the two new
-   `jumplist::tests` cases ran), fmt, tsc, Vitest, `vite build`, NSIS
-   installer artifact.
-2. Remaining open work needs either a real Windows desktop session
-   (runtime verification: FT-001 pinned-icon tasks, FT-007 restore swap,
-   FT-008 reader interactions, scaling check FT-002) or new ground
-   (perf budget FT-005, a11y audit FT-006, Drive E2E FT-003, dict pack
-   FT-004) — see [`TASKS.md`](TASKS.md).
+1. Push/commit handled this session. Remaining approval-free code-side task:
+   FT-005 measurement-method definition; everything else needs a Windows
+   session or external credentials.
