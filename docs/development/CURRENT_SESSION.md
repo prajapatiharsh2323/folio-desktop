@@ -6,8 +6,9 @@
 coordination, menus/keyboard, and the dictionary removed — see
 [`I-20261031-05`](plans/implementations/I-20261031-05-audit-repair-batch-1.md)
 and [`S-20261031-05`](sessions/S-20261031-05-audit-repair-batch-1.md).
-Committed and pushed to `origin/main` on 2026-10-31 (four topic commits,
-`06f7338..db9708b`) with user authorization.
+Committed and pushed to `origin/main` on 2026-10-31 (batch 1 `06f7338..db9708b`,
+CI green; later FT-012 slices `4920418..bba37e7` pushed, CI not yet observed)
+with user authorization.
 
 ## Verified state (Linux, this session)
 
@@ -40,9 +41,10 @@ Committed and pushed to `origin/main` on 2026-10-31 (four topic commits,
   `ReadingPrefs` shape guard).
 - Linux verification: `tsc -b` clean; **167 Vitest tests / 17 files** passing;
   `vite build` success.
-- **Uncommitted** — commit/push needs explicit user authorization. Remaining
-  FT-012 halves are visual (Windows session) and were deliberately not
-  attempted here.
+- Pushed to `origin/main` on 2026-10-31 with user authorization
+  (`4920418..bba37e7`, CI never observed yet on these). Remaining FT-012
+  halves are visual (Windows session) and were deliberately not attempted
+  here.
 
 ## 2026-10-31 (later): FT-012 slice 2 — pointer parity (Linux, this commit)
 
