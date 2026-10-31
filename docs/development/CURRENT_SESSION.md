@@ -1,56 +1,45 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261031-03` — Google Drive sync removal
+**Session:** `S-20261031-04` — first Windows run; startup crash found and fixed
 **Updated:** 2026-10-31
-**Status:** Drive sync **removed entirely** (user decision); ZIP backup is the
-only library portability path. See
-[D-20261031-03](decisions/D-20261031-03-google-drive-sync-removal.md).
-All code-side tasks (FT-001…FT-008) have their Linux-side work done; every
-remaining item needs a Windows desktop session or the dictionary pack asset
-(FT-003 is retired with the feature).
-`session.json` (previous transcript dump) remains the only untracked file.
+**Status:** the app now builds, launches, and stays open on Windows. The crash
+was a jump-list COM defect ([A-BUG-20261031-01](audits/bugs/A-BUG-20261031-01-jumplist-startup-crash.md)).
+All changes are **uncommitted**; commit/push needs explicit authorization.
 
-## Completed in this session (Google Drive sync removal)
+## What happened
 
-Deleted: `desktop/src/sync/` (6 modules), `src-tauri/src/oauth.rs`,
-`src/components/CloudSyncSection.tsx`, `src/components/SyncScheduler.tsx`,
-`tests/sync.test.ts`, and all wiring — Shell/Settings callsites, `lib.rs`
-`mod oauth` + `oauth_*` handlers, `libraryPaths.syncState`, the
-`.folio-sync-*` CSS block, Cargo deps (`keyring`, `reqwest`, `base64`,
-`rand`, `url`; lockfile pruned), and every Google host in the CSP.
-Untouched: `desktop/src/backup/`, `tests/backup.test.ts`, Settings Backup
-section, `Manifest.libraryId` (schema-1, carried by backup v2 metadata).
+1. Built the app on the Windows host (first time full verification was possible
+   here): `tsc -b` clean, Vitest 140/140, `vite build`, `pnpm tauri build` (NSIS).
+2. User reported “the app closes when I start it”. Reproduced: exit code
+   `0xC0000374` (`STATUS_HEAP_CORRUPTION`), Event Viewer 1000 in `ntdll.dll`.
+3. Bisected to `jumplist::link_for()`: the `PKEY_Title` `VT_LPWSTR` pointed at a
+   Rust `Vec<u16>`; the shell frees those values with `CoTaskMemFree`, so the
+   Rust heap block was corrupted at startup.
+4. Fixed with `CoTaskMemAlloc` + `PropVariantClear`; the title is also required
+   for `AddUserTasks` (it returned `E_INVALIDARG` without it).
+5. Re-verified: release exe and the reinstalled `%LOCALAPPDATA%\Folio` copy both
+   open the `Folio` window and stay up; installer rebuilt with the fix.
 
-## Verified current state
+## Verified current state (Windows 11 26100, this host)
 
-- Linux verification (2026-10-31), from `desktop/` — re-run end-to-end after
-  resuming the interrupted session, same results:
-  - `./node_modules/.bin/tsc -b` — clean
-  - `./node_modules/.bin/vitest run` — **140 tests / 14 files** passing
-    (the 9 deleted sync tests are the only delta from 149/15; two pre-existing
-    `act(...)` warnings in `shell.test.tsx`)
-  - `./node_modules/.bin/vite build` — success
-  - `cd src-tauri && cargo fmt --all -- --check` — clean; `Cargo.lock` pruned
-    by offline re-resolution (236 orphaned lines gone, no version bumps,
-    no dangling references)
-- Not run here: `cargo test` / Tauri build (Windows-only toolchain; per
-  AGENTS.md do not mark them verified from this host). CI will run them on
-  the Windows runner after the next authorized push.
+- `pnpm exec tsc -b` — clean
+- `pnpm exec vitest run` — **140 tests / 14 files** passing
+- `pnpm exec vite build` — success
+- `pnpm tauri build` — success; `Folio_0.1.0_x64-setup.exe` (3.74 MiB) rebuilt
+  with the fix and installed silently over the previous copy
+- `cargo fmt --all -- --check` — clean
+- Manual launch (build tree + installed copy) — window opens, no fault events
+- `cargo test --all-targets` on Windows — see `TASKS.md` “Verified state”
 
-## Open work (all blocked on non-code resources)
+## Open work
 
-- Windows session: budget verdicts (FT-005), jump-list runtime checks
-  (FT-001), reader/focus/screen-reader verifications (FT-006/008), restore
-  swap (FT-007), scaling (FT-002).
-- Asset: FT-004 dictionary pack (`mobile/tools/build_dict.py` — the mobile
-  tree is absent from this repo).
-- Historical note: users of older builds may still have an unused
-  `<appDir>/sync/state.json` and a Windows Credential Manager refresh token;
-  both are inert now.
+- FT-001 visual check: pin Folio, right-click, confirm “Open Folio” /
+  “Import file…” appear and launch.
+- FT-002/FT-005/FT-006/FT-008 runtime items: unchanged, still Windows-session
+  work (`R-20261031-02`, `A-20261031-01`).
+- FT-004 dictionary pack: still an external release asset.
 
 ## Exact next action
 
-No further code-side work is actionable on this host. The next useful step is
-a Windows run following the procedures in `R-20261031-02` and
-`A-20261031-01`, or the remaining external-resource tasks. Any push/commit
-needs explicit user authorization.
+Check the pinned taskbar jump list, then run the FT-005 performance procedure.
+Commit/push of this session's fix needs user approval first.

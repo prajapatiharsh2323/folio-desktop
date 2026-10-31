@@ -72,6 +72,13 @@ exists, use `./node_modules/.bin/tsc -b`, `./node_modules/.bin/vitest run`, and
   network requests. Do not reintroduce network hosts into the CSP.
 - The dictionary pack is a release asset, not in the repo. Until it is placed in
   `desktop/src-tauri/dict/`, Settings reports “Pack not installed”.
+- **COM string values must use task memory.** A `VT_LPWSTR` in a
+  `PROPVARIANT` (for example `PKEY_Title` on a jump-list `IShellLink`) is
+  freed by the shell with `CoTaskMemFree`. Backing it with a Rust `Vec` buffer
+  corrupted the process heap and killed the app at startup
+  (`0xC0000374`) — see
+  [`A-BUG-20261031-01`](audits/bugs/A-BUG-20261031-01-jumplist-startup-crash.md).
+  Allocate with `CoTaskMemAlloc` and release with `PropVariantClear`.
 
 ## Architecture
 

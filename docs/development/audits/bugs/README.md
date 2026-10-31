@@ -1,10 +1,10 @@
 # Bug Investigations
 
-Index of bug investigations. No investigations have been recorded yet.
+Index of bug investigations.
 
 | ID | Date | Area | Status | Report |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| A-BUG-20261031-01 | 2026-10-31 | Jump-list `PKEY_Title` PROPVARIANT — startup heap corruption | fixed | [`A-BUG-20261031-01-jumplist-startup-crash.md`](A-BUG-20261031-01-jumplist-startup-crash.md) |
 
 ## Convention
 

@@ -11,6 +11,7 @@ short live checkpoint and put narrative history here.
 | S-20261030-03 | 2026-10-30 | Taskbar jump list (FT-001) | Complete; committed (`4cce075`) + pushed, CI green | [`S-20261030-03-taskbar-jump-list.md`](S-20261030-03-taskbar-jump-list.md) |
 | S-20261031-01 | 2026-10-31 | Accessibility pass (FT-006) | Complete (code side); committed + pushed; screen-reader/target-size items open | [`S-20261031-01-accessibility.md`](S-20261031-01-accessibility.md) |
 | S-20261031-02 | 2026-10-31 | Performance budget harness + method (FT-005) | Harness + method + Linux baseline done; committed + pushed; runtime verdicts pending Windows | [`S-20261031-02-perf-budget-harness.md`](S-20261031-02-perf-budget-harness.md) |
+| S-20261031-04 | 2026-10-31 | First Windows run: jump-list startup crash fixed (FT-001) | Complete; heap-corruption fix verified at runtime; uncommitted | [`S-20261031-04-jumplist-startup-crash.md`](S-20261031-04-jumplist-startup-crash.md) |
 
 ## Convention
 
