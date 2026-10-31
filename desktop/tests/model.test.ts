@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Annotation, DocMeta, Progress } from "../src/model/types";
 import { serializeJson } from "../src/store/jsonio";
+import { clampMaxWidth } from "../src/model/defaults";
 
 const F = (name: string) =>
   JSON.parse(readFileSync(resolve(process.cwd(), "tests/fixtures", name), "utf8"));
@@ -59,4 +60,36 @@ describe("schema-1 byte compatibility", () => {
       expect(types).toContain(v);
     }
   });
+
+  it("schema-1 ReadingPrefs shape is preserved (fields must not disappear)", async () => {
+    const types = readFileSync(resolve(process.cwd(), "src/model/types.ts"), "utf8");
+    for (const key of DEFAULT_READING_PREFS_KEYS) {
+      expect(types).toContain(`${key}: number`);
+    }
+  });
 });
+
+describe("reading-width clamp (04 §3 maxWidth)", () => {
+  it("0 stays exactly 0 (full width, uncapped)", () => {
+    expect(clampMaxWidth(0)).toBe(0);
+    expect(clampMaxWidth(-5)).toBe(0);
+  });
+
+  it("clamps to the 480..1600 range and steps of 20 px", () => {
+    expect(clampMaxWidth(100)).toBe(480);
+    expect(clampMaxWidth(9999)).toBe(1600);
+    expect(clampMaxWidth(812)).toBe(820);
+    expect(clampMaxWidth(811)).toBe(820); // rounds half-up to the 20 px step
+    expect(clampMaxWidth(800)).toBe(800);
+  });
+});
+
+const DEFAULT_READING_PREFS_KEYS = [
+  "fontSize",
+  "lineHeight",
+  "margin",
+  "paragraphSpacing",
+  "letterSpacing",
+  "maxWidth",
+  "brightness",
+];

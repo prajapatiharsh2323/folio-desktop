@@ -184,6 +184,11 @@ export function ReaderScreen() {
 
   const theme = resolveReaderTheme(prefs.theme, systemDark);
   const activePrefs = doc ? prefs : DEFAULT_READING_PREFS;
+  // Reading-width cap (04 §3): `maxWidth` constrains the reading column only —
+  // chrome, panels and search float over the full window unmoved.
+  // 0 = no cap. The canvas is `position: absolute; inset: 0`, so `margin: 0
+  // auto` centers the capped column.
+  const readingWidth = activePrefs.maxWidth > 0 ? activePrefs.maxWidth : null;
 
   // ---- load the schema-1 doc for the route request -------------------------
   useEffect(() => {
@@ -857,7 +862,11 @@ export function ReaderScreen() {
       }
       onMouseMove={onMouseMove}
     >
-      <div ref={canvasRef} className="folio-reader__canvas" />
+      <div
+        ref={canvasRef}
+        className="folio-reader__canvas"
+        style={readingWidth ? { maxWidth: readingWidth, margin: "0 auto" } : undefined}
+      />
 
       <div
         className="folio-reader__scrim"

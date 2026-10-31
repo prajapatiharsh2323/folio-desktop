@@ -21,8 +21,25 @@ Committed and pushed to `origin/main` on 2026-10-31 (four topic commits,
 ## Exact next action
 
 1. Windows session: run FT-009/010/011 runtime checks (collections
-   round-trip, click zones, TOC/search jumps, menu auto-hide), then rebuild
-   the NSIS installer with the dictionary-free tree.
+    round-trip, click zones, TOC/search jumps, menu auto-hide), then rebuild
+    the NSIS installer with the dictionary-free tree.
 2. Then the previously queued items: FT-005/FT-008 Windows measurements,
-   FT-002 scaling check.
+    FT-002 scaling check.
 3. Commit/push only with user approval (per AGENTS.md git safety).
+
+## 2026-10-31 (later): FT-012 slice 1 — reading width (Linux, uncommitted)
+
+- The dead `maxWidth` schema field now works (04 §3 "desktop may honor as
+  column cap"): `ReaderScreen` caps the reading canvas
+  (`max-width` + `margin: 0 auto`, centering an absolutely-positioned canvas);
+  chrome/panels/search are untouched.
+- Appearance panel: new "Reading width" section — "Full width" chip (0) plus
+  a 480..1600 px slider stepped 20 px; `clampMaxWidth` added to
+  `model/defaults.ts`.
+- Tests: `model.test.ts` gained 3 cases (clamp behavior + schema-1
+  `ReadingPrefs` shape guard).
+- Linux verification: `tsc -b` clean; **167 Vitest tests / 17 files** passing;
+  `vite build` success.
+- **Uncommitted** — commit/push needs explicit user authorization. Remaining
+  FT-012 halves are visual (Windows session) and were deliberately not
+  attempted here.

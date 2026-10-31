@@ -9,6 +9,7 @@ import {
   clampLetterSpacing,
   clampLineHeight,
   clampMargin,
+  clampMaxWidth,
   clampParagraphSpacing,
   READER_THEME_COLORS,
 } from "../model/defaults";
@@ -170,6 +171,39 @@ export function AppearancePanel({
               onChange={(e) => patch({ margin: clampMargin(Number(e.currentTarget.value)) })}
             />
             <span className="folio-control-value">{prefs.margin}px</span>
+          </div>
+        </section>
+
+        <section className="folio-appearance__group">
+          <FolioSectionHeader>Reading width</FolioSectionHeader>
+          <div className="folio-wrap-row" role="radiogroup" aria-label="Reading width mode">
+            <FolioChip
+              selected={prefs.maxWidth === 0}
+              asRadio
+              onClick={() => patch({ maxWidth: 0 })}
+            >
+              Full width
+            </FolioChip>
+          </div>
+          <div className="folio-slider-row">
+            <input
+              type="range"
+              className="folio-slider"
+              min={480}
+              max={1600}
+              step={20}
+              // No cap → show the midpoint as the slider's resting value (disabled).
+              value={prefs.maxWidth > 0 ? prefs.maxWidth : 1040}
+              disabled={prefs.maxWidth === 0}
+              aria-label="Reading width"
+              aria-valuetext={
+                prefs.maxWidth > 0 ? `${prefs.maxWidth} pixels` : "full width"
+              }
+              onChange={(e) => patch({ maxWidth: clampMaxWidth(Number(e.currentTarget.value)) })}
+            />
+            <span className="folio-control-value">
+              {prefs.maxWidth > 0 ? `${prefs.maxWidth}px` : "—"}
+            </span>
           </div>
         </section>
 

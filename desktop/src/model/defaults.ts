@@ -50,6 +50,14 @@ export function clampLetterSpacing(v: number): number {
   return Math.min(0.1, Math.max(0, Math.round(v * 100) / 100));
 }
 
+/** Reading-width cap (04 §3 `maxWidth`): 0 = full width; otherwise 480..1600 px
+ *  rounded to the 20 px slider step. */
+export function clampMaxWidth(px: number): number {
+  if (px <= 0) return 0;
+  const stepped = Math.round(px / 20) * 20;
+  return Math.min(1600, Math.max(480, stepped));
+}
+
 /** percent 0..100, one decimal (05 §3). */
 export function roundPercent(x: number): number {
   return Math.min(100, Math.max(0, Math.round(x * 10) / 10));
