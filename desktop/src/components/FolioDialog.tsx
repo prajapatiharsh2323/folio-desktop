@@ -22,8 +22,8 @@ export function FolioDialog({ open, onClose, title, actions, children }: FolioDi
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    focusFirstIn(dialog);
     const prevActive = document.activeElement as HTMLElement | null;
+    focusFirstIn(dialog);
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {

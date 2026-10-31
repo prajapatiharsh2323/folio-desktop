@@ -21,8 +21,8 @@ export function FolioPanel({ open, onClose, title, width = 360, children }: Foli
     const panel = panelRef.current;
     if (!panel) return;
 
-    focusFirstIn(panel);
     const prevActive = document.activeElement as HTMLElement | null;
+    focusFirstIn(panel);
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {

@@ -139,7 +139,8 @@
   font-weight: var(--folio-type-micro-weight);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--folio-text-muted);
+  /* Functional label → secondary, not muted (03 §7; A-UI-20261031-03) */
+  color: var(--folio-text-secondary);
 }
 
 /* ---- FolioSettingsRow ---- */
@@ -278,7 +279,8 @@
   font-size: var(--folio-type-label-size);
   line-height: var(--folio-type-label-line);
   font-weight: var(--folio-type-label-weight);
-  color: var(--folio-text-muted);
+  /* Percentage is functional copy → secondary, not muted (03 §7) */
+  color: var(--folio-text-secondary);
   min-width: 36px;
   text-align: right;
 }
@@ -762,7 +764,7 @@
   height: 20px;
 }
 
-/* ---- Dictionary meaning card (06 �5) ---- */
+/* ---- Dictionary meaning card (06 �5) ---- */
 .folio-meaning {
   border-radius: var(--folio-radius-md);
   padding: var(--folio-space-4);
@@ -807,7 +809,7 @@
   color: var(--folio-text-secondary);
 }
 
-/* ---- Cloud sync (06 �4) ---- */
+/* ---- Cloud sync (06 �4) ---- */
 .folio-sync-actions {
   display: flex;
   align-items: center;

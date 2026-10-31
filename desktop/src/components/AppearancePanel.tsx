@@ -91,8 +91,7 @@ export function AppearancePanel({
               <FolioChip
                 key={f.value}
                 selected={prefs.fontFamily === f.value}
-                role="radio"
-                aria-checked={prefs.fontFamily === f.value}
+                asRadio
                 style={{ fontFamily: f.css } as CSSProperties}
                 onClick={() => patch({ fontFamily: f.value })}
               >
@@ -216,15 +215,17 @@ export function AppearancePanel({
 
         <section className="folio-appearance__group">
           <FolioSectionHeader>Layout</FolioSectionHeader>
-          <div className="folio-wrap-row">
+          <div className="folio-wrap-row" role="radiogroup" aria-label="Layout">
             <FolioChip
               selected={prefs.flow === "paginated"}
+              asRadio
               onClick={() => patch({ flow: "paginated" })}
             >
               Paginated
             </FolioChip>
             <FolioChip
               selected={prefs.flow === "scrolled"}
+              asRadio
               onClick={() => patch({ flow: "scrolled" })}
             >
               Scrolled
