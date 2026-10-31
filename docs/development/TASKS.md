@@ -64,8 +64,10 @@ active or known work; move narrative detail to session/audit records.
 - **History (kept):** committed and pushed with user approval — `2dce770`
   (FT-007), `72d2a04` (FT-008), FT-001 code `4cce075` + docs `a5e4a94`; CI
   (`desktop-ci`, windows-latest) was green for those pushes. The Drive-sync
-  removal (`bba1d25`, `8b714bb`) and this fix are **not yet pushed**, so CI has
-  not seen them.
+  removal (`bba1d25`, `8b714bb`), the audit repair batch 1 (`6ef55c0`,
+  `99c5c95`, `bb90795`, `db9708b`), and this fix are all pushed to
+  `origin/main` (2026-10-31, with user authorization); CI has not yet been
+  observed on the new commits.
 
 ## Selection guidance
 

@@ -6,8 +6,8 @@
 coordination, menus/keyboard, and the dictionary removed — see
 [`I-20261031-05`](plans/implementations/I-20261031-05-audit-repair-batch-1.md)
 and [`S-20261031-05`](sessions/S-20261031-05-audit-repair-batch-1.md).
-Committed locally on 2026-10-31 (four topic commits); **not pushed** —
-push needs explicit authorization.
+Committed and pushed to `origin/main` on 2026-10-31 (four topic commits,
+`06f7338..db9708b`) with user authorization.
 
 ## Verified state (Linux, this session)
 
