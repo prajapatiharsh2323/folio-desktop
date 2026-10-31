@@ -140,6 +140,10 @@ Ref: `core/search/{MiniSearch,SearchIndex,SearchNormalise,SearchService,SearchSn
 
 ## 7. Backup & Cloud sync UX flows
 
+> **Desktop note (2026-10-31):** the Cloud sync half of this section is
+> **retired** on desktop (removed — see `.docs/05` §6 note); only the Backup
+> flow (§5) is implemented. Mobile copy below kept for reference.
+
 Ref: `core/backup/*`, `core/sync/*` — contracts in `05` §5–§6. Behavior highlights:
 
 - Backup progress state must be cancellable.

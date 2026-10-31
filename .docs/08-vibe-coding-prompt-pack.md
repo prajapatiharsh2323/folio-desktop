@@ -157,6 +157,9 @@ Port UI behaviors per 03 §5.2/§5.5 and 06 §1/§2:
 
 ## Phase 9 — Drive sync (P1)
 
+> **RETIRED 2026-10-31**: Drive sync was removed from the desktop app; do not
+> implement this phase. See D-20261031-03.
+
 ```
 - sync/: port core/sync/* semantics (desktop-docs/05 §6): Folio Library/ layout,
   state.json drive/sha map, newest-wins merge, deletions-never-propagate, docId

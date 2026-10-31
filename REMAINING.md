@@ -25,7 +25,14 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
 - [x] Native F11 fullscreen + Escape exit (`src/lib/fullscreen.ts`, `Shell.tsx`).
 - [ ] OS display-scaling check (100/125/150/200%) on real hardware.
 
-## Phase 9 — Drive sync
+## Phase 9 — Drive sync (removed 2026-10-31)
+
+> The feature shipped behind the items below, but was **removed entirely**
+> (code, OAuth, CSP grants, settings card — see D-20261031-03). The ZIP
+> backup (`desktop/src/backup/`, Settings → Backup) is the only
+> library portability path. The checklist is kept as a historical record;
+> the former `sync/` module, `src-tauri/src/oauth.rs`, `CloudSyncSection`,
+> `SyncScheduler`, and `tests/sync.test.ts` no longer exist.
 
 - [x] Loopback OAuth desktop client: system browser, PKCE S256, ephemeral
       `127.0.0.1` listener, refresh token in Windows Credential Manager,
@@ -38,7 +45,7 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
       opt-in 15-minute auto-sync, status/failure banner + Retry.
 - [x] Rust-side HTTP (`reqwest`) token exchange with native TLS.
 - [ ] End-to-end run against Google Drive with a real OAuth Desktop client ID
-      (credentials are not in the repo; see `desktop/README.md`).
+      (moot — credentials were never in the repo and the feature is removed).
 
 ## Phase 10 — Dictionary
 
@@ -63,13 +70,14 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
       tsc, Vitest, Vite build, `cargo fmt --check`, `cargo test`, NSIS build,
       installer artifact.
 - [x] `cargo test` parity for path guard, fs commands, app-dir mapping,
-      window-state clamping, launch parsing, dictionary, OAuth helpers.
+      window-state clamping, launch parsing, dictionary (OAuth helpers were
+      removed with Drive sync, 2026-10-31).
 
 ## Known limitations
 
 - OS display-scaling checks (100/125/150/200%) need real hardware.
-- Drive sync requires a Google OAuth **Desktop app** client ID (build-time env
-  or the in-app field) and network access; it is not exercised in unit tests.
+- The app makes no network requests since Google Drive sync was removed
+  (2026-10-31); cross-device transfer is via ZIP backup/restore.
 - The dictionary pack is a release asset, not checked into the repo; until it is
   present Settings shows “Pack not installed” and the meaning card reports the
   missing pack.

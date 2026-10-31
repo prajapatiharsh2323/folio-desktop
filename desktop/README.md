@@ -153,6 +153,10 @@ pnpm tauri:build      # NSIS / installer
 
 ## Phases 9–11 status (sync, dictionary, platform)
 
+> **Note (2026-10-31):** Phase 9 (Drive sync) was later **removed entirely**
+> — see `docs/development/decisions/D-20261031-03-google-drive-sync-removal.md`.
+> The "Drive sync setup" section below is historical and no longer applies.
+
 - **Phase 9 — done, pending a Google OAuth client ID**:
   - Rust loopback OAuth (`src-tauri/src/oauth.rs`): system browser, PKCE S256, ephemeral `127.0.0.1` listener, `drive.file` scope, refresh token in Windows Credential Manager (`keyring`), access token memory-only.
   - Drive mirror (`src/sync/`): `auth.ts` (token lifecycle), `driveClient.ts` (Drive REST + multipart upload + 401 refresh), `state.ts` (`sync/state.json` driveId/sha map), `engine.ts` (newest-wins, user JSON per-id merge, deletions never propagate, contentHash docId remap, manifest last, remote manifest commit point).

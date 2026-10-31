@@ -112,7 +112,7 @@ library/
     settings.json             # ReadingPrefs (global defaults)
     doc-settings.json         # per-doc ReadingPrefs overrides (desktop keeps writing exactly these)
   index/text/<docId>.json     # per-doc searchable text cache: {schema:1, chapters:[{id,title,order,text}]}
-sync/state.json              # Drive mirror state: {path → {driveId, sha256}}
+sync/state.json              # Drive mirror state — REMOVED 2026-10-31; nothing reads/writes it anymore
 ```
 
 Hard rules carried over from mobile (`LibraryManager.kt`):

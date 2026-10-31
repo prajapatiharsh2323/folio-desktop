@@ -208,6 +208,8 @@ Groups (order):
    consent, auto-sync toggle, "Sync now" + inline progress/status, failure banner w/
    retry (see `06` § sync). Desktop: re-auth happens in a browser pop-out; see
    `09-platform-decisions.md`.
+   *(desktop: REMOVED 2026-10-31 — the Settings screen no longer has a Cloud sync
+   card; see `.docs/05` §6 note.)*
 4. **Storage** — Library size / Folio data / Free space (Rust `StatFs` equivalent).
 5. **About** — version, licenses (the dictionary pack is GPL-2.0 and must be credited:
    "Folio Dictionary (English→Hindi) — FreeDict, GPL-2.0").

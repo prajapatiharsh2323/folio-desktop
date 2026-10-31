@@ -40,8 +40,10 @@ Deliberately **excluded**, exactly as the mobile decisions exclude them:
 - ❌ Markdown export of notes
 - ❌ DRM-protected EPUB (refused via `encryption.xml`/`rights.xml` scan)
 - ❌ Cloud sync on by default (Drive sync is opt-in, manual or scheduled)
+  *(desktop 2026-10-31: Drive sync removed entirely — no sync at all now)*
 - ❌ Multi-user accounts, servers, telemetry, network requests beyond Drive sync +
   external-link opening
+  *(desktop 2026-10-31: the app now makes no network requests at all)*
 
 `ReadingPrefs.pdfZoom` and `ReadingPrefs.maxWidth` are kept in the schema for byte
 compatibility but are inert on desktop too (`maxWidth` may be honored later — it

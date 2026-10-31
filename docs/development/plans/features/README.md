@@ -30,7 +30,7 @@ their content.
 | Search | SPEC-06 | `src/search/` | Implemented |
 | Collections | SPEC-06 | `src/screens/CollectionsScreen.tsx`, `src/store/` | Implemented |
 | Settings + backup | SPEC-06 | `src/screens/SettingsScreen.tsx` | Implemented |
-| Drive sync | SPEC-05 §6, SPEC-09 | `src/sync/`, `src-tauri/src/oauth.rs` | Implemented; E2E blocked (FT-003) |
+| Drive sync | SPEC-05 §6, SPEC-09 | — | **Removed 2026-10-31** ([D-20261031-03](../../decisions/README.md)); backup is the only portability path |
 | Dictionary | SPEC-06 §5 | `src/dict/`, `src-tauri/src/commands/dict.rs` | Implemented; pack asset missing (FT-004) |
 | Platform integration | SPEC-07, SPEC-09 | `src-tauri/`, `src/lib/` | Mostly done; jump list open (FT-001) |
 

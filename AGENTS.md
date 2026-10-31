@@ -38,11 +38,12 @@ If `pnpm` is unavailable but `desktop/node_modules` exists, use
 
 ## Build-platform limit
 
-The full Rust/Tauri build is **Windows-first**: `keyring` uses `windows-native`,
-and this Linux environment lacks `webkit2gtk`/`gtk3`. CI runs on
-`windows-latest` only. Linux verification is limited to `tsc`, Vitest, and the
-Vite frontend build. Never claim a Tauri/`cargo` build passed unless it actually
-ran on a supported host.
+The full Rust/Tauri build is **Windows-first**: this Linux environment lacks
+`webkit2gtk`/`gtk3` (the sync-only `keyring`/`reqwest` crates were removed with
+Drive sync, 2026-10-31; see D-20261031-03). CI runs on `windows-latest` only.
+Linux verification is limited to `tsc`, Vitest, and the Vite frontend build.
+Never claim a Tauri/`cargo` build passed unless it actually ran on a supported
+host.
 
 ## Must-not-break rules
 
@@ -52,8 +53,6 @@ ran on a supported host.
 - **Manifest is the commit point.** Write doc data → `meta.json` →
   `manifest.json` **last**; use `LibraryManager` mutators (dual-write collection
   ids, cascade deletes) instead of hand-editing files.
-- **Sync semantics:** newest-wins, per-id user-JSON merge, **deletions never
-  propagate**, manifest uploaded last. See `desktop/src/sync/`.
 - **Path ownership:** TypeScript owns all library layout
   (`desktop/src/lib/libraryPaths.ts`) under the virtual root `/folio-library`;
   Rust maps that prefix (`desktop/src-tauri/src/appdir.rs`) and must not
@@ -61,8 +60,9 @@ ran on a supported host.
 - **Fixtures are exact.** `desktop/tests/fixtures/*.json` back byte-identical
   round-trip tests; don't reformat them. `tests/tokens.test.ts` pins CSS tokens
   to `fixtures/tokens.json`; update both deliberately.
-- **Privacy:** no telemetry/analytics; keep the Tauri CSP restricted; only Drive
-  REST traffic when sync is enabled; external URLs are http/https only.
+- **Privacy:** no telemetry/analytics; keep the Tauri CSP restricted; the app
+  makes **no network requests** (Google Drive sync was removed
+  2026-10-31 — D-20261031-03); external URLs are http/https only.
 
 ## Project records
 

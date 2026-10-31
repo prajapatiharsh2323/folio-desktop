@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: **2026-10-30** (session `S-20261030-02`, reader locator correctness).
+Last updated: **2026-10-31** (session `S-20261031-03`, Google Drive sync removal — FT-003 feature retired).
 Statuses: `open`, `in-progress`, `blocked`, `done`. Keep this board limited to
 active or known work; move narrative detail to session/audit records.
 
@@ -19,7 +19,6 @@ active or known work; move narrative detail to session/audit records.
 | ID | Priority | Task | Status | Blocker | Source |
 |---|---|---|---|---|---|
 | FT-002 | P2 | OS display-scaling check at 100/125/150/200% | blocked | Requires real Windows hardware. | `REMAINING.md` |
-| FT-003 | P1 | Drive sync end-to-end against a real Google account | blocked | Requires a Google OAuth **Desktop app** client ID and network; credentials are not in the repo. | `REMAINING.md`; `desktop/README.md` |
 | FT-004 | P1 | Bundle the SQLite dictionary pack | blocked | Pack is a release asset built by `mobile/tools/build_dict.py`; the mobile tree is not in this repo. | `REMAINING.md`; `desktop/src-tauri/dict/README.md` |
 
 ## Completed
@@ -32,6 +31,7 @@ active or known work; move narrative detail to session/audit records.
 | FT-001 | Taskbar jump list (Linux side) | done | [`I-20261030-03`](plans/implementations/I-20261030-03-taskbar-jump-list.md), [`S-20261030-03`](sessions/S-20261030-03-taskbar-jump-list.md) |
 | FT-006 | Accessibility core pass (audit + fixes) | done | [`A-20261031-01`](audits/ui-ux/A-20261031-01-accessibility.md) |
 | FT-005 | Perf harness + method + Linux baseline | done | [`R-20261031-02`](audits/results/R-20261031-02-performance-method.md), [`S-20261031-02`](sessions/S-20261031-02-perf-budget-harness.md) |
+| FT-003 | Drive sync feature — retired with the whole feature (superseded by user decision) | removed | [D-20261031-03](decisions/D-20261031-03-google-drive-sync-removal.md) |
 
 *(pushed: FT-007–FT-008 by user authorization on 2026-10-30; FT-001 code
 `4cce075` / docs `a5e4a94` likewise)*

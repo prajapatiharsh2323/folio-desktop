@@ -8,8 +8,8 @@ Verified against the repository on **2026-10-29** at commit `242778b`
 | Path | Role |
 |---|---|
 | `desktop/` | The application (frontend + Tauri shell). **Run all app commands here.** |
-| `desktop/src/` | React/TypeScript app code: screens, components, stores, reader, import, sync, search, dictionary. |
-| `desktop/src-tauri/` | Thin Rust core: filesystem/zip/hash commands, path guard, app-dir mapping, OAuth, window state, dictionary bridge. |
+| `desktop/src/` | React/TypeScript app code: screens, components, stores, reader, import, search, dictionary. (Drive sync was removed 2026-10-31.) |
+| `desktop/src-tauri/` | Thin Rust core: filesystem/zip/hash commands, path guard, app-dir mapping, window state, dictionary bridge. (OAuth was removed with sync.) |
 | `desktop/tests/` | Vitest suites and exact JSON fixtures. |
 | `.docs/01–09` | Product, architecture, UI/UX, reader, data-model, feature, keyboard, prompt-pack, and platform specs. |
 | `.github/workflows/desktop-ci.yml` | Windows-only CI. |
@@ -60,26 +60,23 @@ exists, use `./node_modules/.bin/tsc -b`, `./node_modules/.bin/vitest run`, and
 
 ## Environment constraints
 
-- **Full builds are Windows-only.** `keyring` is configured with
-  `windows-native`; Linux lacks `webkit2gtk`/`gtk3`. `cargo test` and
+- **Full builds are Windows-only.** Linux lacks `webkit2gtk`/`gtk3`. `cargo test` and
   `pnpm tauri:*` are not valid Linux verification here. Do not claim they
-  passed.
+  passed. (The sync-only `keyring`/`reqwest` crates were removed with Drive
+  sync, 2026-10-31 — see D-20261031-03.)
 - Linux-safe verification: `tsc -b`, Vitest, `vite build`.
 - Vite dev server uses fixed port `1420` (`strictPort`). It ignores
   `**/src-tauri/**` while watching because cargo's locked debug DLL crashed the
   watcher with `EBUSY` on Windows.
-- `VITE_GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_SECRET` are optional build-time
-  env values. The client ID can also be entered in Settings. Never commit real
-  values or a populated `.env`.
-- Google Drive end-to-end sync requires an OAuth **Desktop app** client ID and
-  network access; it is not exercised by unit tests.
+- Google Drive sync was removed (2026-10-31, D-20261031-03); the app makes no
+  network requests. Do not reintroduce network hosts into the CSP.
 - The dictionary pack is a release asset, not in the repo. Until it is placed in
   `desktop/src-tauri/dict/`, Settings reports “Pack not installed”.
 
 ## Architecture
 
 **Frontend owns the application model.** Screens, importers, reader behavior,
-search, annotations, backup/merge, and sync logic are TypeScript. Rust is a thin,
+search, annotations, backup/merge logic are TypeScript. Rust is a thin,
 generic OS bridge and must not parse `DocMeta`/`Manifest` or hardcode Folio
 layout.
 
@@ -87,8 +84,9 @@ layout.
 `fs_read`, `fs_write_atomic`, `fs_delete`, `fs_move`, `fs_stat`, `fs_list_dir`,
 `fs_free_space`, `sha256_file`, `zip_read`, `zip_write`, `open_external_url`,
 `open_app_dir`, `library_path`, `prevent_display_sleep`, `dict_sqlite_query`,
-`dict_lookup`, `dict_status`, OAuth sign-in/refresh/status/sign-out, and
-`take_pending_launch`.
+`dict_lookup`, `dict_status`, and `take_pending_launch`. (The OAuth
+sign-in/refresh/status/sign-out commands were removed with Drive sync,
+2026-10-31.)
 
 **Virtual paths.** TypeScript builds all library paths under `/folio-library`
 (`desktop/src/lib/libraryPaths.ts`). Rust translates that prefix to the real app
@@ -103,9 +101,11 @@ library/manifest.json                 # commit point
 library/docs/<slug>/                  # meta.json, original/, clean/, reading/, cover
 library/user/{annotations,progress,collections,settings,doc-settings}.json
 library/index/text/<docId>.json       # device-local search cache
-<appDir>/sync/state.json              # Drive state
 <appDir>/user/window.json             # desktop-only window geometry
 ```
+
+(Sync had an `<appDir>/sync/state.json`; it is read/written by nothing since
+the 2026-10-31 removal and can be deleted manually.)
 
 **Import pipeline** (`src/import/`): format detection/refusals (PDF, DRM,
 rights, 50 MB cap) → HTML sanitizer → TXT/HTML/EPUB import → deterministic
@@ -115,11 +115,7 @@ commit → recovery detection for damaged docs/interrupted imports.
 **Reader** (`src/reader/`): Readium navigator adapter, positions, TOC/cover
 parsing, themes/typography, progress with write gates, resume cascade, pace,
 chrome state, keep-awake. Reader route is `src/screens/ReaderScreen.tsx`.
-
-**Sync** (`src/sync/`): Drive REST client, loopback OAuth (Rust), `state.json`,
-newest-wins file sync, per-id user-JSON merge, content-hash docId remap,
-deletions never propagate, manifest uploaded last. Auto-sync is opt-in every
-15 minutes.
+(Drive sync was removed 2026-10-31 — see D-20261031-03.)
 
 ## Data-model invariants (highest risk)
 
@@ -136,7 +132,8 @@ Source of truth: `.docs/05-data-model-and-compat.md` and
   doc-settings → manifest last.
 - Content hash is SHA-256 hex. Slugs are lowercase-with-dashes with `-2`
   collision suffixes.
-- Backup ZIP and Drive mirror contracts are defined in `.docs/05` §5–§6.
+- Backup ZIP contract is defined in `.docs/05` §5; the Drive mirror contract
+  (§6) is retired with the feature removal (2026-10-31, D-20261031-03).
 
 ## Testing quirks
 

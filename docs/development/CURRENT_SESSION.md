@@ -1,56 +1,56 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261031-02` — perf budget harness (FT-005)
+**Session:** `S-20261031-03` — Google Drive sync removal
 **Updated:** 2026-10-31
-**Status:** FT-005 harness + method + Linux baseline **implemented and
-pushed**; all code-side tasks (FT-001…FT-008) now have their Linux-side work
-done and recorded. Every remaining item needs a Windows desktop session, a
-Google OAuth client ID, or the dictionary pack asset.
+**Status:** Drive sync **removed entirely** (user decision); ZIP backup is the
+only library portability path. See
+[D-20261031-03](decisions/D-20261031-03-google-drive-sync-removal.md).
+All code-side tasks (FT-001…FT-008) have their Linux-side work done; every
+remaining item needs a Windows desktop session or the dictionary pack asset
+(FT-003 is retired with the feature).
 `session.json` (previous transcript dump) remains the only untracked file.
+
+## Completed in this session (Google Drive sync removal)
+
+Deleted: `desktop/src/sync/` (6 modules), `src-tauri/src/oauth.rs`,
+`src/components/CloudSyncSection.tsx`, `src/components/SyncScheduler.tsx`,
+`tests/sync.test.ts`, and all wiring — Shell/Settings callsites, `lib.rs`
+`mod oauth` + `oauth_*` handlers, `libraryPaths.syncState`, the
+`.folio-sync-*` CSS block, Cargo deps (`keyring`, `reqwest`, `base64`,
+`rand`, `url`; lockfile pruned), and every Google host in the CSP.
+Untouched: `desktop/src/backup/`, `tests/backup.test.ts`, Settings Backup
+section, `Manifest.libraryId` (schema-1, carried by backup v2 metadata).
 
 ## Verified current state
 
-- Branch `main` in sync with `origin/main`.
-- Linux verification (2026-10-31), from `desktop/`:
-  - `./node_modules/.bin/tsc -b` — clean (now includes `scripts/`)
-  - `./node_modules/.bin/vitest run` — **149 tests / 15 files** passing
+- Linux verification (2026-10-31), from `desktop/` — re-run end-to-end after
+  resuming the interrupted session, same results:
+  - `./node_modules/.bin/tsc -b` — clean
+  - `./node_modules/.bin/vitest run` — **140 tests / 14 files** passing
+    (the 9 deleted sync tests are the only delta from 149/15; two pre-existing
+    `act(...)` warnings in `shell.test.tsx`)
   - `./node_modules/.bin/vite build` — success
-  - `cd src-tauri && cargo fmt --all -- --check` — clean
-  - `node --experimental-transform-types --import ./scripts/perf-register.mjs
-    scripts/perf.ts` (`pnpm perf`) — runs end-to-end with machine-readable
-    JSON output, see
-    [`R-20261031-02`](audits/results/R-20261031-02-performance-method.md)
-- CI `desktop-ci` green for the FT-005 push `90eb62e` (run 41168220633:
-  Windows build + tests, success; cargo test ran on the Windows runner as
-  usual — locally only `cargo fmt` was checked).
-- Not run here: `cargo test` locally (webkit; CI covers it), any Windows
-  desktop behaviour.
-
-## Completed in this session (FT-005)
-
-1. Deterministic perf harness (`scripts/perf.ts` + `src/perf/synthEpub.ts`,
-   PRNG-based ~3 MB compressed synthetic EPUB) with median-of-N samples and
-   per-budget scope tags; `pnpm perf` wired into `package.json`.
-2. Linux baseline (jsdom, conservative): reader-side parse of the 3 MB EPUB
-   **315.7 ms median** (leaves ~0.9 s of budget 1 for webview + paint);
-   import-path parse **6.3 s median** flagged as an optimization candidate
-   (jsdom DOMParser is slower than Chromium — verify on Windows first);
-   200-locator decode **0.27 ms**.
-3. Windows runtime measurement procedure (cold-open 3-timestamp split,
-   20-turn page-turn sweep, 200-annotation decoration batch) recorded in
-   [`R-20261031-02`](audits/results/R-20261031-02-performance-method.md).
+  - `cd src-tauri && cargo fmt --all -- --check` — clean; `Cargo.lock` pruned
+    by offline re-resolution (236 orphaned lines gone, no version bumps,
+    no dangling references)
+- Not run here: `cargo test` / Tauri build (Windows-only toolchain; per
+  AGENTS.md do not mark them verified from this host). CI will run them on
+  the Windows runner after the next authorized push.
 
 ## Open work (all blocked on non-code resources)
 
 - Windows session: budget verdicts (FT-005), jump-list runtime checks
   (FT-001), reader/focus/screen-reader verifications (FT-006/008), restore
   swap (FT-007), scaling (FT-002).
-- Credentials: FT-003 Drive sync E2E (Google OAuth Desktop client ID).
 - Asset: FT-004 dictionary pack (`mobile/tools/build_dict.py` — the mobile
   tree is absent from this repo).
+- Historical note: users of older builds may still have an unused
+  `<appDir>/sync/state.json` and a Windows Credential Manager refresh token;
+  both are inert now.
 
 ## Exact next action
 
 No further code-side work is actionable on this host. The next useful step is
 a Windows run following the procedures in `R-20261031-02` and
-`A-20261031-01`, or the remaining external-resource tasks.
+`A-20261031-01`, or the remaining external-resource tasks. Any push/commit
+needs explicit user authorization.

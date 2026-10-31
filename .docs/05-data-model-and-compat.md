@@ -156,6 +156,14 @@ folio-backup/
 
 ## 6. Drive mirror contract (port of `core/sync/*`)
 
+> **RETIRED 2026-10-31.** Google Drive sync was removed entirely from the
+> desktop app (code, Rust OAuth, `keyring`/`reqwest` deps, Google CSP grants;
+> see `docs/development/decisions/D-20261031-03-google-drive-sync-removal.md`).
+> This section is preserved unchanged as a frozen historical contract — nothing
+> in the codebase implements it anymore. The ZIP backup contract in §5 is the
+> only library portability path. `Manifest.libraryId` remains a live schema-1
+> field carried by backup v2 metadata.
+
 - Drive folder: `Folio Library/` in the user's Drive root. Contents mirror
   `library/**` **except** `index/` and the dictionary pack.
 - State: `sync/state.json` = `{path → {driveId, sha256}}` for every uploaded path.

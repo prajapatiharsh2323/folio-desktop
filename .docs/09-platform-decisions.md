@@ -13,6 +13,12 @@ Decision record for everything mobile has an Android-only construct for.
 
 ## 2. Google Drive on desktop
 
+> **RETIRED 2026-10-31** (desktop): Google Drive sync was removed entirely —
+> see `.docs/05` §6 note and
+> `docs/development/decisions/D-20261031-03-google-drive-sync-removal.md`.
+> The desktop app now makes no network requests. The mobile contract below is
+> preserved as historical reference only.
+
 Mobile uses `play-services-auth` + `google-api-client-android` (Android-only). Desktop:
 
 - **OAuth**: installed-app flow with loopback redirect
