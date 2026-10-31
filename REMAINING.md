@@ -47,17 +47,20 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
 - [ ] End-to-end run against Google Drive with a real OAuth Desktop client ID
       (moot — credentials were never in the repo and the feature is removed).
 
-## Phase 10 — Dictionary
+## Phase 10 — Dictionary (removed 2026-10-31)
 
-- [ ] Bundle the SQLite pack produced by `mobile/tools/build_dict.py` (asset is
-      not in this repo). Drop it into `src-tauri/dict/` before release.
-- [x] `dict_sqlite_query` / `dict_lookup` / `dict_status` with schema
-      introspection, inflection fallback, and grouped senses.
-- [x] Install-time sha256 verify (`folio-eng-hin.sha256` next to the pack).
-- [x] Meaning card wired to real lookups with loading/empty/missing/error states
-      and reading-theme styling.
-- [x] GPL-2.0 attribution in the card footer and Settings→About, plus installed
-      pack status.
+> The entire offline-dictionary feature was **removed** after the
+> 2026-10-31 application audit — the pack asset could never be built here
+> (the `mobile/` tree is not in this repo) and a dormant `rusqlite`/UI
+> integration was cost without benefit.
+> See `docs/development/decisions/D-20261031-05-dictionary-removal.md`.
+> The bullets below are the historical pre-removal state.
+
+- ~~Bundle the SQLite pack produced by `mobile/tools/build_dict.py`~~
+  (superseded by the removal).
+- ~~`dict_sqlite_query` / `dict_lookup` / `dict_status`~~ *(removed)*.
+- ~~Meaning card, Settings→About dictionary rows~~ *(removed)*.
+- `tests/noDictionary.test.ts` now guards against re-introduction.
 
 ## Phase 11 — Polish
 
@@ -70,17 +73,18 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
       tsc, Vitest, Vite build, `cargo fmt --check`, `cargo test`, NSIS build,
       installer artifact.
 - [x] `cargo test` parity for path guard, fs commands, app-dir mapping,
-      window-state clamping, launch parsing, dictionary (OAuth helpers were
-      removed with Drive sync, 2026-10-31).
+      window-state clamping, launch parsing, (the dictionary tests were
+      removed with the feature, 2026-10-31; OAuth helpers were removed with
+      Drive sync, 2026-10-31).
 
 ## Known limitations
 
 - OS display-scaling checks (100/125/150/200%) need real hardware.
 - The app makes no network requests since Google Drive sync was removed
   (2026-10-31); cross-device transfer is via ZIP backup/restore.
-- The dictionary pack is a release asset, not checked into the repo; until it is
-  present Settings shows “Pack not installed” and the meaning card reports the
-  missing pack.
+- The offline dictionary was removed entirely (2026-10-31,
+  D-20261031-05); an earlier install's `%APPDATA%/Folio/dict/` copy is
+  orphaned and can be deleted manually.
 - Perf/a11y: code-side audit + harness are recorded (`A-20261031-01`,
   `R-20261031-02`); the **runtime** halves (performance verdicts, screen
   reader, jump-list taskbar behaviour) still need a real Windows run (P2;

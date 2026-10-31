@@ -155,6 +155,8 @@ pnpm tauri:build      # NSIS / installer
 
 > **Note (2026-10-31):** Phase 9 (Drive sync) was later **removed entirely**
 > — see `docs/development/decisions/D-20261031-03-google-drive-sync-removal.md`.
+> Phase 10 (offline dictionary) was later **removed entirely** as well — see
+> `docs/development/decisions/D-20261031-05-dictionary-removal.md`.
 > The "Drive sync setup" section below is historical and no longer applies.
 
 - **Phase 9 — done, pending a Google OAuth client ID**:

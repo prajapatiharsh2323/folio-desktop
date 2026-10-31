@@ -8,8 +8,8 @@ Verified against the repository on **2026-10-29** at commit `242778b`
 | Path | Role |
 |---|---|
 | `desktop/` | The application (frontend + Tauri shell). **Run all app commands here.** |
-| `desktop/src/` | React/TypeScript app code: screens, components, stores, reader, import, search, dictionary. (Drive sync was removed 2026-10-31.) |
-| `desktop/src-tauri/` | Thin Rust core: filesystem/zip/hash commands, path guard, app-dir mapping, window state, dictionary bridge. (OAuth was removed with sync.) |
+| `desktop/src/` | React/TypeScript app code: screens, components, stores, reader, import, search. (Drive sync was removed 2026-10-31; the dictionary the same day, D-20261031-05.) |
+| `desktop/src-tauri/` | Thin Rust core: filesystem/zip/hash commands, path guard, app-dir mapping, window state. (OAuth was removed with sync; the dictionary bridge with D-20261031-05.) |
 | `desktop/tests/` | Vitest suites and exact JSON fixtures. |
 | `.docs/01–09` | Product, architecture, UI/UX, reader, data-model, feature, keyboard, prompt-pack, and platform specs. |
 | `.github/workflows/desktop-ci.yml` | Windows-only CI. |
@@ -30,7 +30,6 @@ There is no root package manifest, no monorepo tool, no ESLint/Prettier config.
 - **Shell:** Tauri 2, Rust 2021 edition, NSIS installer for Windows.
 - **Tests:** Vitest 2 with `jsdom`; no snapshot suites.
 - **Data:** plain JSON files through a `FileStore` port; no app database.
-  SQLite is used only for the optional dictionary pack.
 - **CI:** pnpm 11, Node 22, `windows-latest`.
 
 ## Commands
@@ -70,8 +69,8 @@ exists, use `./node_modules/.bin/tsc -b`, `./node_modules/.bin/vitest run`, and
   watcher with `EBUSY` on Windows.
 - Google Drive sync was removed (2026-10-31, D-20261031-03); the app makes no
   network requests. Do not reintroduce network hosts into the CSP.
-- The dictionary pack is a release asset, not in the repo. Until it is placed in
-  `desktop/src-tauri/dict/`, Settings reports “Pack not installed”.
+- The offline dictionary was removed entirely (2026-10-31, D-20261031-05);
+  `tests/noDictionary.test.ts` guards against re-introducing it.
 - **COM string values must use task memory.** A `VT_LPWSTR` in a
   `PROPVARIANT` (for example `PKEY_Title` on a jump-list `IShellLink`) is
   freed by the shell with `CoTaskMemFree`. Backing it with a Rust `Vec` buffer
@@ -90,10 +89,10 @@ layout.
 **Rust commands** (`desktop/src-tauri/src/lib.rs`):
 `fs_read`, `fs_write_atomic`, `fs_delete`, `fs_move`, `fs_stat`, `fs_list_dir`,
 `fs_free_space`, `sha256_file`, `zip_read`, `zip_write`, `open_external_url`,
-`open_app_dir`, `library_path`, `prevent_display_sleep`, `dict_sqlite_query`,
-`dict_lookup`, `dict_status`, and `take_pending_launch`. (The OAuth
-sign-in/refresh/status/sign-out commands were removed with Drive sync,
-2026-10-31.)
+`open_app_dir`, `library_path`, `prevent_display_sleep`, and
+`take_pending_launch`. (The OAuth signIn/refresh/status/sign-out commands were
+removed with Drive sync, 2026-10-31; the `dict_*` commands with the
+dictionary removal, D-20261031-05.)
 
 **Virtual paths.** TypeScript builds all library paths under `/folio-library`
 (`desktop/src/lib/libraryPaths.ts`). Rust translates that prefix to the real app
