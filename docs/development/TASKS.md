@@ -47,6 +47,11 @@ active or known work; move narrative detail to session/audit records.
   (FT-007 backup hardening), `72d2a04` (FT-008 reader locator correctness),
   and FT-001 code (`4cce075`) + docs (`a5e4a94`). `main` and `origin/main`
   are in sync.
+- **CI (`desktop-ci`, windows-latest) green for those pushes**:
+  `cargo test --all-targets` **31 passed / 0 failed** (the FT-001
+  `jumplist::tests` cases ran on the real Windows target), fmt/tsc/Vitest/
+  `vite build` green, NSIS installer built. Runtime taskbar behaviour of the
+  jump list still needs a real desktop session.
 
 ## Selection guidance
 

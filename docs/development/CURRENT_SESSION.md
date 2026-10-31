@@ -1,12 +1,13 @@
 # Current Session Checkpoint
 
 **Session:** `S-20261030-03` — taskbar jump list (FT-001)
-**Updated:** 2026-10-30
-**Status:** FT-001 committed (`4cce075` code, `a5e4a94` docs) and **pushed to
-origin/main** with the user's authorization — `main` and `origin/main` are in
-sync; the full run `2dce770`/`72d2a04`/`43a6b0b` (FT-007/FT-008) is durable on
-the remote as well. `session.json` (previous transcript dump) remains the only
-untracked file.
+**Updated:** 2026-10-31 (CI outcome)
+**Status:** FT-001 committed (`4cce075` code, `a5e4a94` docs, `0b26cab`
+status fix-up) and **pushed to origin/main** with the user's authorization —
+`main` and `origin/main` are in sync. **CI `desktop-ci` is green**, including
+`cargo test --all-targets` (31 passed / 0 failed — the two new `jumplist`
+tests ran on the Windows runner) and the NSIS installer build.
+`session.json` (previous transcript dump) remains the only untracked file.
 
 ## Verified current state
 
@@ -59,9 +60,14 @@ Committing/pushing requires explicit user authorization.
 
 ## Exact next action
 
-1. ~Nothing pending on Git: committed (`4cce075` code, `a5e4a94` docs) and
-   pushed to `origin/main` with user authorization.~
-2. Remaining open work needs either a real Windows host (runtime verification
-   of FT-001/007/008, scaling check FT-002, `cargo test` locally) or new
-   ground (perf budget FT-005, a11y audit FT-006, Drive E2E FT-003, dict pack
+1. ~Nothing pending on Git: committed (`4cce075` code, `a5e4a94` docs,
+   `0b26cab` status fix-up) and pushed to `origin/main` with user
+   authorization; both CI `desktop-ci` runs green (Windows runner):
+   `cargo test --all-targets` **31 passed / 0 failed** (the two new
+   `jumplist::tests` cases ran), fmt, tsc, Vitest, `vite build`, NSIS
+   installer artifact.
+2. Remaining open work needs either a real Windows desktop session
+   (runtime verification: FT-001 pinned-icon tasks, FT-007 restore swap,
+   FT-008 reader interactions, scaling check FT-002) or new ground
+   (perf budget FT-005, a11y audit FT-006, Drive E2E FT-003, dict pack
    FT-004) — see [`TASKS.md`](TASKS.md).

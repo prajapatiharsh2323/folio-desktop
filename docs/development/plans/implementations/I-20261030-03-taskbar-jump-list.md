@@ -1,10 +1,11 @@
 # I-20261030-03 — Windows taskbar jump list (FT-001)
 
-**Date:** 2026-10-30
+**Date:** 2026-10-30 (CI outcome added 2026-10-31)
 **Task:** FT-001 (P1, `.docs/09-platform-decisions.md` §3: "Jump list (optional
 P1): Open Folio / Import file")
-**Status:** done (Linux + Windows-target compile verification green; runtime
-taskbar behaviour needs a real Windows run)
+**Status:** done — Linux + Windows-target compile verification green, **CI
+(`desktop-ci`) green incl. `cargo test`**; runtime taskbar behaviour still
+needs a manual pinned-icon check
 
 ## Scope
 
@@ -50,7 +51,9 @@ Key correctness details (each verified against the crate sources):
 - Each task link: `IShellLinkW::SetPath(current_exe)` +
   `SetIconLocation(current_exe, 0)` + optional `SetArguments`, then the shell
   property store gets `PKEY_Title` (`VT_LPWSTR` PROPVARIANT built manually —
-  windows 0.62 has no `PROPVARIANT::from(&str)`) and `Commit`.
+  windows 0.62 has no `PROPVARIANT::from(&str)`), then `Commit`. The
+  `ManuallyDrop<PROPVARIANT_0_0>` union field must be dereferenced explicitly
+  (`DerefMut::deref_mut`) — rustc rejects implicit writes there.
 - The UTF-16 buffer behind the PROPVARIANT pointer outlives `SetValue`/`Commit`
   (same function scope); the PROPVARIANT is never `PropVariantClear`-ed since
   the buffer is caller-owned, not `CoTaskMemAlloc`-owned.
@@ -70,31 +73,38 @@ Key correctness details (each verified against the crate sources):
 
 - **Windows-target full-crate check** *(new capability on this host)*:
   `cargo check --target x86_64-pc-windows-gnu --all-targets` — **exit 0, no
-  warnings** (2m 18s). This is the first time the whole Tauri crate was
-  compiled for a Windows target locally; needed `mingw-w64` (installed via
-  apt for the `zstd-sys` build script) and `CARGO_TARGET_DIR` off `/home`
-  (4.8 GB partition kept filling at 100%).
+  warnings** (2m 18s); this is the first full-crate Windows-target compile on
+  this host. Replication: `CARGO_TARGET_DIR=/tmp/...` (the 4.8 GB `/home`
+  partition fills to 100% mid-build) and `sudo apt-get install mingw-w64`
+  (`zstd-sys` build script needs `x86_64-w64-mingw32-gcc`).
 - `cargo fmt --all -- --check` — clean.
 - Frontend untouched: `tsc -b` clean, **143 Vitest tests / 13 files** passing,
   `vite build` success.
 - Rust unit tests (2, in `jumplist.rs`) compile under the Windows-target check
-  and run in CI's `cargo test --all-targets`:
-  - `jump_list_tasks_are_open_and_import` — pins the task table.
-  - `import_task_args_flow_through_arg_parser` — proves every task's args are
-    understood by `open_files::parse_args`.
+  and ran in CI (below).
 
-## Deliberately not verified here
+## CI verification (2026-10-30/31, `desktop-ci` runs `41030635850` / `41030775733`)
 
-Runtime taskbar behaviour (pin the icon, see the two entries work) requires a
-real Windows run:
-`pnpm tauri:build` → install → pin → exercise both entries. `cargo test` /
-Tauri behaviour are still CI/Windows-host-only claims (AGENTS.md rule).
+The Windows runner (`windows-latest`) compiled and executed the module:
+
+- `jumplist::tests::import_task_args_flow_through_arg_parser` … **ok** and
+  `jumplist::tests::jump_list_tasks_are_open_and_import` … **ok** — the new
+  Rust tests ran for real; `cargo test --all-targets` reported
+  **31 passed / 0 failed** across the suite.
+- `cargo fmt --all -- --check` — clean on Windows.
+- `tsc -b`, Vitest, `vite build` — green.
+- NSIS installer built as artifact.
+
+## Still not verified
+
+Runtime taskbar behaviour (pin the icon, see the two entries appear and work)
+requires a real Windows desktop session — CI only proves compile + unit
+tests. Check `pnpm tauri:build` → install → pin → exercise both entries
+(including that the icon renders at index 0 of the exe — Tauri embeds the app
+icon at index 0).
 
 ## Follow-ups
 
-1. Windows runtime check of both jump-list entries (and that the icon renders
-   at index 0 of the exe — Tauri embeds the app icon at index 0).
-2. CI must stay green (`desktop-ci.yml` runs `cargo test --all-targets` with
-   the new feature union).
-3. Optional later enhancement: recent-documents category (AppendCategory) —
+1. Windows runtime check of both jump-list entries.
+2. Optional later enhancement: recent-documents category (AppendCategory) —
    out of scope for 09 §3's minimal two tasks.

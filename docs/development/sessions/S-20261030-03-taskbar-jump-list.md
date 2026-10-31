@@ -60,11 +60,12 @@ Frontend unaffected — no TS changes this session.
 
 ## Unresolved
 
-- Runtime taskbar verification needs real Windows (pin icon, exercise both
-  entries) — the `cargo check` gate is compile-only.
-- `cargo test --all-targets` (which would actually *run* the two new Rust
-  tests) has its first chance in CI or on a Windows host. CI's
-  `desktop-ci.yml` run for `4cce075` is the first compile/run gate.
+- *(Resolved 2026-10-30/31:)* `cargo test --all-targets` ran in CI
+  (`desktop-ci`, runs `41030635850`/`41030775733`) — both new Rust tests pass
+  on the Windows runner, 31/0, installer built.
+- Runtime taskbar verification still needs a real Windows desktop session
+  (pin icon, exercise both entries) — CI/`cargo check` only proves compile
+  and tests.
 
 ## Exact next action
 
