@@ -85,3 +85,5 @@ with user authorization.
   checklist).
 - Linux verification: `tsc -b` clean; Vitest **173/173** (18 files); `vite
   build` success.
+- Everything Linux-verifiable is now done. The open checklist that needs a
+  real Windows host lives in the repo root: [`MANUAL-TASKS.md`](../../../MANUAL-TASKS.md).
