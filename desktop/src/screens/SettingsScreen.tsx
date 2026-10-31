@@ -6,7 +6,6 @@ import { FolioChip } from "../components/FolioChip";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioSectionHeader } from "../components/FolioSectionHeader";
 import { FolioSettingsRow } from "../components/FolioSettingsRow";
-import { CloudSyncSection } from "../components/CloudSyncSection";
 import { useThemeStore, type ThemeSetting } from "../theme/theme";
 import {
   getLibraryFs,
@@ -371,8 +370,6 @@ export function SettingsScreen() {
             </FolioButton>
           }
         />
-
-        <CloudSyncSection />
 
         <FolioSectionHeader>About</FolioSectionHeader>
         <FolioSettingsRow

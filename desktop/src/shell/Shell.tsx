@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useRouteStore } from "../store/routeStore";
 import { Sidebar, type Route } from "./Sidebar";
-import { SyncScheduler } from "../components/SyncScheduler";
 import { LibraryScreen } from "../screens/LibraryScreen";
 import { CollectionsScreen } from "../screens/CollectionsScreen";
 import { NotesScreen } from "../screens/NotesScreen";
@@ -139,7 +138,6 @@ export function Shell() {
 
   return (
     <div className="folio-app">
-      <SyncScheduler />
       <div className="folio-shell">
         {!inReader && <Sidebar route={route} onNavigate={(r: Route) => setRoute(r)} />}
         <main className="folio-main" aria-label="Folio content">

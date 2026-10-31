@@ -113,7 +113,7 @@ export interface ManifestDoc {
 export interface Manifest {
   schema: 1;
   app: "folio";
-  /** uuid v4 — stable per library, used by Drive mirror */
+  /** uuid v4 — stable per library; schema-1 field, now carried only by backup v2 metadata */
   libraryId: string;
   updatedAt: string;
   docs: ManifestDoc[];

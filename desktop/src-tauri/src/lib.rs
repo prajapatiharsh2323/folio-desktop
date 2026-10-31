@@ -2,7 +2,6 @@ mod appdir;
 mod commands;
 mod guard;
 mod jumplist;
-mod oauth;
 mod open_files;
 mod window_state;
 
@@ -36,10 +35,6 @@ pub fn run() {
             dict::dict_sqlite_query,
             dict::dict_lookup,
             dict::dict_status,
-            oauth::oauth_sign_in,
-            oauth::oauth_refresh,
-            oauth::oauth_status,
-            oauth::oauth_sign_out,
             open_files::take_pending_launch
         ])
         .setup(|app| {

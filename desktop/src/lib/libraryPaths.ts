@@ -13,7 +13,6 @@ export interface LibraryPaths {
  *   docs/<slug>/…
  *   user/annotations.json | progress.json | collections.json | settings.json | doc-settings.json
  *   index/text/<docId>.json
- *   (sibling) sync/state.json  → derived from parent of root
  */
 export const libraryLayout = {
   manifest: (root: string) => join(root, "manifest.json"),
@@ -34,9 +33,6 @@ export const libraryLayout = {
   docSettings: (root: string) => join(root, "user", "doc-settings.json"),
 
   indexText: (root: string, docId: string) => join(root, "index", "text", `${docId}.json`),
-
-  /** sync/state.json lives at the app dir level (sibling of library/). */
-  syncState: (appDir: string) => join(appDir, "sync", "state.json"),
 
   /** user/window.json — desktop-only, never in backups (02 §3). */
   windowState: (appDir: string) => join(appDir, "user", "window.json"),
