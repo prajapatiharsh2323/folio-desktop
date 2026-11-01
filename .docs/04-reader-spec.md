@@ -86,10 +86,18 @@ Constraints enforced in the Appearance sheet (mobile parity):
 - Drag the progress slider → jump to `progression` value (0..1) via navigator
   `locateProgression`-equivalent; thumb grows while dragging; chrome stays for 1.2 s
   grace after scrubbing.
-- Click zones: left third = back, right third = forward, middle third toggle chrome.
-  (Desktop: also show hover chevrons At edges — see 07.)
+- Click zones: narrow outer edge bands page back/forward (8% of the reading
+  surface, clamped to 48–96 px). The reading column is inert: clicking text never
+  toggles the chrome, never navigates, and never interrupts a selection. Links,
+  footnotes and other interactive elements stay engine-owned. Blank surface
+  outside the publication reveals the chrome.
 - Keyboard: full matrix in `07-keyboard-and-input.md`. Forward = centered on more
   content; back = opposite. Animated turns, no ordering issues.
+- All chrome-driven navigation (edge bands, Previous/Next, contents, in-book
+  search, slider, bookmark/annotation jumps, keyboard) is serialized through one
+  coordinator: at most one engine move in flight, obsolete absolute jumps
+  coalesce to the newest destination, page turns keep their order, and the
+  seeking state always settles.
 - Prevent body overscroll from navigating/reloading the webview (important on scroll flow).
 
 ## 6. Brightness scrim

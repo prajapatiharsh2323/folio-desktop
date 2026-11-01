@@ -1,9 +1,8 @@
 # Task Board
 
-Last updated: **2026-10-31** (session `S-20261031-05` — audit repair batch 1:
-collections routing, navigation controller, menu/controls, dictionary removed;
-plus `S-20261031-06` — Windows automated verification + first dictionary-free
-NSIS build from `MANUAL-TASKS.md`).
+Last updated: **2026-11-01** (session `S-20261101-01` — reader redesign M1+M2:
+serialized navigation, edge click zones, top bar + bottom dock, chrome holds;
+see `D-20261101-01`).
 Statuses: `open`, `in-progress`, `blocked`, `done`. Keep this board limited to
 active or known work; move narrative detail to session/audit records.
 
@@ -20,6 +19,7 @@ active or known work; move narrative detail to session/audit records.
 | FT-001 | P1 | Taskbar jump list (“Open Folio” / “Import file…”) | done (code) / runtime startup verified | Windows run now works: the app launched and stayed up, so the `PKEY_Title` heap-corruption crash is fixed ([A-BUG-20261031-01](audits/bugs/A-BUG-20261031-01-jumplist-startup-crash.md)). Remaining: eyeball the pinned icon’s task list. | [I-20261030-03](plans/implementations/I-20261030-03-taskbar-jump-list.md); `.docs/09` §3 |
 | FT-005 | P2 | Performance budget checks: cold open ≤ 1.2 s, page turn ≤ 80 ms, 200 highlights ≤ 400 ms | done (harness + method) / blocked (Windows measurements) | Deterministic Node harness (`desktop/scripts/perf.ts`, `pnpm perf`) with synthetic ~3 MB EPUB; Linux baseline: reader parse 316 ms, locator-decode-200 0.3 ms. Windows runtime measurements defined in `R-20261031-02` (cold open / page turn / decoration batch). | [`R-20261031-02`](audits/results/R-20261031-02-performance-method.md) |
 | FT-006 | P2 | Accessibility pass: focus rings, tab order, ARIA, contrast | done (code) / partial (runtime) | Audit ran (Linux source + jsdom + token-fixture contrast): 3 findings fixed (dialog focus restore, chip radiogroup ARIA, muted-on-functional-labels), contrast + a11y unit tests added (149 tests / 15 files). Screen-reader pass + ≥48px target decision need a Windows session. | [A-20261031-01](audits/ui-ux/A-20261031-01-accessibility.md) |
+| FT-013 | P0 | Reader redesign M1+M2: serialized navigation queue (single in-flight call, coalesced jumps, ordered turns, settled seek gate, outcomes), narrow edge click zones, top bar with Contents/Search/Bookmark/Aa/More, bottom dock (Prev/Next + slider), chrome holds + `inert` hidden state + progress hairline, frame-level hover reveal, annotation two-step jumps | done (code) / blocked (Windows verification) | Linux: `tsc -b` clean, Vitest **192 / 192 (18 files)**, `vite build` green. Windows review needed for edge-zone feel, selection drag, iframe hover, paginated/scrolled, themes + resize. Supersedes the thirds click-zone and full-width pillar parts of FT-010/011/012. | [D-20261101-01](decisions/D-20261101-01-reader-edge-zones-and-dock.md) |
 
 ## Blocked work
 

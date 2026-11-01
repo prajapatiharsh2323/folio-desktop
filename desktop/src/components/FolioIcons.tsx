@@ -111,6 +111,8 @@ export const FolioIcons = {
   ),
   Close: make("Close", <path d="M6 6l12 12M18 6L6 18" />),
   ChevronDown: make("ChevronDown", <path d="M6.5 9.5L12 15l5.5-5.5" />),
+  ChevronLeft: make("ChevronLeft", <path d="M14.5 6L9 12l5.5 6" />),
+  ChevronRight: make("ChevronRight", <path d="M9.5 6L15 12l-5.5 6" />),
   Check: make("Check", <path d="M5 12.5l4.5 4.5L19 7.5" />),
   Trash: make(
     "Trash",

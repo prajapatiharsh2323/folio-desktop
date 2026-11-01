@@ -34,12 +34,13 @@ Mobile premise (one keystroke, no key-repeat) carries over:
 | `Enter` | (chapter list/TOC focus) follow focused item |
 | `t` | toggle TOC panel |
 | `Ctrl+B` | add/remove bookmark at current position |
-| `m` | toggle chrome (top bar + pillar) |
+| `m` | toggle chrome (top bar + bottom dock) |
 | `MediaNext`/`MediaPrev`, third-party page-turner HID page keys | page-turn forward/backward (mobile accepts MEDIA_NEXT/PREVIOUS + PAGE keys + DPAD; desktop accepts the first two) |
 | Volume keys | **not** bound on desktop P0 (keyboard is always present); P2 optional setting |
 
-Chrome toggle equivalents for mouse: middle-third click (parity), `m`, hovering the
-bottom 40 px reveals the pillar for 3 s.
+Chrome toggle equivalents for mouse: `m`, hovering the publication (any pointer
+movement), hovering the bottom 56 px band, or clicking blank surface outside the
+publication. Clicking text does **not** toggle the chrome.
 
 Selection: standard desktop selection with mouse (or double-click word / Ctrl-Shift-←/→
 word-wise). On selection end, the floating toolbar appears exactly like mobile's
@@ -47,15 +48,16 @@ selection sheet; keyboard `Esc` dismisses it.
 
 ## 3. Mouse/trackpad
 
-- Click zones (parity with mobile tap zones, both flow modes):
-  - click left/`right` third of the canvas = page turn / scroll step;
-  - click middle third = toggle chrome.
+- Click zones (04 §5): narrow outer edge bands (8% of width, clamped 48–96 px)
+  page back/forward in both flow modes. The reading column in between is inert:
+  it never toggles the chrome, and a click during a selection is ignored.
+  Interactive elements (links, footnotes) keep their own behaviour.
 - Horizontal swipe/wheel = page turn in paginated flow (navigator's native handling);
   two-finger scroll = page turn with momentum, no refresh navigation.
 - Pinch-zoom: forward nav zoom for the webview at OS level; reader canvas text size is
   NOT zoom — text size only via the Appearance panel (Ctrl +/- UI zoom applies to
   chrome only).
-- Slider: drag the pillar scrubber for % jumps; thumb enlarges while dragging; chrome
+- Slider: drag the dock scrubber for % jumps; thumb enlarges while dragging; chrome
   grace 1.2 s after release.
 - Right-click (reader canvas): standard content menu suppressed; instead show
   Folio's anchored menu with the same actions as the selection toolbar when there is a

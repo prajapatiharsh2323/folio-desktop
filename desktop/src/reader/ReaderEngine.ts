@@ -90,6 +90,8 @@ export interface ReaderEngine {
   /** Right-click in the spine frame (native menu is suppressed by the
    *  navigator); return true when a menu was shown (07 §3). */
   onContextMenu(cb: (info: ReaderClickInfo) => boolean): () => void;
+  /** Pointer movement over the publication (chrome reveal, 07 §2). */
+  onPointerActivity(cb: () => void): () => void;
   /** Anchored jump used as the second step of two-step jumps (04 §8). */
   goAnchored?(quote: string, prefix: string, suffix: string): Promise<boolean>;
 }

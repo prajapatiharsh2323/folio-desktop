@@ -1,9 +1,11 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261031-06` — Windows host, automated half of `MANUAL-TASKS.md`
-**Updated:** 2026-10-31
-**Status:** automated verification done on Windows (green); runtime/visual
-checks still need a person at the screen. Record:
+**Session:** `S-20261101-01` — reader redesign, milestones 1 + 2 (code complete)
+**Updated:** 2026-11-01
+**Status:** Linux-verifiable work is green; the Windows runtime review is the
+only thing left before milestone 3. Decision record:
+[`D-20261101-01`](decisions/D-20261101-01-reader-edge-zones-and-dock.md).
+Previous record:
 [`S-20261031-06`](sessions/S-20261031-06-windows-manual-verification.md).
 Previous: `S-20261031-05` audit repair batch 1 —
 [`I-20261031-05`](plans/implementations/I-20261031-05-audit-repair-batch-1.md).
@@ -13,11 +15,41 @@ observed **green on all of them** (`desktop-ci` #11–#15).
 
 ## Exact next action
 
-1. At the screen: walk `MANUAL-TASKS.md` §1 runtime blocks (FT-009/010/011/012)
-   against the freshly built installer or `pnpm tauri:dev`.
-2. Then FT-007 restore interrupt round-trip, FT-005 measurements, FT-001
-   jump-list eyeball, FT-002 scaling, FT-006 screen reader.
+1. Run `pnpm tauri:dev` on Windows and review M1+M2 against the checklist below.
+2. If approved, implement M3 (unified Contents/Bookmarks/Notes panel, in-book
+   search rebuild + exact anchoring) and M4 (focus mode, session info, shortcut
+   guide, navigation feedback).
 3. Commit/push only with user approval (per AGENTS.md git safety).
+
+## M1+M2 verification (Linux, this session)
+
+- `tsc -b` clean; `vite build` success (pre-existing >500 kB chunk warning).
+- Vitest **192 / 192 (18 files)**: new `tests/navigation.test.ts` (17 cases:
+  serialization, coalescing, ordering, seek-gate settlement, superseded
+  outcomes, annotation two-step) and rebuilt `tests/readerChrome.test.tsx`
+  (16 cases: top-bar actions, contextual back label, bookmark pressed state,
+  `inert` hidden state, hairline, dock turns, slider single-commit, seeking).
+- `tests/reader.test.ts` chrome section rewritten for holds, toggle guards and
+  edge-zone geometry.
+- Not verified here: Readium iframe hover, selection drag across edges,
+  paginated/scrolled layouts, theme surfaces, resize.
+
+## M1+M2 runtime review checklist (Windows)
+
+- Edge bands (48–96 px) always page; clicking text never moves or toggles;
+  links/footnotes still work; dragging a selection through an edge does not
+  turn the page.
+- Top bar: Contents / Search / Bookmark (pressed state) / Aa / More all fire;
+  back label matches Library / Collections / Notes / Settings.
+- Dock: Previous/Next page; slider previews while dragging and jumps once on
+  release; "Jumping…" appears during a slow jump; percent + time-left update.
+- Chrome: hides after 3 s; mouse movement over text brings it back; panels,
+  dialogs, search, selection, scrub, focus and pointer rest keep it up; `m`
+  toggles; hidden chrome leaves the tab order; hairline stays at the bottom.
+- TOC jump closes the panel; a failing jump shows a notice instead of silently
+  doing nothing.
+- Themes × (paginated, scrolled) × resize: dock/top-bar surfaces stay legible,
+  no overlap with the text column.
 
 ## Verified state (Linux, `S-20261031-05`)
 

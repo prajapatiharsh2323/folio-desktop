@@ -128,26 +128,44 @@ Layout:
 
 ```
 ┌────────────────────── reader window (canvas = reading theme) ──────────────┐
-│   [top bar: ◀ back | title (truncate center) | Aa | 🔍 | ⋯] auto-hide     │
+│  [◀ back | book · chapter (center) | ☰ | 🔍 | 🔖 | Aa | ⋯]   auto-hide    │
 │                                                                           │
 │            Readium web navigator canvas  (theme/hyphen/…)                 │
 │            selection → floating 4-act toolbar (see 04)                    │
 │                                                                           │
-│   brightness scrim (under chrome), bottom pill:                           │
-│   [chapter · 32% · 12 min left      ─────●──────] auto-hide w/ grace      │
+│   brightness scrim (under chrome), bottom dock (auto-hide w/ grace):      │
+│      [‹]      chapter · 32% · 12 min left      [›]                        │
+│      [────────────────────●────────────────────]                          │
+│   when hidden: one 3 px progress hairline at the bottom edge              │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Top bar**: compact, non-scrolling, chrome-surface colors per reading theme
   (mobile `ReaderChrome.chromeSurface/chromeText`): light→`rgba(255,254,251,.92)`,
-  dark→`rgba(18,18,20,.92)`, paper→`rgba(244,236,216,.94)`, true-black→`#000` @ .92.
-  On desktop add **hover + tooltips**; keep the same icons: back, title, Aa,
-  in-book search, ⋯ (TOC / Add bookmark).
-- **Bottom pillar**: rounded pill (r ∞, chrome surface @ .94 opacity + subtle shadow),
-  contains chapter title (truncate) · percent · time-left, and a slim scrubber slider
-  whose thumb grows on hover/drag. Auto-hides 1.2 s after scrubbing stops.
-- Page-turn **click zones** (left/right third), middle third toggles chrome — same
-  geometry as mobile (§07 keys/clicks doc for the full matrix).
+  dark→`rgba(18,18,20,.92)`, paper→`rgba(244,236,216,.94)`, true-black→`#000` @ .92,
+  with a 14 px backdrop blur. Back label follows where the reader was opened from
+  (Library / Collections / Notes / Settings). Controls, always visible rather than
+  buried in ⋯: **Contents**, **Search**, **Bookmark** (pressed when the current
+  position is bookmarked), **Appearance**, then **⋯** for Share as image and Hide
+  controls. Tooltips carry the shortcut.
+- **Bottom dock**: rounded card (chrome surface @ .94, subtle shadow) inside the
+  reading surface, not a full-width bar. Previous/Next sit either side of
+  `chapter · percent · time-left`; the slim scrubber spans the row underneath.
+  While an absolute jump resolves the dock shows "Jumping…". No page numbers are
+  shown anywhere — positions are synthetic 1024-byte chunks, not rendered pages.
+  Thumb enlarges on hover/drag; chrome keeps a 1.2 s grace after scrubbing.
+- **Chrome lifecycle**: hides after 3 s idle (`CHROME_IDLE_MS`). Anything the user
+  is working in holds it open — open menu, panel, dialog, in-book search, text
+  selection, scrub, keyboard focus inside the controls, or the pointer resting on
+  them. Pointer movement over the page reveals it again; `m` toggles it. When
+  hidden, the bar and dock leave the tab order (`inert`), and a 3 px progress
+  hairline + percent remain at the bottom edge.
+- Page-turn **click zones**: narrow outer edge bands only (8% of width, clamped
+  48–96 px), left/back and right/forward in both flow modes. The reading column
+  between them is inert — clicking text never toggles the chrome or flips the
+  page, a click during a selection is ignored, and links/footnotes stay
+  engine-owned. Blank surface outside the publication reveals the chrome (§07
+  keys/clicks doc for the full matrix).
 - Reader splash: theme-matching canvas + centered cover (or generated default art) +
   spinner; the nav shows only after the first locator.
 - External links: open the system browser via Tauri shell plugin, with an in-reader

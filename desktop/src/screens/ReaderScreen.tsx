@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AppearancePanel } from "../components/AppearancePanel";
 import { ReaderChrome } from "../components/ReaderChrome";
@@ -24,8 +24,18 @@ import type {
   ReaderOpenTarget,
   TocEntry,
 } from "../reader/ReaderEngine";
-import { ChromeStateMachine, CHROME_IDLE_MS, intentForReaderClick } from "../reader/chrome";
-import { createNavigationCoordinator, type ReaderNavigationCoordinator } from "../reader/navigation";
+import {
+  ChromeStateMachine,
+  CHROME_IDLE_MS,
+  intentForReaderClick,
+  type ChromeHold,
+} from "../reader/chrome";
+import {
+  createNavigationCoordinator,
+  type NavigationOrigin,
+  type NavigationOutcome,
+  type ReaderNavigationCoordinator,
+} from "../reader/navigation";
 import { ProgressWriter } from "../reader/progress";
 import { ReadingPaceStats, formatTimeLeft } from "../reader/pace";
 import { resumePlan, type ResumePlan } from "../reader/resume";
@@ -40,8 +50,8 @@ import { resolveReaderTheme, scrimAlpha } from "../reader/readerThemes";
 
 const SPLASH_FADE_MS = 300;
 const SPLASH_FAILSAFE_MS = 8000;
-/** Bottom-pillar hover reveal zone height (07 §2). */
-const PILLAR_REVEAL_ZONE_PX = 40;
+/** Bottom hover band that reveals the dock (07 §2). */
+const DOCK_REVEAL_ZONE_PX = 56;
 
 /** Outcome of a bookmark toggle, surfaced as a user-facing notice (07 §2). */
 type BookmarkResult = "added" | "removed" | "failed";
@@ -86,6 +96,20 @@ function hrefMatches(a: string | null | undefined, b: string | null | undefined)
   return x === y || x.endsWith(`/${y}`) || y.endsWith(`/${x}`);
 }
 
+/** The reader returns to whatever opened it, so the back label must follow. */
+function backLabelFor(route: string | undefined): string {
+  switch (route) {
+    case "collections":
+      return "Back to Collections";
+    case "notes":
+      return "Back to Notes";
+    case "settings":
+      return "Back to Settings";
+    default:
+      return "Back to Library";
+  }
+}
+
 const HIGHLIGHT_CSS: Record<string, string> = {
   yellow: "#FFF3B0",
   green: "#CDE8C2",
@@ -114,20 +138,33 @@ function decorationsFor(annotations: Annotation[]): DecorationSpec[] {
     }));
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/**
+ * Text entry and sliders own their keys — typing a query or nudging the
+ * scrubber must never turn the page (07 §2). Chrome buttons deliberately do
+ * NOT own the arrow keys: page turns keep working while a toolbar control has
+ * focus, which is what a permanent dock makes obvious.
+ */
+function isTextEntryTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  // Focused controls (toolbar buttons, TOC entries, the scrubber, selects)
-  // own their keys: keyboard page-turn shortcuts must not fight them (07 §2).
   return Boolean(
     target.closest(
-      "input, textarea, select, button, a, [contenteditable='true'], [role='textbox'], [role='button'], [role='menuitem']"
+      "input, textarea, select, [contenteditable='true'], [role='textbox'], [role='slider'], [role='spinbutton'], [role='dialog']"
     )
+  );
+}
+
+/** Space/Enter belong to a focused control; arrows still page-turn. */
+function isActivatableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(
+    target.closest("button, a[href], [role='button'], [role='menuitem'], [role='switch'], [role='radio']")
   );
 }
 
 /** Reader route (04): splash → Readium canvas → themed chrome + panels. */
 export function ReaderScreen() {
   const request = useRouteStore((s) => s.readerRequest);
+  const readerOrigin = useRouteStore((s) => s.readerOrigin);
   const closeReader = useRouteStore((s) => s.closeReader);
   const status = useReaderStore((s) => s.status);
   const loadError = useReaderStore((s) => s.error);
@@ -152,6 +189,11 @@ export function ReaderScreen() {
   const disposedRef = useRef(false);
   const previousPercentRef = useRef<number | null>(null);
   const bookmarkToggleRef = useRef<() => Promise<BookmarkResult>>(async () => "failed");
+  /** Mirror of scrubValue: the dock can release twice (keyup + blur). */
+  const scrubValueRef = useRef<number | null>(null);
+  /** A live selection owns the pointer — edge clicks must not turn the page. */
+  const selectionRef = useRef<TextSelectionInfo | null>(null);
+  const lastPacePublishRef = useRef(0);
 
   const [prefs, setPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS);
   const [splash, setSplash] = useState<SplashPhase>("loading");
@@ -194,6 +236,13 @@ export function ReaderScreen() {
   const [retryNonce, setRetryNonce] = useState(0);
   const [navNotice, setNavNotice] = useState<string | null>(null);
   const navNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [seeking, setSeeking] = useState(false);
+  /** Bumped at most once a second so pace-derived labels stay live without
+   *  re-rendering on every scroll locator. */
+  const [paceVersion, setPaceVersion] = useState(0);
+  /** This book's annotations — the source for bookmark state and, later, the
+   *  reading-tools panel. Refreshed through one helper so paint never drifts. */
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [systemDark, setSystemDark] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -207,6 +256,53 @@ export function ReaderScreen() {
   // 0 = no cap. The canvas is `position: absolute; inset: 0`, so `margin: 0
   // auto` centers the capped column.
   const readingWidth = activePrefs.maxWidth > 0 ? activePrefs.maxWidth : null;
+
+  /** A failed navigation is surfaced once, from the call site that asked. */
+  const showNavNotice = useCallback((message: string) => {
+    if (navNoticeTimerRef.current) clearTimeout(navNoticeTimerRef.current);
+    setNavNotice(message);
+    navNoticeTimerRef.current = setTimeout(() => setNavNotice(null), 4000);
+  }, []);
+
+  const reportNavigation = useCallback(
+    (pending: Promise<NavigationOutcome>, message: string) => {
+      void pending
+        .then((outcome) => {
+          if (!outcome.ok && !outcome.superseded) showNavNotice(message);
+        })
+        .catch(() => showNavNotice(message));
+    },
+    [showNavNotice]
+  );
+
+  const paintAnnotations = useCallback(async (list: Annotation[]) => {
+    setAnnotations(list);
+    try {
+      await engineRef.current?.applyDecorations(decorationsFor(list));
+    } catch {
+      /* a paint failure must not break reading */
+    }
+  }, []);
+
+  const refreshAnnotations = useCallback(
+    async (docId?: string): Promise<Annotation[]> => {
+      const id = docId ?? useReaderStore.getState().doc?.docId;
+      if (!id) return [];
+      const list = await getLibraryManager().annotations.listForDoc(id);
+      await paintAnnotations(list);
+      return list;
+    },
+    [paintAnnotations]
+  );
+
+  /** Focus/pointer holds keep the chrome up while the user works in it. */
+  const handleChromeHold = useCallback((reason: "focus" | "pointer", active: boolean) => {
+    const chrome = chromeRef.current;
+    if (!chrome) return;
+    if (active) chrome.hold(reason);
+    else chrome.release(reason);
+    setChromeVisible(chrome.visible);
+  }, []);
 
   // ---- load the schema-1 doc for the route request -------------------------
   useEffect(() => {
@@ -234,8 +330,13 @@ export function ReaderScreen() {
     setToc([]);
     setPanel(null);
     setCtxMenu(null);
+    setAnnotations([]);
     previousPercentRef.current = null;
   }, [doc?.docId, retryNonce]);
+
+  useEffect(() => {
+    selectionRef.current = selection;
+  }, [selection]);
 
   useEffect(() => {
     if (!inbookSearchOpen) return;
@@ -303,8 +404,9 @@ export function ReaderScreen() {
     // seek state, sequences overlapping requests and returns success/failure.
     const nav = createNavigationCoordinator(engine, {
       onBeforeMove: () => pace.breakSession(Date.now()),
-      onSeekingChanged: (seeking) => {
-        seekingRef.current = seeking;
+      onSeekingChanged: (seekingNow) => {
+        seekingRef.current = seekingNow;
+        setSeeking(seekingNow);
       },
     });
     navRef.current = nav;
@@ -350,6 +452,13 @@ export function ReaderScreen() {
       }
       previousPercentRef.current = percent;
 
+      // Pace-derived labels (time left) update at most once a second; the
+      // underlying pace math still runs on every locator.
+      if (now - lastPacePublishRef.current >= 1000) {
+        lastPacePublishRef.current = now;
+        setPaceVersion((v) => v + 1);
+      }
+
       const snapshot = {
         location: next.location,
         percent,
@@ -366,8 +475,6 @@ export function ReaderScreen() {
 
     const offClick = engine.onClick((info) => {
       const chrome = chromeRef.current!;
-      chrome.onActivity();
-      setChromeVisible(true);
       const intent = intentForReaderClick({
         x: info.x,
         width: info.width || canvas.clientWidth || 1,
@@ -377,14 +484,17 @@ export function ReaderScreen() {
       // Interactive elements (links, footnotes, media) must reach the engine's
       // own handling — turning a tap on a link into a page flip is a trust bug.
       if (intent === "passthrough") return false;
-      if (intent === "toggle") {
-        chrome.toggle();
-        setChromeVisible(chrome.visible);
-        return true;
+      // A live selection owns the pointer: never flip the page out from under
+      // an in-progress highlight (04 §5, 07 §3).
+      if (selectionRef.current) return false;
+      // Interaction reschedules the idle timer only when the chrome is up;
+      // edge clicks while reading must not reveal it.
+      if (chrome.visible) chrome.onActivity();
+      if (intent === "next") {
+        reportNavigation(nav.next("page-edge"), "Couldn't turn the page forward.");
+      } else {
+        reportNavigation(nav.previous("page-edge"), "Couldn't turn the page back.");
       }
-      // Coordinator's onBeforeMove breaks the pace session.
-      if (intent === "forward") void nav.next();
-      else void nav.previous();
       return true;
     });
 
@@ -397,6 +507,14 @@ export function ReaderScreen() {
     });
 
     const offLink = engine.onLink((href) => openExternal(href));
+    // Hover inside the content frame counts as activity: moving the mouse over
+    // the page brings the chrome back, exactly like a desktop reader (07 §2).
+    const offPointer = engine.onPointerActivity(() => {
+      const chrome = chromeRef.current;
+      if (!chrome) return;
+      chrome.onActivity();
+      setChromeVisible(chrome.visible);
+    });
     // Blocked native context menus from the spine frame (07 §3).
     const offCtxMenu = engine.onContextMenu((info) => {
       contextMenuRef.current(info.x, info.y);
@@ -408,11 +526,9 @@ export function ReaderScreen() {
         await engine.open(canvas);
         if (cancelled) return;
         setToc(engine.toc());
-        // Paint existing highlights (04 §7).
+        // Load this book's annotations once: live bookmark state + highlights.
         try {
-          const lm = getLibraryManager();
-          const anns = await lm.annotations.listForDoc(doc.docId);
-          await engine.applyDecorations(decorationsFor(anns));
+          await refreshAnnotations(doc.docId);
         } catch {
           /* annotation load failure must not break reading */
         }
@@ -434,6 +550,7 @@ export function ReaderScreen() {
       offClick();
       offSelection();
       offLink();
+      offPointer();
       offCtxMenu();
       void writer.flush();
       void engine.destroy();
@@ -445,18 +562,28 @@ export function ReaderScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.docId, retryNonce, request]);
 
+  // ---- chrome holds: menus, panels, dialogs, search, selection -------------
+  useEffect(() => {
+    const chrome = chromeRef.current;
+    if (!chrome) return;
+    const sync = (reason: ChromeHold, active: boolean) => {
+      if (active) chrome.hold(reason);
+      else chrome.release(reason);
+    };
+    sync("menu", menuOpen || ctxMenu !== null);
+    sync("panel", panel !== null);
+    sync("dialog", noteEditorOpen || quoteCardOpen);
+    sync("search", inbookSearchOpen);
+    sync("selection", selection !== null);
+    setChromeVisible(chrome.visible);
+  }, [menuOpen, ctxMenu, panel, noteEditorOpen, quoteCardOpen, inbookSearchOpen, selection]);
+
   // ---- chrome auto-hide + keep-awake polling ------------------------------
   useEffect(() => {
     if (!doc) return;
     const chromeTimer = setInterval(() => {
       const chrome = chromeRef.current;
       if (!chrome) return;
-      // An open menu means an active interaction: do not hide the toolbar
-      // underneath it (04 §5 menu lifecycle).
-      if (menuOpenRef.current) {
-        chrome.onActivity();
-        return;
-      }
       setChromeVisible(chrome.tick() === "visible");
     }, Math.min(250, CHROME_IDLE_MS / 4));
     return () => clearInterval(chromeTimer);
@@ -506,15 +633,24 @@ export function ReaderScreen() {
   useEffect(() => {
     if (!doc) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || isTypingTarget(event.target)) return;
+      if (event.defaultPrevented || event.repeat || isTextEntryTarget(event.target)) return;
+      // Space/Enter activate a focused control; arrows keep paging regardless.
+      if (event.key === " " && isActivatableTarget(event.target)) return;
       const engine = engineRef.current;
       if (!engine) return;
 
       const turn = (direction: "next" | "previous") => {
-        void navRef.current?.[direction]();
+        const nav = navRef.current;
+        if (!nav) return;
+        reportNavigation(
+          nav[direction]("keyboard"),
+          direction === "next" ? "Couldn't turn the page forward." : "Couldn't turn the page back."
+        );
       };
       const jump = (percent: number) => {
-        void navRef.current?.goToPercent(percent);
+        const nav = navRef.current;
+        if (!nav) return;
+        reportNavigation(nav.goToPercent(percent, "keyboard"), "Couldn't jump to that position.");
       };
 
       switch (event.key) {
@@ -599,7 +735,7 @@ export function ReaderScreen() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, panel, inbookSearchOpen, selection, ctxMenu]);
+  }, [doc, panel, inbookSearchOpen, selection, ctxMenu, reportNavigation]);
 
   // Best-effort flush if the window is closed from the OS (07 §5).
   useEffect(() => {
@@ -696,17 +832,14 @@ export function ReaderScreen() {
         updatedAt: nowIso(),
       };
       await lm.annotations.add(annotation);
-      // Re-paint highlights.
-      if (kind === "highlight") {
-        try {
-          const anns = await lm.annotations.listForDoc(doc.docId);
-          await engineRef.current?.applyDecorations(decorationsFor(anns));
-        } catch {
-          /* ignore */
-        }
+      // Repaint and refresh bookmark state from the one annotation source.
+      try {
+        await refreshAnnotations(doc.docId);
+      } catch {
+        /* a paint failure must not lose the annotation */
       }
     },
-    [doc, resolveChapterId]
+    [doc, resolveChapterId, refreshAnnotations]
   );
 
   const toggleHighlight = useCallback(
@@ -720,17 +853,17 @@ export function ReaderScreen() {
         await lm.annotations.remove(existing.id);
       } else {
         await createAnnotation(sel, "highlight", color as Annotation["color"], null);
+        setSelection(null);
+        return;
       }
-      // Re-paint.
       try {
-        const anns = await lm.annotations.listForDoc(doc.docId);
-        await engineRef.current?.applyDecorations(decorationsFor(anns));
+        await refreshAnnotations(doc.docId);
       } catch {
         /* ignore */
       }
       setSelection(null);
     },
-    [doc, createAnnotation]
+    [doc, createAnnotation, refreshAnnotations]
   );
 
   const handleCopySelection = useCallback(async (quote: string) => {    try {
@@ -760,6 +893,14 @@ export function ReaderScreen() {
     if (!doc) return "failed";
     const loc = engineRef.current?.currentLocator();
     if (!loc) return "failed";
+    /** The write already landed; a repaint failure must not report it as lost. */
+    const refreshBookmarks = async () => {
+      try {
+        await refreshAnnotations(doc.docId);
+      } catch {
+        /* bookmark state catches up on the next refresh */
+      }
+    };
     try {
       const lm = getLibraryManager();
       // Compare by href + progression, not string equality: the engine reports
@@ -769,6 +910,7 @@ export function ReaderScreen() {
       );
       if (existing) {
         await lm.annotations.remove(existing.id);
+        await refreshBookmarks();
         return "removed";
       }
       const annotation: Annotation = {
@@ -786,12 +928,13 @@ export function ReaderScreen() {
         updatedAt: nowIso(),
       };
       await lm.annotations.add(annotation);
+      await refreshBookmarks();
       return "added";
     } catch {
       // A failed write must not look like success; the notice surfaces it.
       return "failed";
     }
-  }, [doc, resolveChapterId]);
+  }, [doc, resolveChapterId, refreshAnnotations]);
 
   useEffect(() => {
     bookmarkToggleRef.current = handleBookmarkToggle;
@@ -805,20 +948,19 @@ export function ReaderScreen() {
   }, []);
 
   const goToHref = useCallback(
-    async (href: string): Promise<boolean> => {
+    (href: string, origin: NavigationOrigin = "contents"): Promise<NavigationOutcome> => {
       const nav = navRef.current;
-      if (!nav) return false;
-      return nav.goToHref(href);
+      if (!nav) {
+        return Promise.resolve({
+          ok: false,
+          superseded: false,
+          reason: "The reader is not ready yet.",
+        });
+      }
+      return nav.goToHref(href, origin);
     },
     []
   );
-
-  /** Unresolved TOC / search / scrub jumps surface here instead of vanishing. */
-  const showNavNotice = useCallback((message: string) => {
-    if (navNoticeTimerRef.current) clearTimeout(navNoticeTimerRef.current);
-    setNavNotice(message);
-    navNoticeTimerRef.current = setTimeout(() => setNavNotice(null), 4000);
-  }, []);
 
   /** The More menu is controlled here so keyboard (07 §2) and the auto-hide
    * tick honour it; the component-owned state in ReaderChrome could not. */
@@ -838,10 +980,12 @@ export function ReaderScreen() {
     paceRef.current?.breakSession(Date.now());
     previousPercentRef.current = null;
     const current = (locator?.progression ?? (doc?.progress?.percent ?? 0) / 100) * 100;
+    scrubValueRef.current = current;
     setScrubValue(current);
   }, [doc?.progress?.percent, locator?.progression]);
 
   const handleScrubChange = useCallback((percent: number) => {
+    scrubValueRef.current = percent;
     setScrubValue(percent);
     chromeRef.current?.onActivity();
   }, []);
@@ -849,28 +993,68 @@ export function ReaderScreen() {
   const handleScrubEnd = useCallback(
     (percent: number) => {
       chromeRef.current?.onScrubEnd();
+      // The dock releases once; a stray blur/keyup must not double-jump.
+      if (scrubValueRef.current === null) return;
+      scrubValueRef.current = null;
       setScrubValue(null);
       const nav = navRef.current;
       if (!nav) return;
-      void nav.goToPercent(percent).then((ok) => {
-        if (!ok) showNavNotice("Couldn't jump to that position.");
-      });
+      reportNavigation(nav.goToPercent(percent, "slider"), "Couldn't jump to that position.");
     },
-    [showNavNotice]
+    [reportNavigation]
   );
+
+  const handleTurn = useCallback(
+    (direction: "next" | "previous") => {
+      const nav = navRef.current;
+      if (!nav) return;
+      reportNavigation(
+        nav[direction]("button"),
+        direction === "next" ? "Couldn't turn the page forward." : "Couldn't turn the page back."
+      );
+    },
+    [reportNavigation]
+  );
+
+  const handleToggleChrome = useCallback(() => {
+    const chrome = chromeRef.current;
+    if (!chrome) return;
+    // "Hide controls" runs while the menu still holds the chrome open; drop
+    // that hold (and any focus hold the menu button left behind) first.
+    chrome.release("menu");
+    chrome.release("focus");
+    chrome.toggle();
+    setChromeVisible(chrome.visible);
+  }, []);
 
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const chrome = chromeRef.current;
     if (!chrome) return;
-    // Bottom 40 px of the reader = pillar reveal zone (07 §2): the pillar stays
-    // up ~3 s even after the cursor stops. Elsewhere, normal activity tracking.
+    // Exposed surface (margins, above the canvas): the bottom band reveals the
+    // dock, anywhere else counts as normal activity. Hover inside the spine
+    // frame arrives via engine.onPointerActivity (07 §2).
     const rect = e.currentTarget.getBoundingClientRect();
-    if (rect.height > 0 && e.clientY >= rect.bottom - PILLAR_REVEAL_ZONE_PX) {
+    if (rect.height > 0 && e.clientY >= rect.bottom - DOCK_REVEAL_ZONE_PX) {
       chrome.onPillarHover();
     } else {
       chrome.onActivity();
     }
     setChromeVisible((visible) => (visible ? visible : true));
+  }, []);
+
+  /** Clicks on blank reader surface (outside the iframe) bring the controls
+   *  back. Text clicks inside the publication never do. */
+  const onReaderSurfaceClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.closest(
+        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search, .folio-selection-toolbar, .folio-dialog, [role='dialog'], .folio-snackbar, .folio-reader-splash"
+      )
+    ) {
+      return;
+    }
+    chromeRef.current?.onActivity();
+    setChromeVisible(true);
   }, []);
 
   /** Root fallback for right-clicks that happen outside the spine frame (the
@@ -880,7 +1064,7 @@ export function ReaderScreen() {
     const target = e.target as HTMLElement | null;
     if (
       target?.closest(
-        ".folio-panel, .folio-overlay, .folio-reader-top, .folio-reader-pillar, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search, .folio-selection-toolbar, [role='dialog'], .folio-snackbar, .folio-reader-splash"
+        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search, .folio-selection-toolbar, [role='dialog'], .folio-snackbar, .folio-reader-splash"
       )
     ) {
       return;
@@ -899,7 +1083,18 @@ export function ReaderScreen() {
     (locator?.progression !== undefined
       ? locator.progression * 100
       : (doc?.progress?.percent ?? 0));
-  const timeLeft = formatTimeLeft(paceRef.current?.timeLeftMinutes(percent) ?? null);
+  // Recomputed when the throttled pace snapshot ticks, not on every locator.
+  const timeLeft = useMemo(
+    () => formatTimeLeft(paceRef.current?.timeLeftMinutes(percent) ?? null),
+    [paceVersion, percent]
+  );
+  const backLabel = backLabelFor(readerOrigin?.route);
+  const bookmarked = useMemo(
+    () =>
+      !!locator &&
+      annotations.some((a) => a.kind === "bookmark" && sameLocation(a.location, locator.location)),
+    [annotations, locator]
+  );
 
   const tint = doc?.meta.contentHash ? tintIndexFromHash(doc.meta.contentHash) : 0;
   const splashPhase: SplashPhase =
@@ -919,6 +1114,7 @@ export function ReaderScreen() {
         } as CSSProperties
       }
       onMouseMove={onMouseMove}
+      onClick={onReaderSurfaceClick}
       onContextMenu={onReaderContextMenu}
     >
       <div
@@ -937,20 +1133,31 @@ export function ReaderScreen() {
         <>
           <ReaderChrome
             visible={chromeVisible && splashPhase === "done"}
+            backLabel={backLabel}
             title={title}
             chapterTitle={chapterTitle}
             percent={percent}
             timeLeft={timeLeft}
             scrubValue={scrubValue}
+            seeking={seeking}
+            bookmarked={bookmarked}
             menuOpen={menuOpen}
             onMenuChange={setMenu}
             onBack={() => void handleBack()}
             onAppearance={() => openPanel("appearance")}
-            onToc={() => openPanel("toc")}
-            onSearch={() => setInbookSearchOpen((v) => !v)}
+            onContents={() => openPanel("toc")}
+            onSearch={() => {
+              setInbookSearchOpen((v) => !v);
+              chromeRef.current?.onActivity();
+              setChromeVisible(true);
+            }}
             onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
             onShareQuote={() => setQuoteCardOpen(true)}
             shareEnabled={!!quoteSelection}
+            onToggleChrome={handleToggleChrome}
+            onHold={handleChromeHold}
+            onPrevious={() => handleTurn("previous")}
+            onNext={() => handleTurn("next")}
             onScrubStart={handleScrubStart}
             onScrubChange={handleScrubChange}
             onScrubEnd={handleScrubEnd}
@@ -975,9 +1182,10 @@ export function ReaderScreen() {
                       className="folio-inbook-search__result"
                       onClick={() => {
                         setInbookSearchOpen(false);
-                        void goToHref(r.locator).then((ok) => {
-                          if (!ok) showNavNotice("Couldn't reach that search result.");
-                        });
+                        reportNavigation(
+                          goToHref(r.locator, "search"),
+                          "Couldn't reach that search result."
+                        );
                       }}
                     >
                       <div className="folio-inbook-search__chapter">{r.chapterTitle}</div>
@@ -1021,9 +1229,7 @@ export function ReaderScreen() {
             onClose={() => setPanel(null)}
             onSelect={(href) => {
               setPanel(null);
-              void goToHref(href).then((ok) => {
-                if (!ok) showNavNotice("Couldn't reach that section.");
-              });
+              reportNavigation(goToHref(href, "contents"), "Couldn't reach that section.");
             }}
           />
 

@@ -49,6 +49,9 @@ export class ReadiumEngine implements ReaderEngine {
   private linkCbs = new Set<(href: string) => boolean>();
   private clickCbs = new Set<(info: ReaderClickInfo) => boolean>();
   private contextMenuCbs = new Set<(info: ReaderClickInfo) => boolean>();
+  private pointerCbs = new Set<() => void>();
+  private frameWindows = new Set<Window>();
+  private lastPointerEmit = 0;
   private lastLocator: ReaderLocator | null = null;
   private systemDark = false;
 
@@ -72,6 +75,9 @@ export class ReadiumEngine implements ReaderEngine {
     const listeners: EpubNavigatorListeners = {
       frameLoaded: (wnd) => {
         this.frameDpr = wnd.devicePixelRatio || 1;
+        // The content frame swallows hover; re-emit it for the chrome.
+        this.frameWindows.add(wnd);
+        wnd.addEventListener("pointermove", this.framePointerMove, { passive: true });
       },
       positionChanged: (locator) => this.onPositionChanged(locator),
       viewportChanged: () => {},
@@ -127,6 +133,14 @@ export class ReadiumEngine implements ReaderEngine {
   }
 
   async destroy(): Promise<void> {
+    for (const wnd of this.frameWindows) {
+      try {
+        wnd.removeEventListener("pointermove", this.framePointerMove);
+      } catch {
+        /* frame already gone */
+      }
+    }
+    this.frameWindows.clear();
     await this.navigator?.destroy();
     this.opened?.close();
     this.navigator = null;
@@ -296,6 +310,21 @@ export class ReadiumEngine implements ReaderEngine {
     this.contextMenuCbs.add(cb);
     return () => this.contextMenuCbs.delete(cb);
   }
+
+  onPointerActivity(cb: () => void): () => void {
+    this.pointerCbs.add(cb);
+    return () => this.pointerCbs.delete(cb);
+  }
+
+  /** Readium does not forward hover out of the content frame, so listen on
+   *  every loaded frame window. Throttled: the chrome only needs to know the
+   *  pointer is moving, not each pixel. */
+  private readonly framePointerMove = () => {
+    const now = Date.now();
+    if (now - this.lastPointerEmit < 100) return;
+    this.lastPointerEmit = now;
+    this.pointerCbs.forEach((cb) => cb());
+  };
 
   private onPositionChanged(locator: Locator): void {
     const nav = this.navigator;

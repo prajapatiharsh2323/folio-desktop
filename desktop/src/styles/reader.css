@@ -35,15 +35,18 @@
   z-index: 15;
 }
 
-/* ---- Chrome (03 §5.3) — surface per resolved reading theme ---------------- */
+/* ---- Chrome (03 §5.3) — surface per resolved reading theme ----------------
+   The chrome is one overlay (top bar + bottom dock) over the canvas. The
+   container itself is click-through so the publication keeps every pixel
+   between the controls; only the bars accept pointer events. */
 .folio-reader-chrome {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  inset: 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
   transition: opacity var(--folio-motion-panel) var(--folio-motion-panel-ease);
   opacity: 1;
 }
@@ -54,35 +57,43 @@
 
 .folio-reader-chrome:not(.is-visible) {
   opacity: 0;
-  pointer-events: none;
-}
-
-/* Top bar (04 §5.3 / 03 §5.3): compact, non-scrolling, chrome surface. */
-.folio-reader-top {
-  display: flex;
-  align-items: center;
-  gap: var(--folio-space-3);
-  height: 52px;
-  padding: 0 var(--folio-space-4);
-  background: var(--reader-chrome-surface, rgba(255, 254, 251, 0.92));
-  color: var(--reader-chrome-text, #1C1B19);
-  border-bottom: var(--folio-divider) solid color-mix(in srgb, currentColor 12%, transparent);
 }
 
 .folio-reader-chrome:not(.is-visible) .folio-reader-top,
-.folio-reader-chrome:not(.is-visible) .folio-reader-pillar {
+.folio-reader-chrome:not(.is-visible) .folio-reader-dock {
   visibility: hidden;
+}
+
+/* Top bar (04 §5.3 / 03 §5.3): back · title · reading tools. */
+.folio-reader-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--folio-space-2);
+  height: 56px;
+  padding: 0 var(--folio-space-3);
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--reader-chrome-surface, rgba(255, 254, 251, 0.92)) 92%, transparent);
+  color: var(--reader-chrome-text, #1C1B19);
+  border-bottom: var(--folio-divider) solid color-mix(in srgb, currentColor 10%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.folio-reader-top__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .folio-reader-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
   border: none;
-  border-radius: var(--folio-radius-pill);
+  border-radius: var(--folio-radius-control);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -93,15 +104,32 @@
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
+.folio-reader-icon:active:not(:disabled) {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
 .folio-reader-icon:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.folio-reader-top__title {
-  flex: 1;
+.folio-reader-icon.is-active {
+  color: var(--folio-accent, #355847);
+  background: color-mix(in srgb, var(--folio-accent, #355847) 14%, transparent);
+}
+
+.folio-reader-top__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   min-width: 0;
-  text-align: center;
+  padding: 0 var(--folio-space-2);
+}
+
+.folio-reader-top__title {
+  max-width: 100%;
   font-size: var(--folio-type-label-size);
   line-height: var(--folio-type-label-line);
   font-weight: var(--folio-type-label-weight);
@@ -109,6 +137,23 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.folio-reader-top__chapter {
+  max-width: 100%;
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  font-weight: var(--folio-type-micro-weight);
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 760px) {
+  .folio-reader-top__chapter {
+    display: none;
+  }
 }
 
 .folio-reader-menu {
@@ -151,41 +196,81 @@
   cursor: default;
 }
 
-/* Bottom pillar: rounded pill, chrome surface @ .94 + subtle shadow (03 §5.3). */
-.folio-reader-pillar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 20;
+.folio-reader-menu__label {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.folio-reader-menu__hint {
+  padding: 1px 6px;
+  border-radius: var(--folio-radius-control);
+  border: var(--folio-divider) solid var(--folio-border);
+  font-family: var(--folio-font-sans, inherit);
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  color: var(--folio-text-secondary);
+}
+
+/* Bottom dock (04 §5): Previous · position · Next, then the progress slider.
+   Rounded card rather than a full-width bar, so the page keeps its edges. */
+.folio-reader-dock {
+  width: min(720px, calc(100% - var(--folio-space-5)));
+  margin: 0 auto var(--folio-space-4);
+  padding: 8px var(--folio-space-3) 6px;
   display: flex;
-  align-items: center;
-  gap: var(--folio-space-4);
-  margin: 0 var(--folio-space-4);
-  padding: 10px var(--folio-space-4);
-  border-radius: var(--folio-radius-pill);
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: auto;
+  border-radius: var(--folio-radius-panel);
+  border: var(--folio-divider) solid color-mix(in srgb, currentColor 10%, transparent);
   background: color-mix(in srgb, var(--reader-chrome-surface, rgba(255, 254, 251, 0.92)) 94%, transparent);
   color: var(--reader-chrome-text, #1C1B19);
-  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.12);
-  transition: opacity var(--folio-motion-panel) var(--folio-motion-panel-ease);
-  opacity: 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(14px);
 }
 
-.folio-reader-chrome.is-visible .folio-reader-pillar {
-  opacity: 1;
-}
-
-.folio-reader-pillar__meta {
+.folio-reader-dock__row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--folio-space-2);
-  min-width: 0;
-  flex: 1;
 }
 
-.folio-reader-pillar__chapter {
+.folio-reader-dock__turn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--folio-radius-control);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--folio-motion-hover) ease;
+}
+
+.folio-reader-dock__turn:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.folio-reader-dock__turn:active {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.folio-reader-dock__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   flex: 1;
   min-width: 0;
+}
+
+.folio-reader-dock__chapter {
+  max-width: 100%;
   font-size: var(--folio-type-label-size);
   line-height: var(--folio-type-label-line);
   font-weight: var(--folio-type-label-weight);
@@ -194,29 +279,95 @@
   text-overflow: ellipsis;
 }
 
-.folio-reader-pillar__percent {
-  font-size: var(--folio-type-label-size);
-  line-height: var(--folio-type-label-line);
-  font-weight: var(--folio-type-label-weight);
-  min-width: 38px;
-  text-align: right;
-}
-
-.folio-reader-pillar__time {
+.folio-reader-dock__stats {
+  display: flex;
+  align-items: baseline;
+  gap: var(--folio-space-2);
   font-size: var(--folio-type-micro-size);
   line-height: var(--folio-type-micro-line);
   font-weight: var(--folio-type-micro-weight);
-  color: color-mix(in srgb, currentColor 70%, transparent);
-  min-width: 44px;
-  text-align: right;
+  color: color-mix(in srgb, currentColor 62%, transparent);
 }
 
-.folio-reader-scrubber {
-  flex: 0 1 220px;
-  width: 220px;
-  height: 20px;
+.folio-reader-dock__percent {
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  font-weight: 600;
+}
+
+.folio-reader-dock__time {
+  font-variant-numeric: tabular-nums;
+}
+
+.folio-reader-dock__seeking {
+  color: var(--folio-accent, #355847);
+}
+
+.folio-reader-dock__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
   accent-color: var(--folio-accent, #355847);
   cursor: pointer;
+}
+
+.folio-reader-dock__slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: var(--folio-radius-pill);
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.folio-reader-dock__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border-radius: var(--folio-radius-pill);
+  border: none;
+  background: var(--folio-accent, #355847);
+}
+
+.folio-reader-dock__slider::-moz-range-track {
+  height: 3px;
+  border-radius: var(--folio-radius-pill);
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.folio-reader-dock__slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: none;
+  border-radius: var(--folio-radius-pill);
+  background: var(--folio-accent, #355847);
+}
+
+/* Hidden chrome leaves a 3 px progress hairline so position is never lost. */
+.folio-reader-hairline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  z-index: 19;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--reader-text, #1C1B19) 10%, transparent);
+  opacity: 1;
+  transition: opacity var(--folio-motion-hover) ease;
+}
+
+.folio-reader-chrome.is-visible + .folio-reader-hairline {
+  opacity: 0;
+}
+
+.folio-reader-hairline__fill {
+  display: block;
+  height: 100%;
+  background: var(--folio-accent, #355847);
+  transition: width 180ms linear;
 }
 
 /* ---- Splash (04 §1/§11) ---------------------------------------------------- */
@@ -578,8 +729,13 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .folio-reader-splash,
-  .folio-reader-chrome {
+  .folio-reader-chrome,
+  .folio-reader-hairline {
     transition-duration: 0.01ms !important;
+  }
+
+  .folio-reader-hairline__fill {
+    transition: none !important;
   }
 
   .folio-reader-spinner {

@@ -5,7 +5,7 @@ import { generatePositions, progressionForLocator, locatorForProgression, POSITI
 import { resumePlan, isCfi } from "../src/reader/resume";
 import { ReadingPaceStats, formatTimeLeft } from "../src/reader/pace";
 import { ProgressWriter } from "../src/reader/progress";
-import { ChromeStateMachine, intentForReaderClick } from "../src/reader/chrome";
+import { ChromeStateMachine, intentForReaderClick, readerEdgeZoneWidth } from "../src/reader/chrome";
 import { resolveReaderTheme, typefaceStack, scrimAlpha, toNavigatorPreferences } from "../src/reader/readerThemes";
 
 function makeEpub(
@@ -353,21 +353,60 @@ describe("ChromeStateMachine", () => {
     expect(chrome.visible).toBe(true);
   });
 
-  it("zoneForClick thirds", () => {
-    expect(ChromeStateMachine.zoneForClick(10, 300)).toBe("back");
-    expect(ChromeStateMachine.zoneForClick(150, 300)).toBe("toggle");
-    expect(ChromeStateMachine.zoneForClick(290, 300)).toBe("forward");
+  it("zone hit-testing: narrow edges page, the reading column passes through", () => {
+    const width = 1000;
+    expect(readerEdgeZoneWidth(width)).toBe(80);
+    expect(readerEdgeZoneWidth(100)).toBe(48); // clamped for narrow windows
+    expect(readerEdgeZoneWidth(4000)).toBe(96); // clamped for wide windows
+    const base = { width, interactive: false, defaultPrevented: false };
+    expect(intentForReaderClick({ ...base, x: 20 })).toBe("previous");
+    expect(intentForReaderClick({ ...base, x: 500 })).toBe("passthrough");
+    expect(intentForReaderClick({ ...base, x: 980 })).toBe("next");
   });
 
-  it("intentForReaderClick passes interactive and prevented clicks through", () => {
-    // A tap on a link/footnote/edge control must reach the engine untouched.
-    expect(intentForReaderClick({ x: 10, width: 300, interactive: true, defaultPrevented: false })).toBe("passthrough");
-    expect(intentForReaderClick({ x: 290, width: 300, interactive: false, defaultPrevented: true })).toBe("passthrough");
-    expect(intentForReaderClick({ x: 10, width: 300, interactive: true, defaultPrevented: true })).toBe("passthrough");
-    // Non-interactive taps still resolve by thirds.
-    expect(intentForReaderClick({ x: 10, width: 300, interactive: false, defaultPrevented: false })).toBe("back");
-    expect(intentForReaderClick({ x: 150, width: 300, interactive: false, defaultPrevented: false })).toBe("toggle");
-    expect(intentForReaderClick({ x: 290, width: 300, interactive: false, defaultPrevented: false })).toBe("forward");
+  it("interactive and engine-handled clicks always pass through", () => {
+    const width = 1000;
+    expect(
+      intentForReaderClick({ x: 5, width, interactive: true, defaultPrevented: false })
+    ).toBe("passthrough");
+    expect(
+      intentForReaderClick({ x: 995, width, interactive: false, defaultPrevented: true })
+    ).toBe("passthrough");
+    expect(
+      intentForReaderClick({ x: 5, width, interactive: true, defaultPrevented: true })
+    ).toBe("passthrough");
+  });
+
+  it("a hold keeps the chrome up past the idle window", () => {
+    let now = 0;
+    const chrome = new ChromeStateMachine(() => now);
+    chrome.hold("panel");
+    now = 10_000;
+    expect(chrome.tick()).toBe("visible");
+    expect(chrome.held).toBe(true);
+
+    chrome.release("panel");
+    now = 11_000;
+    expect(chrome.tick()).toBe("visible"); // countdown restarts on release
+    now = 14_500;
+    expect(chrome.tick()).toBe("hidden");
+  });
+
+  it("holds are idempotent per reason", () => {
+    let now = 0;
+    const chrome = new ChromeStateMachine(() => now);
+    chrome.hold("menu");
+    chrome.hold("menu");
+    chrome.release("menu");
+    now = 3500;
+    expect(chrome.tick()).toBe("hidden");
+  });
+
+  it("toggle refuses to hide the controls under an open panel", () => {
+    const chrome = new ChromeStateMachine(() => 0);
+    chrome.hold("panel");
+    expect(chrome.toggle()).toBe("visible");
+    expect(chrome.visible).toBe(true);
   });
 
   it("pillar hover holds for 3 s even at rest (07 §2)", () => {
