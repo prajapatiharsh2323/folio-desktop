@@ -1,7 +1,9 @@
 # Task Board
 
 Last updated: **2026-10-31** (session `S-20261031-05` — audit repair batch 1:
-collections routing, navigation controller, menu/controls, dictionary removed).
+collections routing, navigation controller, menu/controls, dictionary removed;
+plus `S-20261031-06` — Windows automated verification + first dictionary-free
+NSIS build from `MANUAL-TASKS.md`).
 Statuses: `open`, `in-progress`, `blocked`, `done`. Keep this board limited to
 active or known work; move narrative detail to session/audit records.
 
@@ -13,7 +15,7 @@ active or known work; move narrative detail to session/audit records.
 | FT-010 | P0 | Reader navigation coordination: single `ReaderNavigationCoordinator` gates all navigation (clicks, keyboard, scrub, TOC, search); seek gate + superseded-request + failure notices | done (code) / blocked (Windows verification) | Linux unit-tested (9 cases). Real EPUB / webview click-zone + cleanup behaviour needs Windows. | [I-20261031-05](plans/implementations/I-20261031-05-audit-repair-batch-1.md) |
 | FT-011 | P0 | Reader menu/controls: Escape ladder (menu→panel→search→selection), controlled More menu, no auto-hide under an open menu, shortcut/focus conflicts removed, live bookmark item, TOC match tolerance | done (code) / blocked (Windows verification) | jsdom-tested menu + TOC matching; keyboard/auto-hide timing needs Windows. | [I-20261031-05](plans/implementations/I-20261031-05-audit-repair-batch-1.md) |
 | FT-012 | P1 | Reader UX (audit Phase 4): typography, reading width/margins, panels, progress; visual tuning | done (code, slices 1+2) / partial (visual tuning) | Slice 1: `maxWidth` honored as the reading-width column cap + Appearance control. Slice 2 (07 §2/§3 pointer parity): hovering the bottom 40 px reveals the pillar for 3 s even at rest (`onPillarHover`), suppressed right-click in the spine frame → reduced anchored menu (toolbar/TOC/bookmark) or re-anchored selection actions, escape-ladder and outside-click wiring, tooltips on chrome icons. Remaining: visual/tuning verdicts need a Windows webview session. | [I-20261031-05](plans/implementations/I-20261031-05-audit-repair-batch-1.md) |
-| FT-007 | P1 | Backup/restore safety: validated staged restore, document-aware merge, v2 archive | done (code) / blocked (Windows verification) | Linux checks green (`tsc -b`, 127 tests, `vite build`, `cargo fmt`). Windows swap/rollback + `cargo test` still unverified. | [I-20261030-01](plans/implementations/I-20261030-01-backup-restore-hardening.md) |
+| FT-007 | P1 | Backup/restore safety: validated staged restore, document-aware merge, v2 archive | done (code) / partial (Windows) | `cargo test --all-targets` (**23 passed**) + `cargo fmt` now verified on Windows (`S-20261031-06`). Remaining: the interrupt-the-restore swap/rollback round-trip in the running app. | [I-20261030-01](plans/implementations/I-20261030-01-backup-restore-hardening.md) |
 | FT-008 | P1 | Reader correctness: resume by `href`+progression+text anchor, relayout on resize, click/tap regions, annotation + bookmark anchoring | done (code) / blocked (Windows verification) | Linux checks green (`tsc -b`, 143 tests, `vite build`, `cargo fmt`). Locator codec + resume + decorations + click passthrough + teardown/prefs fixes done; real webview click/pagination behaviour needs Windows. Resize relayout deliberately stays with `EpubNavigator`. | [I-20261030-02](plans/implementations/I-20261030-02-reader-locator-correctness.md) |
 | FT-001 | P1 | Taskbar jump list (“Open Folio” / “Import file…”) | done (code) / runtime startup verified | Windows run now works: the app launched and stayed up, so the `PKEY_Title` heap-corruption crash is fixed ([A-BUG-20261031-01](audits/bugs/A-BUG-20261031-01-jumplist-startup-crash.md)). Remaining: eyeball the pinned icon’s task list. | [I-20261030-03](plans/implementations/I-20261030-03-taskbar-jump-list.md); `.docs/09` §3 |
 | FT-005 | P2 | Performance budget checks: cold open ≤ 1.2 s, page turn ≤ 80 ms, 200 highlights ≤ 400 ms | done (harness + method) / blocked (Windows measurements) | Deterministic Node harness (`desktop/scripts/perf.ts`, `pnpm perf`) with synthetic ~3 MB EPUB; Linux baseline: reader parse 316 ms, locator-decode-200 0.3 ms. Windows runtime measurements defined in `R-20261031-02` (cold open / page turn / decoration batch). | [`R-20261031-02`](audits/results/R-20261031-02-performance-method.md) |
@@ -44,6 +46,24 @@ active or known work; move narrative detail to session/audit records.
 
 ## Verified state
 
+- **Windows 11 26100 (2026-10-31, `S-20261031-06`, automated half of
+  `MANUAL-TASKS.md`):** `pnpm install` up to date (pnpm 11.9.0 / Node 24.18.0);
+  `tsc -b` exit 0; **173 Vitest tests / 18 files** passing; `vite build`
+  success (20.1 s); `cargo test --all-targets` **23 passed / 0 failed**;
+  `cargo fmt --all -- --check` clean; **`pnpm tauri:build` success** — release
+  compile 4 m 20 s, NSIS
+  `desktop/src-tauri/target/release/bundle/nsis/Folio_0.1.0_x64-setup.exe`
+  (3 206 393 bytes), first dictionary-free installer. Smoke test: the
+  build-tree exe launched, window `Folio`, 31.2 MB working set, still alive at
+  8 s. CI #13/#14/#15 green. No `%APPDATA%\Folio\dict\` on this machine.
+  Still human-only: FT-009/010/011/012 runtime checks, the restore
+  swap/rollback round-trip, FT-005 measurements, FT-001 task-list eyeball,
+  FT-002 scaling, FT-006 screen reader.
+- **Rust suite count changed 28 → 23** with the dictionary removal
+  (D-20261031-05 removed the `rusqlite`-backed cases); the 23 are the
+  surviving `appdir`/`guard`/`commands::fs`/`jumplist`/`open_files`/
+  `window_state` tests. Recorded rather than overwritten — the 28 stands as the
+  figure for the pre-removal tree (`S-20261031-04`).
 - **Linux verification (2026-10-31, `S-20261031-05`, this work):** `tsc -b`
   clean; **164 Vitest tests / 17 files** passing; `vite build` success;
   `cargo check --all-targets --target x86_64-pc-windows-gnu` exit 0 after the

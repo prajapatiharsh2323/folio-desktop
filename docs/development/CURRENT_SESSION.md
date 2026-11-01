@@ -1,16 +1,25 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261031-05` — audit repair batch 1 (Linux)
+**Session:** `S-20261031-06` — Windows host, automated half of `MANUAL-TASKS.md`
 **Updated:** 2026-10-31
-**Status:** done (Linux). Collections routing, reader navigation
-coordination, menus/keyboard, and the dictionary removed — see
-[`I-20261031-05`](plans/implementations/I-20261031-05-audit-repair-batch-1.md)
-and [`S-20261031-05`](sessions/S-20261031-05-audit-repair-batch-1.md).
+**Status:** automated verification done on Windows (green); runtime/visual
+checks still need a person at the screen. Record:
+[`S-20261031-06`](sessions/S-20261031-06-windows-manual-verification.md).
+Previous: `S-20261031-05` audit repair batch 1 —
+[`I-20261031-05`](plans/implementations/I-20261031-05-audit-repair-batch-1.md).
 Committed and pushed to `origin/main` on 2026-10-31 (batch 1 `06f7338..db9708b`,
-CI green; later FT-012 slices `4920418..bba37e7` pushed, CI not yet observed)
-with user authorization.
+later FT-012 slices `4920418..bba37e7`) with user authorization; CI is now
+observed **green on all of them** (`desktop-ci` #11–#15).
 
-## Verified state (Linux, this session)
+## Exact next action
+
+1. At the screen: walk `MANUAL-TASKS.md` §1 runtime blocks (FT-009/010/011/012)
+   against the freshly built installer or `pnpm tauri:dev`.
+2. Then FT-007 restore interrupt round-trip, FT-005 measurements, FT-001
+   jump-list eyeball, FT-002 scaling, FT-006 screen reader.
+3. Commit/push only with user approval (per AGENTS.md git safety).
+
+## Verified state (Linux, `S-20261031-05`)
 
 - `pnpm exec tsc -b` clean; `vite build` success
 - Vitest **164 tests / 17 files** passing (baseline was 140/14)
@@ -19,16 +28,33 @@ with user authorization.
   `rusqlite`
 - Tauri/NSIS runtime verification still requires a Windows host
 
-## Exact next action
+## 2026-10-31 (Windows host, `S-20261031-06`): automated half of the manual list
 
-1. Windows session: run FT-009/010/011 runtime checks (collections
-    round-trip, click zones, TOC/search jumps, menu auto-hide), then rebuild
-    the NSIS installer with the dictionary-free tree.
-2. Then the previously queued items: FT-005/FT-008 Windows measurements,
-    FT-002 scaling check.
-3. Commit/push only with user approval (per AGENTS.md git safety).
+Ran on Windows 11 26100 — this repo is now being worked from a Windows machine,
+so the automatable items in `MANUAL-TASKS.md` were executed instead of deferred:
 
-## 2026-10-31 (later): FT-012 slice 1 — reading width (Linux, uncommitted)
+- `pnpm install` up to date (pnpm 11.9.0 / Node 24.18.0); `tsc -b` exit 0;
+  Vitest **173 / 173 (18 files)**; `vite build` success 20.1 s.
+- `cargo test --all-targets` **23 passed / 0 failed**; `cargo fmt --all --
+  --check` clean. (28 before the dictionary removal dropped the `rusqlite`
+  cases — count change recorded, not a regression.)
+- `pnpm tauri:build` **success**: release 4 m 20 s, NSIS
+  `desktop/src-tauri/target/release/bundle/nsis/Folio_0.1.0_x64-setup.exe`
+  (3 206 393 bytes / 3.06 MiB) — first dictionary-free installer, first with
+  the FT-012 slices.
+- Launch smoke test: release exe alive at 8 s, window `Folio`, 31.2 MB RSS,
+  then stopped.
+- CI `desktop-ci` #13 (`bba37e7`) / #14 (`8a9ca1e`) / #15 (`ae6bd86`) all
+  success. `%APPDATA%\Folio\dict\` absent — orphan cleanup N/A.
+- Gotcha: `pnpm` resolves only as `pnpm.cmd` here (`pnpm.ps1` blocked by
+  execution policy; `Get-ExecutionPolicy` fails too). A long foreground
+  `tauri:build` was aborted by a tool timeout — background + log file worked.
+- Still human-only: all §1 runtime checks, the §2 restore round-trip, §3
+  perf, §4 jump-list eyeball, §5 polish/a11y/scaling, `Ctrl+Q` decide/implement.
+- Uncommitted. Record:
+  [`S-20261031-06`](sessions/S-20261031-06-windows-manual-verification.md).
+
+## 2026-10-31 (later, `S-20261031-05`): FT-012 slice 1 — reading width (Linux)
 
 - The dead `maxWidth` schema field now works (04 §3 "desktop may honor as
   column cap"): `ReaderScreen` caps the reading canvas
