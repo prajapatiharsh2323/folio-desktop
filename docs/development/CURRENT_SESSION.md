@@ -1,147 +1,66 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261101-01` — reader redesign, milestones 1 + 2 (code complete)
-**Updated:** 2026-11-01
-**Status:** Linux-verifiable work is green; the Windows runtime review is the
-only thing left before milestone 3. Decision record:
-[`D-20261101-01`](decisions/D-20261101-01-reader-edge-zones-and-dock.md).
-Previous record:
-[`S-20261031-06`](sessions/S-20261031-06-windows-manual-verification.md).
-Previous: `S-20261031-05` audit repair batch 1 —
-[`I-20261031-05`](plans/implementations/I-20261031-05-audit-repair-batch-1.md).
-Committed and pushed to `origin/main` on 2026-10-31 (batch 1 `06f7338..db9708b`,
-later FT-012 slices `4920418..bba37e7`) with user authorization; CI is now
-observed **green on all of them** (`desktop-ci` #11–#15).
+**Session:** `S-20261103-01` — Release Audit Baseline, Critical Safety, Search Lifecycle & UI Polish
+**Updated:** 2026-11-03
+**Status:** Phase 0 Audit complete, critical issues resolved and verified across 216 tests. Audit record: [`R-20261103-01`](audits/results/R-20261103-01-release-audit.md).
+Previous record: [`S-20261101-02`](sessions/S-20261101-02-reader-redesign.md), [`S-20261031-06`](sessions/S-20261031-06-windows-manual-verification.md).
 
-## Exact next action
+## Completed Work (Release Finalization Phase 0 & Quick Wins)
 
-1. Run `pnpm tauri:dev` on Windows and review M1+M2 against the checklist below.
-2. If approved, implement M3 (unified Contents/Bookmarks/Notes panel, in-book
-   search rebuild + exact anchoring) and M4 (focus mode, session info, shortcut
-   guide, navigation feedback).
+1. **Phase 0 Baseline & Release Audit Established:**
+   - Formal audit report [`R-20261103-01`](audits/results/R-20261103-01-release-audit.md) recording 6 identified issues with reproduction steps, severity, fixes, and regression test status.
+   - Verified automated baseline on Windows host:
+     - `tsc -b`: clean exit 0.
+     - Vitest: **216 passed / 23 files (100%)** (up from 211 / 22 files).
+     - `vite build`: production bundle clean in 2.71s.
+     - `cargo test --all-targets`: **23 passed / 0 failed** in 15.9s.
+     - `cargo fmt --all -- --check`: clean.
+     - `pnpm perf`: 189 ms reader parse (budget ≤ 1200 ms), 0.12 ms locator decode (budget ≤ 400 ms).
+
+2. **Search Index Lifecycle & Performance (ISSUE-REL-001):**
+   - Eliminated redundant publication unzipping, HTML stripping, and index re-building on every query in `readiumEngine.ts`.
+   - Index is built lazily once via `getSearchIndex()` and reused across subsequent searches.
+   - Cleared cleanly in `ReadiumEngine.destroy()`.
+   - Regression test in `tests/reader.test.ts`.
+
+3. **Multi-Selection Deletion Safety (ISSUE-REL-002):**
+   - Added `deleteConfirmOpen` modal confirmation dialog to `LibraryScreen.tsx`.
+   - Prevents accidental, unrecoverable book deletion during multi-selection.
+   - Matched patterns used in `CollectionsScreen` and `NotesScreen`.
+
+4. **Custom Scrollbar System (ISSUE-REL-003):**
+   - Centralized modern slim scrollbars in `src/styles/base.css` using `scrollbar-width: thin`, `scrollbar-color`, and `::-webkit-scrollbar` with pill thumb and hover transitions.
+   - Replaced Windows WebView2's default clunky grey scrollbars.
+   - Uses semantic tokens `--folio-border` and `--folio-text-muted` without breaking frozen token map contracts.
+
+5. **FolioButton Size Variants (ISSUE-REL-004):**
+   - Added `size?: "default" | "sm"` to `FolioButtonProps` and `.folio-btn--sm` (36px height, compact padding) to `components.css`.
+   - Allows compact actions in banners and dialogs without overriding global 50px default.
+   - Unit tests added in `tests/releaseEnhancements.test.tsx`.
+
+6. **Reader Lifecycle & Cleanup (ISSUE-REL-005):**
+   - Added `.clear()` for all callback `Set` collections (`locatorCbs`, `selectionCbs`, `linkCbs`, `clickCbs`, `contextMenuCbs`, `pointerCbs`) on engine teardown in `readiumEngine.ts`.
+
+7. **Keyboard Escape Navigation (ISSUE-REL-006):**
+   - Pressing `Escape` inside the Library search input now closes the search bar and clears the query.
+   - Pressing `Escape` in Library multi-select mode exits selection mode.
+
+8. **Custom Cover Art System for Books & Collections:**
+   - Bundled 5 cover images into `desktop/src/assets/covers/`.
+   - Created centralized registry `desktop/src/lib/coverPresets.ts` with deterministic hash-based selection (`getBookCoverPreset`, `getCollectionCoverPreset`).
+   - Wired `coverUrl` into `LibraryRow` and `LibraryScreen.tsx`, enabling rich book covers in `FolioBookRow` with fallback to preset art.
+   - Updated `readerStore.ts` with preset fallback for reader splash and safe blob URL revocation.
+   - Transformed Collections gallery and detail in `CollectionsScreen.tsx` with a distinct landscape banner cover style (`.folio-collection-card__banner`, `.folio-collection-hero`), gradient scrim, and badge pill.
+   - Added unit test suite `tests/coverPresets.test.ts` (all 221 tests passing across 24 test suites). Verified clean `tsc -b` and `vite build`.
+
+9. **Reader Top Bar Clearance & Appearance Tray Alignment / Hyphenation:**
+   - Fixed reader top bar covering book content: bounded `.folio-reader__canvas` to `top: 56px` and `bottom: 24px` (expanding to `top: 0; bottom: 0` in focus mode) so text is never obscured by the top bar or dock.
+   - Brought "Justify text" and "Hyphenate" into the "Quick Adjustments" tray and added a dedicated "Alignment & hyphenation" section right next to Text Size and Line Spacing in `AppearancePanel.tsx`.
+   - Fixed panel color contrast bug by setting `color: var(--folio-text-primary)` on `.folio-panel` and `.folio-toggle-row`, preventing text from washing out in dark reading themes.
+   - Added unit tests in `tests/appearancePanel.test.tsx` (all 222 tests passing across 24 suites). Clean `tsc -b` and `vite build`.
+
+## Exact Next Action
+
+1. Execute release candidate installer build: `pnpm tauri:build` on Windows.
+2. Launch and smoke-test the built NSIS installer executable outside development environment.
 3. Commit/push only with user approval (per AGENTS.md git safety).
-
-## M1+M2 verification (Linux, this session)
-
-- `tsc -b` clean; `vite build` success (pre-existing >500 kB chunk warning).
-- Vitest **192 / 192 (18 files)**: new `tests/navigation.test.ts` (17 cases:
-  serialization, coalescing, ordering, seek-gate settlement, superseded
-  outcomes, annotation two-step) and rebuilt `tests/readerChrome.test.tsx`
-  (16 cases: top-bar actions, contextual back label, bookmark pressed state,
-  `inert` hidden state, hairline, dock turns, slider single-commit, seeking).
-- `tests/reader.test.ts` chrome section rewritten for holds, toggle guards and
-  edge-zone geometry.
-- Not verified here: Readium iframe hover, selection drag across edges,
-  paginated/scrolled layouts, theme surfaces, resize.
-
-## M1+M2 runtime review checklist (Windows)
-
-- Edge bands (48–96 px) always page; clicking text never moves or toggles;
-  links/footnotes still work; dragging a selection through an edge does not
-  turn the page.
-- Top bar: Contents / Search / Bookmark (pressed state) / Aa / More all fire;
-  back label matches Library / Collections / Notes / Settings.
-- Dock: Previous/Next page; slider previews while dragging and jumps once on
-  release; "Jumping…" appears during a slow jump; percent + time-left update.
-- Chrome: hides after 3 s; mouse movement over text brings it back; panels,
-  dialogs, search, selection, scrub, focus and pointer rest keep it up; `m`
-  toggles; hidden chrome leaves the tab order; hairline stays at the bottom.
-- TOC jump closes the panel; a failing jump shows a notice instead of silently
-  doing nothing.
-- Themes × (paginated, scrolled) × resize: dock/top-bar surfaces stay legible,
-  no overlap with the text column.
-
-## Verified state (Linux, `S-20261031-05`)
-
-- `pnpm exec tsc -b` clean; `vite build` success
-- Vitest **164 tests / 17 files** passing (baseline was 140/14)
-- `cargo check --all-targets --target x86_64-pc-windows-gnu` exit 0;
-  `cargo fmt --all -- --check` clean; `Cargo.lock` regenerated without
-  `rusqlite`
-- Tauri/NSIS runtime verification still requires a Windows host
-
-## 2026-10-31 (Windows host, `S-20261031-06`): automated half of the manual list
-
-Ran on Windows 11 26100 — this repo is now being worked from a Windows machine,
-so the automatable items in `MANUAL-TASKS.md` were executed instead of deferred:
-
-- `pnpm install` up to date (pnpm 11.9.0 / Node 24.18.0); `tsc -b` exit 0;
-  Vitest **173 / 173 (18 files)**; `vite build` success 20.1 s.
-- `cargo test --all-targets` **23 passed / 0 failed**; `cargo fmt --all --
-  --check` clean. (28 before the dictionary removal dropped the `rusqlite`
-  cases — count change recorded, not a regression.)
-- `pnpm tauri:build` **success**: release 4 m 20 s, NSIS
-  `desktop/src-tauri/target/release/bundle/nsis/Folio_0.1.0_x64-setup.exe`
-  (3 206 393 bytes / 3.06 MiB) — first dictionary-free installer, first with
-  the FT-012 slices.
-- Launch smoke test: release exe alive at 8 s, window `Folio`, 31.2 MB RSS,
-  then stopped.
-- CI `desktop-ci` #13 (`bba37e7`) / #14 (`8a9ca1e`) / #15 (`ae6bd86`) all
-  success. `%APPDATA%\Folio\dict\` absent — orphan cleanup N/A.
-- Gotcha: `pnpm` resolves only as `pnpm.cmd` here (`pnpm.ps1` blocked by
-  execution policy; `Get-ExecutionPolicy` fails too). A long foreground
-  `tauri:build` was aborted by a tool timeout — background + log file worked.
-- Still human-only: all §1 runtime checks, the §2 restore round-trip, §3
-  perf, §4 jump-list eyeball, §5 polish/a11y/scaling, `Ctrl+Q` decide/implement.
-- Uncommitted. Record:
-  [`S-20261031-06`](sessions/S-20261031-06-windows-manual-verification.md).
-
-## 2026-10-31 (later, `S-20261031-05`): FT-012 slice 1 — reading width (Linux)
-
-- The dead `maxWidth` schema field now works (04 §3 "desktop may honor as
-  column cap"): `ReaderScreen` caps the reading canvas
-  (`max-width` + `margin: 0 auto`, centering an absolutely-positioned canvas);
-  chrome/panels/search are untouched.
-- Appearance panel: new "Reading width" section — "Full width" chip (0) plus
-  a 480..1600 px slider stepped 20 px; `clampMaxWidth` added to
-  `model/defaults.ts`.
-- Tests: `model.test.ts` gained 3 cases (clamp behavior + schema-1
-  `ReadingPrefs` shape guard).
-- Linux verification: `tsc -b` clean; **167 Vitest tests / 17 files** passing;
-  `vite build` success.
-- Pushed to `origin/main` on 2026-10-31 with user authorization
-  (`4920418..bba37e7`, CI never observed yet on these). Remaining FT-012
-  halves are visual (Windows session) and were deliberately not attempted
-  here.
-
-## 2026-10-31 (later): FT-012 slice 2 — pointer parity (Linux, this commit)
-
-- **Pillar hover reveal (07 §2):** `ChromeStateMachine.onPillarHover()` holds
-  the chrome visible 3 s after a cursor enters the bottom 40 px, even at rest;
-  `onActivity`/`toggle` clear the grace. `ReaderScreen.onMouseMove` now zones.
-- **Right-click menu (07 §3):** the engine seam gained `onContextMenu` — the
-  Readium toolkit already blocks the native menu inside the spine frame and
-  reports `(x, y)`; `ReaderScreen` shows a reduced anchored menu
-  (`ReaderContextMenu`: toggle toolbar / TOC / bookmark) or, with an active
-  selection, re-anchors the selection toolbar at the cursor. Root-level
-  fallback covers right-clicks outside the iframe; overlays excluded. Escape
-  ladder: menu → ctx menu → panel → search → selection.
-- **Tooltips:** Back and More chrome buttons carry `title` (Appearance/Search
-  already did).
-- Tests: 4 ChromeStateMachine pillar-hover cases; 4 `ReaderContextMenu`
-  component cases (`readerContextMenu.test.tsx`).
-- Linux verification: `tsc -b` clean; **173 Vitest tests / 18 files** passing;
-  `vite build` success.
-- CI (observed on GitHub): windows-latest green for the pushed batch-1 commits
-  (`db9708b` run 11) and the records commit (`86ba918` run 12).
-- Remaining FT-012 halves stay visual (Windows session); right-click behaviour
-  inside the real webview also needs a Windows run.
-
-## 2026-10-31 (later): keyboard/global matrix parity patch (Linux, this commit)
-
-- **Library keys (07 §1/§4):** `Ctrl+F` opens the library search panel (same
-  as `/`); `Ctrl+I` opens the import picker; both case-tolerant and
-  typing-target guarded.
-- **Reader media keys (07 §2):** `MediaTrackNext` / `MediaTrackPrevious`
-  page turn (the spec's only two bound HID keys).
-- **Overscroll (04 §5):** `overscroll-behavior: none` on body — body
-  overscroll can no longer navigate/reload the webview.
-- Already present and verified by inspection: window min size 720×560
-  (tauri.conf.json), `Ctrl+,` and `Ctrl+1..4` (Shell), `Ctrl+F` in-reader.
-- `Ctrl+Q` quit-with-confirm is **not** implemented (needs a confirm dialog +
-  a Rust/Tauri exit path — queued for the Windows pass; see the manual
-  checklist).
-- Linux verification: `tsc -b` clean; Vitest **173/173** (18 files); `vite
-  build` success.
-- Everything Linux-verifiable is now done. The open checklist that needs a
-  real Windows host lives in the repo root: [`MANUAL-TASKS.md`](../../../MANUAL-TASKS.md).

@@ -35,12 +35,18 @@ export interface ReaderChromeProps {
   onScrubStart: () => void;
   onScrubChange: (percent: number) => void;
   onScrubEnd: (percent: number) => void;
+  /** Optional premium feature callbacks */
+  onFocusMode?: () => void;
+  isFocusMode?: boolean;
+  onSessionInfo?: () => void;
+  onShortcutsGuide?: () => void;
 }
 
 /**
- * Reader overlay chrome (03 §5.3, 04 §5): themed top bar + bottom navigation
- * dock. The canvas theme drives the surface, not the app palette. When the
- * chrome hides, a thin progress hairline stays at the bottom edge.
+ * Reader overlay chrome:
+ * Top toolbar (Back, Title, Contents, Search, Bookmark, Appearance, More)
+ * and bottom navigation dock (Previous, Chapter, Percent, Time left, Next, Slider).
+ * All controls are sized to min 40–44px for comfortable, accessible interaction.
  */
 export function ReaderChrome({
   visible,
@@ -68,6 +74,10 @@ export function ReaderChrome({
   onScrubStart,
   onScrubChange,
   onScrubEnd,
+  onFocusMode,
+  isFocusMode = false,
+  onSessionInfo,
+  onShortcutsGuide,
 }: ReaderChromeProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -81,15 +91,13 @@ export function ReaderChrome({
     return () => document.removeEventListener("mousedown", onDocDown);
   }, [menuOpen, onMenuChange]);
 
-  // Hidden chrome must leave the tab order and the accessibility tree, not just
-  // fade out. `visibility` already does most of it; `inert` closes the gap in
-  // the webview and stops focus landing on buttons nobody can see.
+  // Hidden chrome leaves the tab order and accessibility tree
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
-    if (visible) el.removeAttribute("inert");
+    if (visible && !isFocusMode) el.removeAttribute("inert");
     else el.setAttribute("inert", "");
-  }, [visible]);
+  }, [visible, isFocusMode]);
 
   const closeMenu = () => onMenuChange(false);
   const progressFill = Math.round(Math.min(100, Math.max(0, percent)));
@@ -98,8 +106,8 @@ export function ReaderChrome({
     <>
       <div
         ref={rootRef}
-        className={`folio-reader-chrome${visible ? " is-visible" : ""}`}
-        aria-hidden={!visible}
+        className={`folio-reader-chrome${visible && !isFocusMode ? " is-visible" : ""}`}
+        aria-hidden={!visible || isFocusMode}
         onPointerEnter={() => onHold("pointer", true)}
         onPointerLeave={() => onHold("pointer", false)}
         onFocusCapture={() => onHold("focus", true)}
@@ -188,6 +196,57 @@ export function ReaderChrome({
               </button>
               {menuOpen && (
                 <div className="folio-reader-menu__popover" role="menu">
+                  {onFocusMode && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="folio-reader-menu__item"
+                      onClick={() => {
+                        closeMenu();
+                        onFocusMode();
+                      }}
+                    >
+                      <FolioIcons.Focus size="sm" />
+                      <span className="folio-reader-menu__label">Focus mode</span>
+                      <kbd className="folio-reader-menu__hint" aria-hidden="true">
+                        F
+                      </kbd>
+                    </button>
+                  )}
+
+                  {onSessionInfo && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="folio-reader-menu__item"
+                      onClick={() => {
+                        closeMenu();
+                        onSessionInfo();
+                      }}
+                    >
+                      <FolioIcons.Clock size="sm" />
+                      <span className="folio-reader-menu__label">Reading session</span>
+                    </button>
+                  )}
+
+                  {onShortcutsGuide && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="folio-reader-menu__item"
+                      onClick={() => {
+                        closeMenu();
+                        onShortcutsGuide();
+                      }}
+                    >
+                      <FolioIcons.Keyboard size="sm" />
+                      <span className="folio-reader-menu__label">Keyboard shortcuts</span>
+                      <kbd className="folio-reader-menu__hint" aria-hidden="true">
+                        ?
+                      </kbd>
+                    </button>
+                  )}
+
                   {onShareQuote && (
                     <button
                       type="button"
@@ -204,6 +263,7 @@ export function ReaderChrome({
                       <span className="folio-reader-menu__label">Share as image</span>
                     </button>
                   )}
+
                   <button
                     type="button"
                     role="menuitem"
@@ -239,6 +299,24 @@ export function ReaderChrome({
         />
       </div>
 
+      {/* Focus Mode Exit Pill */}
+      {isFocusMode && onFocusMode && (
+        <div className="folio-reader-focus-exit">
+          <button
+            type="button"
+            className="folio-reader-focus-exit__btn"
+            onClick={onFocusMode}
+            aria-label="Exit Focus Mode (Esc or F)"
+            title="Exit Focus Mode (Esc)"
+          >
+            <FolioIcons.Focus size="sm" />
+            <span>Exit Focus Mode</span>
+            <kbd className="folio-reader-focus-exit__kbd">Esc</kbd>
+          </button>
+        </div>
+      )}
+
+      {/* Hairline progress indicator */}
       <div className="folio-reader-hairline" aria-hidden="true">
         <span className="folio-reader-hairline__fill" style={{ width: `${progressFill}%` }} />
       </div>

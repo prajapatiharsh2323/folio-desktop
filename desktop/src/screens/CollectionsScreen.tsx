@@ -6,18 +6,8 @@ import { FolioIcons } from "../components/FolioIcons";
 import { FolioRow } from "../components/FolioRow";
 import { useRouteStore, type ReaderOrigin } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
+import { getCollectionCoverPreset } from "../lib/coverPresets";
 import type { Collection, ManifestDoc } from "../model/types";
-
-const TINT_VARS = [
-  "var(--folio-tint-sage-grey)",
-  "var(--folio-tint-parchment)",
-  "var(--folio-tint-eucalyptus)",
-  "var(--folio-tint-clay)",
-  "var(--folio-tint-slate)",
-  "var(--folio-tint-oat)",
-  "var(--folio-tint-stone)",
-  "var(--folio-tint-moss)",
-];
 
 /** Collections gallery + detail (03 §5.5, 06 §1/§2). */
 export function CollectionsScreen() {
@@ -180,29 +170,21 @@ export function CollectionsScreen() {
                   className="folio-collection-card"
                   onClick={() => setSelectedId(c.id)}
                 >
-                  <div className="folio-collection-card__fan" aria-hidden="true">
-                    {c.docIds.slice(0, 3).map((id, i) => (
-                      <span
-                        key={id}
-                        className="folio-collection-card__fan-cover"
-                        style={{
-                          background: TINT_VARS[i % TINT_VARS.length],
-                          transform: `rotate(${(i - 1) * 6}deg) translateX(${(i - 1) * 6}px)`,
-                        }}
-                      >
-                        {(titleOf(id) ?? "Untitled").slice(0, 2).toUpperCase()}
-                      </span>
-                    ))}
-                    {c.docIds.length === 0 && (
-                      <span className="folio-collection-card__fan-cover folio-collection-card__fan-cover--empty">
-                        <FolioIcons.Folder />
-                      </span>
-                    )}
+                  <div className="folio-collection-card__banner" aria-hidden="true">
+                    <img
+                      src={getCollectionCoverPreset(c.id)}
+                      alt=""
+                      className="folio-collection-card__banner-img"
+                    />
+                    <div className="folio-collection-card__banner-scrim" />
+                    <span className="folio-collection-card__badge">Collection</span>
                   </div>
-                  <div className="folio-collection-card__name">{c.name}</div>
-                  <div className="folio-collection-card__meta">
-                    {c.docIds.length} item{c.docIds.length === 1 ? "" : "s"}
-                    {c.updatedAt ? ` · updated ${new Date(c.updatedAt).toLocaleDateString()}` : ""}
+                  <div className="folio-collection-card__info">
+                    <div className="folio-collection-card__name">{c.name}</div>
+                    <div className="folio-collection-card__meta">
+                      {c.docIds.length} item{c.docIds.length === 1 ? "" : "s"}
+                      {c.updatedAt ? ` · updated ${new Date(c.updatedAt).toLocaleDateString()}` : ""}
+                    </div>
                   </div>
                 </button>
               ))}
@@ -312,6 +294,23 @@ export function CollectionsScreen() {
       </header>
 
       <div className="folio-screen">
+        <div className="folio-collection-hero" aria-hidden="true">
+          <img
+            src={getCollectionCoverPreset(selected.id)}
+            alt=""
+            className="folio-collection-hero__img"
+          />
+          <div className="folio-collection-hero__scrim" />
+          <div className="folio-collection-hero__content">
+            <span className="folio-collection-card__badge">Collection</span>
+            <div className="folio-collection-hero__title">{selected.name}</div>
+            <div className="folio-collection-hero__meta">
+              {members.length} item{members.length === 1 ? "" : "s"}
+              {selected.updatedAt ? ` · updated ${new Date(selected.updatedAt).toLocaleDateString()}` : ""}
+            </div>
+          </div>
+        </div>
+
         {members.length === 0 ? (
           <FolioEmptyState
             title="Empty collection"

@@ -24,6 +24,13 @@
   cursor: default;
 }
 
+.folio-btn--sm {
+  height: 36px;
+  padding: 0 var(--folio-space-3);
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+}
+
 .folio-btn--primary {
   background: var(--folio-accent);
   color: var(--folio-on-accent);
@@ -329,6 +336,7 @@
   right: 0;
   bottom: 0;
   background: var(--folio-surface);
+  color: var(--folio-text-primary);
   border-left: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-panel) 0 0 var(--folio-radius-panel);
   padding: var(--folio-space-6);
@@ -665,18 +673,70 @@
 .folio-collection-card {
   display: flex;
   flex-direction: column;
-  gap: var(--folio-space-2);
-  padding: var(--folio-space-4);
+  padding: 0;
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-card);
   background: var(--folio-surface);
   text-align: left;
   cursor: pointer;
-  transition: background var(--folio-motion-hover) ease;
+  overflow: hidden;
+  transition: background var(--folio-motion-hover) ease, transform var(--folio-motion-hover) ease, box-shadow var(--folio-motion-hover) ease;
 }
 
 .folio-collection-card:hover {
   background: var(--folio-surface-subtle);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.folio-collection-card__banner {
+  position: relative;
+  width: 100%;
+  height: 108px;
+  overflow: hidden;
+  background: var(--folio-surface-subtle);
+}
+
+.folio-collection-card__banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--folio-motion-hover) ease;
+}
+
+.folio-collection-card:hover .folio-collection-card__banner-img {
+  transform: scale(1.04);
+}
+
+.folio-collection-card__banner-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.45) 0%, transparent 65%);
+}
+
+.folio-collection-card__badge {
+  position: absolute;
+  top: var(--folio-space-2);
+  left: var(--folio-space-2);
+  padding: 2px 7px;
+  border-radius: var(--folio-radius-pill);
+  background: rgba(0, 0, 0, 0.58);
+  color: #ffffff;
+  font-family: var(--folio-font-display);
+  font-size: var(--folio-type-micro-size);
+  font-weight: var(--folio-type-title-weight);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  backdrop-filter: blur(4px);
+  line-height: 1.4;
+}
+
+.folio-collection-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-1);
+  padding: var(--folio-space-3) var(--folio-space-4);
 }
 
 .folio-collection-card__fan {
@@ -718,6 +778,56 @@
 .folio-collection-card__meta {
   font-size: var(--folio-type-micro-size);
   color: var(--folio-text-secondary);
+}
+
+.folio-collection-hero {
+  position: relative;
+  width: 100%;
+  height: 130px;
+  border-radius: var(--folio-radius-card);
+  overflow: hidden;
+  margin-bottom: var(--folio-space-4);
+  display: flex;
+  align-items: flex-end;
+  padding: var(--folio-space-4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.folio-collection-hero__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.folio-collection-hero__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.3) 60%, rgba(0, 0, 0, 0.1) 100%);
+}
+
+.folio-collection-hero__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-1);
+  color: #ffffff;
+}
+
+.folio-collection-hero__title {
+  font-family: var(--folio-font-display);
+  font-size: var(--folio-type-title-l-size);
+  font-weight: var(--folio-type-title-weight);
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  line-height: 1.2;
+}
+
+.folio-collection-hero__meta {
+  font-size: var(--folio-type-micro-size);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .folio-collection-members {

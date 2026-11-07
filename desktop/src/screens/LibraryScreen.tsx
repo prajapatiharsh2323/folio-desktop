@@ -37,6 +37,7 @@ export function LibraryScreen() {
   const [filterCollection, setFilterCollection] = useState<string | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [addToCollectionOpen, setAddToCollectionOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<
@@ -186,6 +187,10 @@ export function LibraryScreen() {
       if (selectionMode && (e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
         e.preventDefault();
         setSelectedIds(new Set(rows.map((r) => r.id)));
+      } else if (selectionMode && e.key === "Escape") {
+        e.preventDefault();
+        setSelectionMode(false);
+        setSelectedIds(new Set());
       }
     };
     window.addEventListener("keydown", onKey);
@@ -266,6 +271,13 @@ export function LibraryScreen() {
             placeholder="Search your library…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setSearchOpen(false);
+                setSearchQuery("");
+              }
+            }}
             autoFocus
           />
         </div>
@@ -367,13 +379,7 @@ export function LibraryScreen() {
             </FolioButton>
             <FolioButton
               variant="danger"
-              onClick={async () => {
-                const lm = getLibraryManager();
-                for (const id of selectedIds) await lm.deleteDoc(id);
-                setSelectedIds(new Set());
-                setSelectionMode(false);
-                await refresh();
-              }}
+              onClick={() => setDeleteConfirmOpen(true)}
             >
               Delete
             </FolioButton>
@@ -433,6 +439,7 @@ export function LibraryScreen() {
                     kind: r.kind === "article" ? "Article" : "Book",
                     progress: r.percent === null ? undefined : r.percent / 100,
                     tint: r.tint,
+                    coverUrl: r.coverUrl ?? undefined,
                   }}
                   onOpen={() =>
                     selectionMode
@@ -450,6 +457,36 @@ export function LibraryScreen() {
           </div>
         )}
       </div>
+
+      <FolioDialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        title={`Delete ${selectedIds.size} document${selectedIds.size === 1 ? "" : "s"}?`}
+        actions={
+          <>
+            <FolioButton variant="secondary" onClick={() => setDeleteConfirmOpen(false)}>
+              Cancel
+            </FolioButton>
+            <FolioButton
+              variant="danger"
+              onClick={async () => {
+                const lm = getLibraryManager();
+                for (const id of selectedIds) await lm.deleteDoc(id);
+                setSelectedIds(new Set());
+                setSelectionMode(false);
+                setDeleteConfirmOpen(false);
+                await refresh();
+              }}
+            >
+              Delete
+            </FolioButton>
+          </>
+        }
+      >
+        <p className="folio-helper">
+          This will permanently remove the selected {selectedIds.size === 1 ? "document" : "documents"} and all associated notes from your library. This action cannot be undone.
+        </p>
+      </FolioDialog>
 
       <FolioDialog
         open={addToCollectionOpen}

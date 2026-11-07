@@ -1,3 +1,5 @@
+import { createReadiumEngine } from "../src/reader/readiumEngine";
+import { DEFAULT_READING_PREFS } from "../src/model/defaults";
 import { describe, it, expect } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import { openEpubFromBytes } from "../src/reader/epubPublication";
@@ -506,5 +508,43 @@ describe("readerThemes", () => {
     expect(mapped.fontSize).toBeCloseTo(18 / 16);
     expect(mapped.scroll).toBe(true);
     expect(mapped.textAlign).toBe("justify");
+  });
+});
+
+describe("ReadiumEngine search and lifecycle", () => {
+  it("reuses cached search index across successive searches and clears on destroy", async () => {
+    if (!globalThis.ResizeObserver) {
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+    }
+    const epubBytes = makeEpub("SearchTest", [
+      { id: "c1", title: "Chapter 1", body: "The quick brown fox jumps over the lazy dog." },
+      { id: "c2", title: "Chapter 2", body: "Another chapter with some unique query content." },
+    ]);
+    const engine = createReadiumEngine({
+      epubBytes,
+      prefs: DEFAULT_READING_PREFS,
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await engine.open(container);
+
+    const hits1 = await engine.search("quick");
+    expect(hits1.length).toBe(1);
+    expect(hits1[0].chapterTitle).toBe("OEBPS/c1.xhtml");
+
+    // Second search reuses cached index
+    const hits2 = await engine.search("unique");
+    expect(hits2.length).toBe(1);
+    expect(hits2[0].chapterTitle).toBe("OEBPS/c2.xhtml");
+
+    // Destroy clears resources and returns empty on search
+    await engine.destroy();
+    const hitsAfterDestroy = await engine.search("quick");
+    expect(hitsAfterDestroy).toEqual([]);
+    document.body.removeChild(container);
   });
 });

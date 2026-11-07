@@ -6,6 +6,7 @@ import { MemoryFileStore, TauriFileStore, type FileStore } from "../lib/fileStor
 import { LibraryManager } from "./libraryManager";
 import { importFile, type DuplicateResolution, type ImportResult } from "../import/importService";
 import { tintIndexFromHash } from "../import/cover";
+import { getBookCoverPreset } from "../lib/coverPresets";
 import type { Progress } from "../model/types";
 
 export interface LibraryRow {
@@ -16,6 +17,7 @@ export interface LibraryRow {
   kind: "book" | "article";
   percent: number | null; // null → "New"
   tint: number;
+  coverUrl?: string | null;
 }
 
 export interface RecoveryInfo {
@@ -64,10 +66,20 @@ function libraryManager(): LibraryManager {
   return getLibraryManager();
 }
 
+function coverMime(path: string): string {
+  const p = path.toLowerCase();
+  if (p.endsWith(".png")) return "image/png";
+  if (p.endsWith(".webp")) return "image/webp";
+  if (p.endsWith(".gif")) return "image/gif";
+  if (p.endsWith(".svg")) return "image/svg+xml";
+  return "image/jpeg";
+}
+
 function rowFrom(
   doc: { id: string; slug: string; title: string; contentHash: string },
   meta: { author?: string | null; kind: "book" | "article" } | null,
-  progress: Progress | null
+  progress: Progress | null,
+  coverUrl?: string | null
 ): LibraryRow {
   return {
     id: doc.id,
@@ -77,6 +89,7 @@ function rowFrom(
     kind: meta?.kind ?? "book",
     percent: progress ? progress.percent : null,
     tint: tintIndexFromHash(doc.contentHash),
+    coverUrl: coverUrl ?? getBookCoverPreset(doc.contentHash || doc.id),
   };
 }
 
@@ -97,7 +110,22 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
       const rows: LibraryRow[] = [];
       for (const doc of manifest?.docs ?? []) {
         const meta = await lm.meta.read(doc.slug);
-        rows.push(rowFrom(doc, meta, progress[doc.id] ?? null));
+        let customCoverUrl: string | null = null;
+        if (meta?.files?.cover) {
+          try {
+            const coverBytes = await getLibraryFs().readBytes(
+              `${LIBRARY_ROOT}/docs/${doc.slug}/${meta.files.cover.replace(/^\/+/, "")}`
+            );
+            if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+              customCoverUrl = URL.createObjectURL(
+                new Blob([coverBytes as BlobPart], { type: coverMime(meta.files.cover) })
+              );
+            }
+          } catch {
+            customCoverUrl = null;
+          }
+        }
+        rows.push(rowFrom(doc, meta, progress[doc.id] ?? null, customCoverUrl));
       }
       // recently read (default): progress.updatedAt desc, nulls last (06 §1.2)
       rows.sort((a, b) => {

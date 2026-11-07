@@ -4,7 +4,10 @@ import { AppearancePanel } from "../components/AppearancePanel";
 import { ReaderChrome } from "../components/ReaderChrome";
 import { ReaderContextMenu } from "../components/ReaderContextMenu";
 import { ReaderSplash, type SplashPhase } from "../components/ReaderSplash";
-import { TocPanel } from "../components/TocPanel";
+import { TocPanel, type WorkspaceTab } from "../components/TocPanel";
+import { InBookSearchPanel } from "../components/InBookSearchPanel";
+import { ReadingSessionDialog } from "../components/ReadingSessionDialog";
+import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
 import { SelectionToolbar } from "../components/SelectionToolbar";
 import { QuoteCard } from "../components/QuoteCard";
 import { FolioDialog } from "../components/FolioDialog";
@@ -161,7 +164,7 @@ function isActivatableTarget(target: EventTarget | null): boolean {
   );
 }
 
-/** Reader route (04): splash → Readium canvas → themed chrome + panels. */
+/** Reader route: splash → Readium canvas → themed chrome + workspace panels. */
 export function ReaderScreen() {
   const request = useRouteStore((s) => s.readerRequest);
   const readerOrigin = useRouteStore((s) => s.readerOrigin);
@@ -194,6 +197,7 @@ export function ReaderScreen() {
   /** A live selection owns the pointer — edge clicks must not turn the page. */
   const selectionRef = useRef<TextSelectionInfo | null>(null);
   const lastPacePublishRef = useRef(0);
+  const sessionStartTsRef = useRef(Date.now());
 
   const [prefs, setPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS);
   const [splash, setSplash] = useState<SplashPhase>("loading");
@@ -204,14 +208,25 @@ export function ReaderScreen() {
   const menuOpenRef = useRef(false);
   const [scrubValue, setScrubValue] = useState<number | null>(null);
   const [panel, setPanel] = useState<"appearance" | "toc" | null>(null);
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("contents");
   const [toc, setToc] = useState<TocEntry[]>([]);
+
+  // Search state
   const [inbookSearchOpen, setInbookSearchOpen] = useState(false);
   const [inbookQuery, setInbookQuery] = useState("");
+  const [inbookSearching, setInbookSearching] = useState(false);
+  const [inbookError, setInbookError] = useState<string | null>(null);
   const [inbookResults, setInbookResults] = useState<
     { chapterTitle: string; snippetHtml: string; locator: string }[]
   >([]);
   const inbookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inbookSearchSeqRef = useRef(0);
+
+  // Dialogs & Focus Mode
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [sessionInfoOpen, setSessionInfoOpen] = useState(false);
+  const [shortcutsGuideOpen, setShortcutsGuideOpen] = useState(false);
+
   const [selection, setSelection] = useState<TextSelectionInfo | null>(null);
   const [quoteSelection, setQuoteSelection] = useState<TextSelectionInfo | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
@@ -229,7 +244,9 @@ export function ReaderScreen() {
       }
     };
   }, [selection]);
+
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
   const [quoteCardOpen, setQuoteCardOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingSelection, setPendingSelection] = useState<TextSelectionInfo | null>(null);
@@ -240,8 +257,7 @@ export function ReaderScreen() {
   /** Bumped at most once a second so pace-derived labels stay live without
    *  re-rendering on every scroll locator. */
   const [paceVersion, setPaceVersion] = useState(0);
-  /** This book's annotations — the source for bookmark state and, later, the
-   *  reading-tools panel. Refreshed through one helper so paint never drifts. */
+  /** This book's annotations — the source for bookmark state and the workspace panel. */
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [systemDark, setSystemDark] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
@@ -253,8 +269,6 @@ export function ReaderScreen() {
   const activePrefs = doc ? prefs : DEFAULT_READING_PREFS;
   // Reading-width cap (04 §3): `maxWidth` constrains the reading column only —
   // chrome, panels and search float over the full window unmoved.
-  // 0 = no cap. The canvas is `position: absolute; inset: 0`, so `margin: 0
-  // auto` centers the capped column.
   const readingWidth = activePrefs.maxWidth > 0 ? activePrefs.maxWidth : null;
 
   /** A failed navigation is surfaced once, from the call site that asked. */
@@ -311,11 +325,12 @@ export function ReaderScreen() {
 
   // ---- OS theme changes (theme === "system") -------------------------------
   useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setSystemDark(mq.matches);
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
+    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const onChange = () => setSystemDark(mq.matches);
+      mq.addEventListener?.("change", onChange);
+      return () => mq.removeEventListener?.("change", onChange);
+    }
   }, []);
 
   // ---- adopt the doc's resolved prefs on (re)load --------------------------
@@ -331,6 +346,11 @@ export function ReaderScreen() {
     setPanel(null);
     setCtxMenu(null);
     setAnnotations([]);
+    setIsFocusMode(false);
+    setSessionInfoOpen(false);
+    setShortcutsGuideOpen(false);
+    setEditingAnnotation(null);
+    sessionStartTsRef.current = Date.now();
     previousPercentRef.current = null;
   }, [doc?.docId, retryNonce]);
 
@@ -338,23 +358,38 @@ export function ReaderScreen() {
     selectionRef.current = selection;
   }, [selection]);
 
+  // Debounced in-book text search
   useEffect(() => {
     if (!inbookSearchOpen) return;
     if (inbookTimerRef.current) clearTimeout(inbookTimerRef.current);
-    // Request token: a slow older search must never replace the results of a
-    // newer query (04 §6).
+    if (!inbookQuery.trim()) {
+      setInbookResults([]);
+      setInbookSearching(false);
+      setInbookError(null);
+      return;
+    }
+    setInbookSearching(true);
+    setInbookError(null);
     const token = ++inbookSearchSeqRef.current;
     inbookTimerRef.current = setTimeout(async () => {
       const engine = engineRef.current;
       if (!engine || !inbookQuery.trim()) {
         setInbookResults([]);
+        setInbookSearching(false);
         return;
       }
       try {
         const hits = await engine.search(inbookQuery);
-        if (token === inbookSearchSeqRef.current) setInbookResults(hits);
+        if (token === inbookSearchSeqRef.current) {
+          setInbookResults(hits);
+          setInbookSearching(false);
+        }
       } catch {
-        if (token === inbookSearchSeqRef.current) setInbookResults([]);
+        if (token === inbookSearchSeqRef.current) {
+          setInbookResults([]);
+          setInbookSearching(false);
+          setInbookError("Search failed to complete.");
+        }
       }
     }, 250);
     return () => {
@@ -400,8 +435,8 @@ export function ReaderScreen() {
     engineRef.current = engine;
 
     // Every navigation goes through one coordinator: page clicks, keyboard,
-    // scrubbing, TOC, search. It never recreates the navigator — it gates the
-    // seek state, sequences overlapping requests and returns success/failure.
+    // scrubbing, TOC, search. It gates seek state, sequences overlapping requests
+    // and returns success/failure outcomes.
     const nav = createNavigationCoordinator(engine, {
       onBeforeMove: () => pace.breakSession(Date.now()),
       onSeekingChanged: (seekingNow) => {
@@ -446,14 +481,10 @@ export function ReaderScreen() {
         previousPercentRef.current !== null &&
         Math.abs(percent - previousPercentRef.current) > 0.01
       ) {
-        // Jumps/back-steps re-anchor without credit; continuous forward turns
-        // accrue wall-clock time (04 §9).
         pace.onForwardMove(percent, now);
       }
       previousPercentRef.current = percent;
 
-      // Pace-derived labels (time left) update at most once a second; the
-      // underlying pace math still runs on every locator.
       if (now - lastPacePublishRef.current >= 1000) {
         lastPacePublishRef.current = now;
         setPaceVersion((v) => v + 1);
@@ -481,15 +512,9 @@ export function ReaderScreen() {
         interactive: info.interactive,
         defaultPrevented: info.defaultPrevented,
       });
-      // Interactive elements (links, footnotes, media) must reach the engine's
-      // own handling — turning a tap on a link into a page flip is a trust bug.
       if (intent === "passthrough") return false;
-      // A live selection owns the pointer: never flip the page out from under
-      // an in-progress highlight (04 §5, 07 §3).
       if (selectionRef.current) return false;
-      // Interaction reschedules the idle timer only when the chrome is up;
-      // edge clicks while reading must not reveal it.
-      if (chrome.visible) chrome.onActivity();
+      if (chrome.visible && !isFocusMode) chrome.onActivity();
       if (intent === "next") {
         reportNavigation(nav.next("page-edge"), "Couldn't turn the page forward.");
       } else {
@@ -507,18 +532,15 @@ export function ReaderScreen() {
     });
 
     const offLink = engine.onLink((href) => openExternal(href));
-    // Hover inside the content frame counts as activity: moving the mouse over
-    // the page brings the chrome back, exactly like a desktop reader (07 §2).
     const offPointer = engine.onPointerActivity(() => {
       const chrome = chromeRef.current;
-      if (!chrome) return;
+      if (!chrome || isFocusMode) return;
       chrome.onActivity();
       setChromeVisible(chrome.visible);
     });
-    // Blocked native context menus from the spine frame (07 §3).
     const offCtxMenu = engine.onContextMenu((info) => {
       contextMenuRef.current(info.x, info.y);
-      return true; // our menu replaced the native one
+      return true;
     });
 
     void (async () => {
@@ -526,7 +548,6 @@ export function ReaderScreen() {
         await engine.open(canvas);
         if (cancelled) return;
         setToc(engine.toc());
-        // Load this book's annotations once: live bookmark state + highlights.
         try {
           await refreshAnnotations(doc.docId);
         } catch {
@@ -541,9 +562,6 @@ export function ReaderScreen() {
     })();
 
     return () => {
-      // The engine is idempotent to double-destroy (destroy() nulls the
-      // navigator), and handleBack may have flushed already. Always discard
-      // the subscriptions and mutate refs, or they leak across sessions.
       cancelled = true;
       clearTimeout(failsafe);
       offLocator();
@@ -572,11 +590,21 @@ export function ReaderScreen() {
     };
     sync("menu", menuOpen || ctxMenu !== null);
     sync("panel", panel !== null);
-    sync("dialog", noteEditorOpen || quoteCardOpen);
+    sync("dialog", noteEditorOpen || quoteCardOpen || sessionInfoOpen || shortcutsGuideOpen);
     sync("search", inbookSearchOpen);
     sync("selection", selection !== null);
     setChromeVisible(chrome.visible);
-  }, [menuOpen, ctxMenu, panel, noteEditorOpen, quoteCardOpen, inbookSearchOpen, selection]);
+  }, [
+    menuOpen,
+    ctxMenu,
+    panel,
+    noteEditorOpen,
+    quoteCardOpen,
+    sessionInfoOpen,
+    shortcutsGuideOpen,
+    inbookSearchOpen,
+    selection,
+  ]);
 
   // ---- chrome auto-hide + keep-awake polling ------------------------------
   useEffect(() => {
@@ -614,8 +642,6 @@ export function ReaderScreen() {
   }, [doc?.docId]);
 
   // ---- debounced per-book prefs writes ------------------------------------
-  // `doc` churns on every progress persist; keying on docId keeps page turns
-  // from relaying out the navigator via a redundant applyPrefs.
   useEffect(() => {
     if (!doc) return;
     prefsRef.current = prefs;
@@ -629,12 +655,11 @@ export function ReaderScreen() {
     return () => clearTimeout(timer);
   }, [prefs, doc?.docId, savePrefs]);
 
-  // ---- keyboard matrix (07 §2) --------------------------------------------
+  // ---- keyboard matrix ----------------------------------------------------
   useEffect(() => {
     if (!doc) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || isTextEntryTarget(event.target)) return;
-      // Space/Enter activate a focused control; arrows keep paging regardless.
       if (event.key === " " && isActivatableTarget(event.target)) return;
       const engine = engineRef.current;
       if (!engine) return;
@@ -680,7 +705,6 @@ export function ReaderScreen() {
           jump(100);
           break;
         case "MediaTrackNext":
-          // Hardware/media-key HID page turns (07 §2; only these two are bound).
           event.preventDefault();
           turn("next");
           break;
@@ -691,6 +715,7 @@ export function ReaderScreen() {
         case "t":
         case "T":
           event.preventDefault();
+          setWorkspaceTab("contents");
           setPanel((current) => (current === "toc" ? null : "toc"));
           chromeRef.current?.onActivity();
           setChromeVisible(true);
@@ -715,19 +740,44 @@ export function ReaderScreen() {
             setInbookSearchOpen((open) => !open);
             chromeRef.current?.onActivity();
             setChromeVisible(true);
+          } else {
+            // Unmodified 'f' toggles focus mode
+            event.preventDefault();
+            setIsFocusMode((f) => !f);
           }
           break;
+        case "?":
+          event.preventDefault();
+          setShortcutsGuideOpen((open) => !open);
+          break;
         case "Escape":
-          // Close the topmost interaction only (07 §2): More menu → panel →
-          // search → selection. The menu lives in controlled state, so it is
-          // first here; focus returns to the control that opened it.
+          // Close topmost interaction:
+          // Menu → Shortcuts → Session info → Note editor → Quote card → Ctx menu → Panel → Search → Focus mode → Selection
           if (menuOpenRef.current) {
             setMenu(false);
             document.getElementById("folio-reader-more")?.focus();
-          } else if (ctxMenu) setCtxMenu(null);
-          else if (panel) setPanel(null);
-          else if (inbookSearchOpen) setInbookSearchOpen(false);
-          else if (selection) setSelection(null);
+          } else if (shortcutsGuideOpen) {
+            setShortcutsGuideOpen(false);
+          } else if (sessionInfoOpen) {
+            setSessionInfoOpen(false);
+          } else if (noteEditorOpen) {
+            setNoteEditorOpen(false);
+            setEditingAnnotation(null);
+            setPendingSelection(null);
+          } else if (quoteCardOpen) {
+            setQuoteCardOpen(false);
+          } else if (ctxMenu) {
+            setCtxMenu(null);
+          } else if (panel) {
+            setPanel(null);
+          } else if (inbookSearchOpen) {
+            setInbookSearchOpen(false);
+          } else if (isFocusMode) {
+            setIsFocusMode(false);
+            showNavNotice("Exited focus mode.");
+          } else if (selection) {
+            setSelection(null);
+          }
           break;
         default:
           break;
@@ -735,9 +785,22 @@ export function ReaderScreen() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, panel, inbookSearchOpen, selection, ctxMenu, reportNavigation]);
+  }, [
+    doc,
+    panel,
+    inbookSearchOpen,
+    selection,
+    ctxMenu,
+    isFocusMode,
+    shortcutsGuideOpen,
+    sessionInfoOpen,
+    noteEditorOpen,
+    quoteCardOpen,
+    reportNavigation,
+    showNavNotice,
+  ]);
 
-  // Best-effort flush if the window is closed from the OS (07 §5).
+  // Best-effort flush if window is closed
   useEffect(() => {
     if (!doc) return;
     const flush = () => {
@@ -755,8 +818,6 @@ export function ReaderScreen() {
   }, []);
 
   const handleBack = useCallback(async () => {
-    // Effect teardown destroys the engine; only flush and navigate here.
-    // disposedRef keeps a double-back from closing twice.
     if (disposedRef.current) return;
     disposedRef.current = true;
     await writerRef.current?.flush();
@@ -820,8 +881,6 @@ export function ReaderScreen() {
         quote: sel.quote,
         prefix,
         suffix,
-        // Store the quote as the locator's text anchor so the highlight can be
-        // re-found after repagination (mobile stores a CFI here instead).
         location: sel.location
           ? withAnchor(sel.location, { quote: sel.quote, prefix, suffix })
           : null,
@@ -832,7 +891,6 @@ export function ReaderScreen() {
         updatedAt: nowIso(),
       };
       await lm.annotations.add(annotation);
-      // Repaint and refresh bookmark state from the one annotation source.
       try {
         await refreshAnnotations(doc.docId);
       } catch {
@@ -851,8 +909,10 @@ export function ReaderScreen() {
       );
       if (existing) {
         await lm.annotations.remove(existing.id);
+        showNavNotice("Highlight removed.");
       } else {
         await createAnnotation(sel, "highlight", color as Annotation["color"], null);
+        showNavNotice("Highlight added.");
         setSelection(null);
         return;
       }
@@ -863,18 +923,21 @@ export function ReaderScreen() {
       }
       setSelection(null);
     },
-    [doc, createAnnotation, refreshAnnotations]
+    [doc, createAnnotation, refreshAnnotations, showNavNotice]
   );
 
-  const handleCopySelection = useCallback(async (quote: string) => {    try {
+  const handleCopySelection = useCallback(async (quote: string) => {
+    try {
       await navigator.clipboard.writeText(quote);
+      showNavNotice("Copied to clipboard.");
     } catch {
       /* ignore */
     }
     setSelection(null);
-  }, []);
+  }, [showNavNotice]);
 
   const openNoteEditor = useCallback((sel: TextSelectionInfo) => {
+    setEditingAnnotation(null);
     setPendingSelection(sel);
     setNoteDraft("");
     setNoteEditorOpen(true);
@@ -882,29 +945,40 @@ export function ReaderScreen() {
   }, []);
 
   const saveNote = useCallback(async () => {
+    if (editingAnnotation) {
+      const lm = getLibraryManager();
+      await lm.annotations.update(editingAnnotation.id, {
+        note: noteDraft.trim() || null,
+        updatedAt: nowIso(),
+      });
+      if (doc) await refreshAnnotations(doc.docId);
+      showNavNotice("Note updated.");
+      setNoteEditorOpen(false);
+      setEditingAnnotation(null);
+      setNoteDraft("");
+      return;
+    }
     if (!pendingSelection) return;
     await createAnnotation(pendingSelection, "note", "yellow", noteDraft.trim() || null);
+    showNavNotice("Note saved.");
     setNoteEditorOpen(false);
     setPendingSelection(null);
     setNoteDraft("");
-  }, [pendingSelection, noteDraft, createAnnotation]);
+  }, [editingAnnotation, pendingSelection, noteDraft, doc, refreshAnnotations, createAnnotation, showNavNotice]);
 
   const handleBookmarkToggle = useCallback(async (): Promise<BookmarkResult> => {
     if (!doc) return "failed";
     const loc = engineRef.current?.currentLocator();
     if (!loc) return "failed";
-    /** The write already landed; a repaint failure must not report it as lost. */
     const refreshBookmarks = async () => {
       try {
         await refreshAnnotations(doc.docId);
       } catch {
-        /* bookmark state catches up on the next refresh */
+        /* bookmark state catches up on next refresh */
       }
     };
     try {
       const lm = getLibraryManager();
-      // Compare by href + progression, not string equality: the engine reports
-      // slightly different progressions for the same page as layout settles.
       const existing = (await lm.annotations.listForDoc(doc.docId)).find(
         (a) => a.kind === "bookmark" && sameLocation(a.location, loc.location)
       );
@@ -931,7 +1005,6 @@ export function ReaderScreen() {
       await refreshBookmarks();
       return "added";
     } catch {
-      // A failed write must not look like success; the notice surfaces it.
       return "failed";
     }
   }, [doc, resolveChapterId, refreshAnnotations]);
@@ -962,8 +1035,6 @@ export function ReaderScreen() {
     []
   );
 
-  /** The More menu is controlled here so keyboard (07 §2) and the auto-hide
-   * tick honour it; the component-owned state in ReaderChrome could not. */
   const setMenu = useCallback((open: boolean) => {
     menuOpenRef.current = open;
     setMenuOpen(open);
@@ -993,7 +1064,6 @@ export function ReaderScreen() {
   const handleScrubEnd = useCallback(
     (percent: number) => {
       chromeRef.current?.onScrubEnd();
-      // The dock releases once; a stray blur/keyup must not double-jump.
       if (scrubValueRef.current === null) return;
       scrubValueRef.current = null;
       setScrubValue(null);
@@ -1019,8 +1089,6 @@ export function ReaderScreen() {
   const handleToggleChrome = useCallback(() => {
     const chrome = chromeRef.current;
     if (!chrome) return;
-    // "Hide controls" runs while the menu still holds the chrome open; drop
-    // that hold (and any focus hold the menu button left behind) first.
     chrome.release("menu");
     chrome.release("focus");
     chrome.toggle();
@@ -1028,11 +1096,9 @@ export function ReaderScreen() {
   }, []);
 
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isFocusMode) return;
     const chrome = chromeRef.current;
     if (!chrome) return;
-    // Exposed surface (margins, above the canvas): the bottom band reveals the
-    // dock, anywhere else counts as normal activity. Hover inside the spine
-    // frame arrives via engine.onPointerActivity (07 §2).
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.height > 0 && e.clientY >= rect.bottom - DOCK_REVEAL_ZONE_PX) {
       chrome.onPillarHover();
@@ -1040,31 +1106,27 @@ export function ReaderScreen() {
       chrome.onActivity();
     }
     setChromeVisible((visible) => (visible ? visible : true));
-  }, []);
+  }, [isFocusMode]);
 
-  /** Clicks on blank reader surface (outside the iframe) bring the controls
-   *  back. Text clicks inside the publication never do. */
   const onReaderSurfaceClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isFocusMode) return;
     const target = e.target as HTMLElement | null;
     if (
       target?.closest(
-        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search, .folio-selection-toolbar, .folio-dialog, [role='dialog'], .folio-snackbar, .folio-reader-splash"
+        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search-panel, .folio-selection-toolbar, .folio-dialog, [role='dialog'], .folio-snackbar, .folio-reader-splash, .folio-reader-focus-exit"
       )
     ) {
       return;
     }
     chromeRef.current?.onActivity();
     setChromeVisible(true);
-  }, []);
+  }, [isFocusMode]);
 
-  /** Root fallback for right-clicks that happen outside the spine frame (the
-   *  iframe's own right-clicks arrive through engine.onContextMenu). Overlays
-   *  (panels, chrome, dialogs, menus) keep their native/default behaviour. */
   const onReaderContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement | null;
     if (
       target?.closest(
-        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search, .folio-selection-toolbar, [role='dialog'], .folio-snackbar, .folio-reader-splash"
+        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search-panel, .folio-selection-toolbar, [role='dialog'], .folio-snackbar, .folio-reader-splash, .folio-reader-focus-exit"
       )
     ) {
       return;
@@ -1083,9 +1145,9 @@ export function ReaderScreen() {
     (locator?.progression !== undefined
       ? locator.progression * 100
       : (doc?.progress?.percent ?? 0));
-  // Recomputed when the throttled pace snapshot ticks, not on every locator.
   const timeLeft = useMemo(
     () => formatTimeLeft(paceRef.current?.timeLeftMinutes(percent) ?? null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [paceVersion, percent]
   );
   const backLabel = backLabelFor(readerOrigin?.route);
@@ -1102,7 +1164,7 @@ export function ReaderScreen() {
 
   return (
     <div
-      className="folio-reader"
+      className={`folio-reader${isFocusMode ? " is-focus-mode" : ""}`}
       style={
         {
           "--reader-bg": theme.pageBg,
@@ -1132,7 +1194,7 @@ export function ReaderScreen() {
       {doc && (
         <>
           <ReaderChrome
-            visible={chromeVisible && splashPhase === "done"}
+            visible={chromeVisible && splashPhase === "done" && !isFocusMode}
             backLabel={backLabel}
             title={title}
             chapterTitle={chapterTitle}
@@ -1145,7 +1207,10 @@ export function ReaderScreen() {
             onMenuChange={setMenu}
             onBack={() => void handleBack()}
             onAppearance={() => openPanel("appearance")}
-            onContents={() => openPanel("toc")}
+            onContents={() => {
+              setWorkspaceTab("contents");
+              openPanel("toc");
+            }}
             onSearch={() => {
               setInbookSearchOpen((v) => !v);
               chromeRef.current?.onActivity();
@@ -1161,44 +1226,29 @@ export function ReaderScreen() {
             onScrubStart={handleScrubStart}
             onScrubChange={handleScrubChange}
             onScrubEnd={handleScrubEnd}
+            isFocusMode={isFocusMode}
+            onFocusMode={() => setIsFocusMode((f) => !f)}
+            onSessionInfo={() => setSessionInfoOpen(true)}
+            onShortcutsGuide={() => setShortcutsGuideOpen(true)}
           />
 
-          {inbookSearchOpen && (
-            <div className="folio-inbook-search">
-              <input
-                type="search"
-                className="folio-inbook-search__input"
-                placeholder="Search in book…"
-                value={inbookQuery}
-                onChange={(e) => setInbookQuery(e.target.value)}
-                autoFocus
-              />
-              {inbookResults.length > 0 && (
-                <div className="folio-inbook-search__results">
-                  {inbookResults.map((r, i) => (
-                    <button
-                      key={`${r.locator}-${i}`}
-                      type="button"
-                      className="folio-inbook-search__result"
-                      onClick={() => {
-                        setInbookSearchOpen(false);
-                        reportNavigation(
-                          goToHref(r.locator, "search"),
-                          "Couldn't reach that search result."
-                        );
-                      }}
-                    >
-                      <div className="folio-inbook-search__chapter">{r.chapterTitle}</div>
-                      <div
-                        className="folio-inbook-search__snippet"
-                        dangerouslySetInnerHTML={{ __html: r.snippetHtml }}
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          <InBookSearchPanel
+            open={inbookSearchOpen}
+            query={inbookQuery}
+            results={inbookResults}
+            isSearching={inbookSearching}
+            searchError={inbookError}
+            onQueryChange={setInbookQuery}
+            onClear={() => {
+              setInbookQuery("");
+              setInbookResults([]);
+              setInbookError(null);
+            }}
+            onClose={() => setInbookSearchOpen(false)}
+            onSelectResult={(loc) => {
+              reportNavigation(goToHref(loc, "search"), "Couldn't reach that search result.");
+            }}
+          />
 
           {ctxMenu && (
             <ReaderContextMenu
@@ -1209,7 +1259,10 @@ export function ReaderScreen() {
                 chromeRef.current?.toggle();
                 setChromeVisible(chromeRef.current?.visible ?? false);
               }}
-              onToc={() => openPanel("toc")}
+              onToc={() => {
+                setWorkspaceTab("contents");
+                openPanel("toc");
+              }}
               onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
             />
           )}
@@ -1224,13 +1277,48 @@ export function ReaderScreen() {
 
           <TocPanel
             open={panel === "toc"}
+            initialTab={workspaceTab}
             entries={toc}
             currentHref={locator?.chapterHref}
+            annotations={annotations}
+            chapters={doc?.meta.chapters}
             onClose={() => setPanel(null)}
-            onSelect={(href) => {
-              setPanel(null);
-              reportNavigation(goToHref(href, "contents"), "Couldn't reach that section.");
+            onSelect={(href) => goToHref(href, "contents")}
+            onSelectAnnotation={(target) =>
+              navRef.current?.goToAnnotation(target, "annotation")
+            }
+            onRemoveBookmark={async (id) => {
+              await getLibraryManager().annotations.remove(id);
+              await refreshAnnotations(doc.docId);
+              showNavNotice("Bookmark removed.");
             }}
+            onDeleteAnnotation={async (id) => {
+              await getLibraryManager().annotations.remove(id);
+              await refreshAnnotations(doc.docId);
+              showNavNotice("Annotation deleted.");
+            }}
+            onEditNote={(a) => {
+              setEditingAnnotation(a);
+              setNoteDraft(a.note ?? "");
+              setNoteEditorOpen(true);
+            }}
+          />
+
+          <ReadingSessionDialog
+            open={sessionInfoOpen}
+            onClose={() => setSessionInfoOpen(false)}
+            title={title}
+            chapterTitle={chapterTitle}
+            percent={percent}
+            timeLeft={timeLeft}
+            sessionDurationMs={Date.now() - sessionStartTsRef.current}
+            totalReadingTimeMs={doc?.progress?.pace?.sessionsMs ?? 0}
+            totalChapters={doc?.meta.chapters.length}
+          />
+
+          <KeyboardShortcutsDialog
+            open={shortcutsGuideOpen}
+            onClose={() => setShortcutsGuideOpen(false)}
           />
 
           <QuoteCard
@@ -1254,15 +1342,17 @@ export function ReaderScreen() {
             open={noteEditorOpen}
             onClose={() => {
               setNoteEditorOpen(false);
+              setEditingAnnotation(null);
               setPendingSelection(null);
             }}
-            title="Add note"
+            title={editingAnnotation ? "Edit note" : "Add note"}
             actions={
               <>
                 <FolioButton
                   variant="secondary"
                   onClick={() => {
                     setNoteEditorOpen(false);
+                    setEditingAnnotation(null);
                     setPendingSelection(null);
                   }}
                 >
@@ -1274,15 +1364,17 @@ export function ReaderScreen() {
               </>
             }
           >
-            {pendingSelection && (
-              <blockquote className="folio-note-quote">{pendingSelection.quote}</blockquote>
+            {(editingAnnotation?.quote || pendingSelection?.quote) && (
+              <blockquote className="folio-note-quote">
+                {editingAnnotation?.quote ?? pendingSelection?.quote}
+              </blockquote>
             )}
             <textarea
               className="folio-note-input"
               rows={4}
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
-              placeholder="Add a note (optional)…"
+              placeholder="Add personal note…"
               autoFocus
             />
           </FolioDialog>

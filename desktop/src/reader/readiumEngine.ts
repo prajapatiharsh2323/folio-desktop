@@ -36,6 +36,7 @@ import {
 } from "./locatorCodec";
 
 const XHTML = "application/xhtml+xml";
+import type { MiniSearch } from "../search/miniSearch";
 
 export class ReadiumEngine implements ReaderEngine {
   private navigator: EpubNavigator | null = null;
@@ -54,6 +55,8 @@ export class ReadiumEngine implements ReaderEngine {
   private lastPointerEmit = 0;
   private lastLocator: ReaderLocator | null = null;
   private systemDark = false;
+  private searchIndex: MiniSearch | null = null;
+  private searchIndexPromise: Promise<MiniSearch | null> | null = null;
 
   constructor(
     private epubBytes: Uint8Array,
@@ -141,6 +144,14 @@ export class ReadiumEngine implements ReaderEngine {
       }
     }
     this.frameWindows.clear();
+    this.locatorCbs.clear();
+    this.selectionCbs.clear();
+    this.linkCbs.clear();
+    this.clickCbs.clear();
+    this.contextMenuCbs.clear();
+    this.pointerCbs.clear();
+    this.searchIndex = null;
+    this.searchIndexPromise = null;
     await this.navigator?.destroy();
     this.opened?.close();
     this.navigator = null;
@@ -245,26 +256,41 @@ export class ReadiumEngine implements ReaderEngine {
     nav.applyDecorations(locators as never, "highlights");
   }
 
-  async search(query: string): Promise<SearchHit[]> {
+  private async getSearchIndex(): Promise<MiniSearch | null> {
     const pub = this.pub;
-    if (!pub || !query.trim()) return [];
-    const { MiniSearch } = await import("../search/miniSearch");
-    const idx = new MiniSearch();
-    for (const link of pub.readingOrder.items) {
-      let text = "";
-      try {
-        const bytes = await pub.get(link).read();
-        if (bytes) text = stripHtml(strFromU8(bytes));
-      } catch {
-        text = "";
+    if (!pub) return null;
+    if (this.searchIndex) return this.searchIndex;
+    if (this.searchIndexPromise) return this.searchIndexPromise;
+
+    this.searchIndexPromise = (async () => {
+      const { MiniSearch } = await import("../search/miniSearch");
+      const idx = new MiniSearch();
+      for (const link of pub.readingOrder.items) {
+        let text = "";
+        try {
+          const bytes = await pub.get(link).read();
+          if (bytes) text = stripHtml(strFromU8(bytes));
+        } catch {
+          text = "";
+        }
+        idx.add({
+          id: link.href,
+          title: link.title ?? link.href,
+          text,
+          chapterTitle: link.title ?? link.href,
+        });
       }
-      idx.add({
-        id: link.href,
-        title: link.title ?? link.href,
-        text,
-        chapterTitle: link.title ?? link.href,
-      });
-    }
+      this.searchIndex = idx;
+      return idx;
+    })();
+
+    return this.searchIndexPromise;
+  }
+
+  async search(query: string): Promise<SearchHit[]> {
+    if (!query.trim() || !this.pub) return [];
+    const idx = await this.getSearchIndex();
+    if (!idx || !this.pub) return [];
     const hits = idx.search(query, 50);
     return hits.map((h) => ({
       chapterTitle: h.chapterTitle ?? "",

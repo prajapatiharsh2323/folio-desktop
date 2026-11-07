@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import { getLibraryFs, getLibraryManager, LIBRARY_ROOT } from "./libraryUi";
 import { libraryLayout as L } from "../lib/libraryPaths";
+import { getBookCoverPreset } from "../lib/coverPresets";
 import type { DocMeta, Progress, ReadingPrefs } from "../model/types";
 import { nowIso } from "../model/ids";
 import type { ReaderOpenRequest } from "./routeStore";
@@ -51,7 +52,7 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
   load: async (request) => {
     const token = ++loadToken;
     const previous = get().doc;
-    if (previous?.coverUrl) URL.revokeObjectURL(previous.coverUrl);
+    if (previous?.coverUrl && previous.coverUrl.startsWith("blob:")) URL.revokeObjectURL(previous.coverUrl);
     set({ status: "loading", error: null, doc: null, request });
 
     try {
@@ -87,9 +88,12 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
           coverUrl = null;
         }
       }
+      if (!coverUrl) {
+        coverUrl = getBookCoverPreset(entry.contentHash || entry.slug || entry.title);
+      }
 
       if (token !== loadToken) {
-        if (coverUrl) URL.revokeObjectURL(coverUrl);
+        if (coverUrl && coverUrl.startsWith("blob:")) URL.revokeObjectURL(coverUrl);
         return;
       }
 
@@ -121,7 +125,7 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
   close: () => {
     loadToken += 1;
     const doc = get().doc;
-    if (doc?.coverUrl) URL.revokeObjectURL(doc.coverUrl);
+    if (doc?.coverUrl && doc.coverUrl.startsWith("blob:")) URL.revokeObjectURL(doc.coverUrl);
     set({ status: "idle", error: null, doc: null, request: null });
   },
 

@@ -171,4 +171,28 @@ export const FolioIcons = {
       <circle cx="12" cy="7.5" r="0.9" fill="currentColor" stroke="none" />
     </>
   ),
+  /** Keyboard shortcuts */
+  Keyboard: make(
+    "Keyboard",
+    <>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
+    </>
+  ),
+  /** Focus mode */
+  Focus: make(
+    "Focus",
+    <>
+      <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  /** Clock / reading session */
+  Clock: make(
+    "Clock",
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </>
+  ),
 } as const;
