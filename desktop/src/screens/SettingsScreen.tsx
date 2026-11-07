@@ -14,8 +14,10 @@ import {
   useLibraryUi,
 } from "../store/libraryUi";
 import { useReaderStore } from "../store/readerStore";
-import { DEFAULT_READING_PREFS, READER_THEME_COLORS } from "../model/defaults";
+import { DEFAULT_READING_PREFS } from "../model/defaults";
 import type { ReadingPrefs } from "../model/types";
+import { PreferencesEditor } from "../onboarding/PreferencesEditor";
+import { useOnboarding } from "../onboarding/onboardingState";
 import {
   createBackup,
   inspectBackup,
@@ -28,14 +30,6 @@ import {
 const THEME_OPTIONS: { value: ThemeSetting; label: string }[] = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
-  { value: "system", label: "System" },
-];
-
-const READING_THEMES: { value: ReadingPrefs["theme"]; label: string }[] = [
-  { value: "light", label: "Light" },
-  { value: "warm", label: "Paper" },
-  { value: "dark", label: "Dark" },
-  { value: "true-black", label: "True black" },
   { value: "system", label: "System" },
 ];
 
@@ -100,6 +94,9 @@ export function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [libPath, setLibPath] = useState(LIBRARY_ROOT);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const [draftPrefs, setDraftPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS);
+  const replayTour = useOnboarding((s) => s.replayTour);
 
   const loadPrefs = useCallback(async () => {
     try {
@@ -143,11 +140,40 @@ export function SettingsScreen() {
     }
   }, [loadPrefs, loadStorage]);
 
-  const setDefaultTheme = async (theme: ReadingPrefs["theme"]) => {
-    const lm = getLibraryManager();
-    const next = { ...defaultPrefs, theme };
-    await lm.prefs.writeGlobal(next);
-    setDefaultPrefs(next);
+  const openPrefs = async () => {
+    setMessage(null);
+    try {
+      setDraftPrefs(await getLibraryManager().prefs.global());
+    } catch {
+      setDraftPrefs(defaultPrefs);
+    }
+    setPrefsOpen(true);
+  };
+
+  const savePrefs = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const lm = getLibraryManager();
+      const current = await lm.prefs.global();
+      // Write only the fields this editor owns; preserve every other key.
+      const next = {
+        ...current,
+        theme: draftPrefs.theme,
+        fontFamily: draftPrefs.fontFamily,
+        fontSize: draftPrefs.fontSize,
+      };
+      await lm.prefs.writeGlobal(next);
+      setDefaultPrefs(next);
+      setPrefsOpen(false);
+      setMessage("Default reading preferences saved.");
+    } catch (e) {
+      setMessage(
+        e instanceof Error ? e.message : "Default reading preferences could not be saved."
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleExport = async () => {
@@ -275,7 +301,7 @@ export function SettingsScreen() {
         <FolioSectionHeader>Appearance</FolioSectionHeader>
         <FolioSettingsRow
           title="App appearance"
-          helper="Light, dark, or follow Windows"
+          helper="Light, dark, or follow your system setting"
           control={
             <div role="group" aria-label="App appearance">
               {THEME_OPTIONS.map((o) => (
@@ -294,32 +320,12 @@ export function SettingsScreen() {
 
         <FolioSectionHeader>Reading</FolioSectionHeader>
         <FolioSettingsRow
-          title="Default reading theme"
-          helper="Changes made inside a book stay with that book."
+          title="Default reading preferences"
+          helper="Theme, typeface, and text size for books without their own overrides."
           control={
-            <div role="group" aria-label="Default reading theme" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {READING_THEMES.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  className={`folio-theme-swatch${defaultPrefs.theme === t.value ? " is-selected" : ""}`}
-                  style={{ width: 72, padding: 4 }}
-                  onClick={() => void setDefaultTheme(t.value)}
-                >
-                  <span
-                    className="folio-theme-swatch__page"
-                    style={{
-                      background: READER_THEME_COLORS[t.value].bg,
-                      color: READER_THEME_COLORS[t.value].text,
-                      height: 32,
-                    }}
-                  >
-                    Aa
-                  </span>
-                  <span className="folio-theme-swatch__label">{t.label}</span>
-                </button>
-              ))}
-            </div>
+            <FolioButton variant="secondary" onClick={() => void openPrefs()}>
+              Edit
+            </FolioButton>
           }
         />
 
@@ -355,12 +361,16 @@ export function SettingsScreen() {
         />
         <FolioSettingsRow
           title="Library folder"
-          helper={libPath}
+          helper={isTauri() ? libPath : "Available in the desktop app."}
           control={
             <FolioButton
               variant="secondary"
+              disabled={!isTauri()}
               onClick={() => {
-                if (isTauri()) void invoke("open_app_dir").catch(() => {});
+                if (!isTauri()) return;
+                void invoke("open_app_dir").catch(() => {
+                  setMessage("The library folder could not be opened.");
+                });
               }}
             >
               Open
@@ -370,10 +380,40 @@ export function SettingsScreen() {
 
         <FolioSectionHeader>About</FolioSectionHeader>
         <FolioSettingsRow
+          title="Welcome tour"
+          helper="Review the five-step introduction to Folio."
+          control={
+            <FolioButton variant="secondary" onClick={replayTour}>
+              Replay
+            </FolioButton>
+          }
+        />
+        <FolioSettingsRow
           title="Version"
           helper="0.1.0"
         />
       </div>
+
+      <FolioDialog
+        open={prefsOpen}
+        onClose={() => setPrefsOpen(false)}
+        title="Default reading preferences"
+        actions={
+          <>
+            <FolioButton variant="secondary" onClick={() => setPrefsOpen(false)} disabled={busy}>
+              Cancel
+            </FolioButton>
+            <FolioButton variant="primary" onClick={() => void savePrefs()} disabled={busy}>
+              Save
+            </FolioButton>
+          </>
+        }
+      >
+        <PreferencesEditor prefs={draftPrefs} onChange={setDraftPrefs} />
+        <p className="folio-helper">
+          Changes made inside a book stay with that book.
+        </p>
+      </FolioDialog>
 
       <FolioDialog
         open={restoreOpen}

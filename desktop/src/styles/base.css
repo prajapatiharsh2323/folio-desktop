@@ -55,39 +55,10 @@ button {
   flex-shrink: 0;
   background: var(--folio-surface);
   border-right: var(--folio-divider) solid var(--folio-border);
-  padding: var(--folio-space-5) var(--folio-space-3);
+  padding: var(--folio-space-6) var(--folio-space-3);
   display: flex;
   flex-direction: column;
   gap: var(--folio-space-1);
-}
-
-.folio-sidebar__brand {
-  display: flex;
-  align-items: center;
-  gap: var(--folio-space-2);
-  padding: var(--folio-space-2) var(--folio-space-3) var(--folio-space-5);
-  color: var(--folio-text-primary);
-}
-
-.folio-sidebar__brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--folio-radius-control);
-  background: var(--folio-accent);
-  color: var(--folio-on-accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--folio-font-display);
-  font-size: var(--folio-type-body-size);
-  font-weight: var(--folio-type-title-weight);
-}
-
-.folio-sidebar__brand-name {
-  font-family: var(--folio-font-display);
-  font-size: var(--folio-type-title-size);
-  line-height: var(--folio-type-title-line);
-  font-weight: var(--folio-type-title-weight);
 }
 
 .folio-sidebar__item {

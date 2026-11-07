@@ -25,12 +25,6 @@ export function Sidebar({
 }) {
   return (
     <nav className="folio-sidebar" aria-label="Main navigation">
-      <div className="folio-sidebar__brand">
-        <div className="folio-sidebar__brand-mark" aria-hidden="true">
-          F
-        </div>
-        <span className="folio-sidebar__brand-name">Folio</span>
-      </div>
       {NAV_ITEMS.map(({ route: r, label, icon: Icon }) => {
         const active = route === r || (r === "library" && route === "reader");
         return (

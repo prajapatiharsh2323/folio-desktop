@@ -139,7 +139,7 @@ function filesMapFor(p: Awaited<ReturnType<typeof runPipeline>>): Record<string,
 async function writeIndex(
   lm: LibraryManager,
   docId: string,
-  chapters: { id: string; title: string; order: number }[],
+  chapters: { id: string; title: string; order: number; href: string }[],
   textByChapter: Map<string, string> | null
 ): Promise<void> {
   const index = {
@@ -148,6 +148,7 @@ async function writeIndex(
       id: c.id,
       title: c.title,
       order: c.order,
+      href: c.href,
       text: textByChapter?.get(c.id) ?? "",
     })),
   };

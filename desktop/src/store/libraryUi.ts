@@ -33,6 +33,7 @@ interface Snackbar {
 interface LibraryUiState {
   rows: LibraryRow[];
   loading: boolean;
+  error: string | null;
   recovery: RecoveryInfo | null;
   recoveryDialogOpen: boolean;
   duplicate: { title: string; resolve: (r: DuplicateResolution) => void } | null;
@@ -54,6 +55,15 @@ let fs: FileStore | null = null;
 export function getLibraryFs(): FileStore {
   if (!fs) fs = isTauri() ? new TauriFileStore() : new MemoryFileStore();
   return fs;
+}
+
+/** Custom covers are object URLs; every refresh must release the old batch. */
+let coverUrls: string[] = [];
+
+function revokeCoverUrl(url: string): void {
+  if (typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export const LIBRARY_ROOT = "/folio-library/library";
@@ -96,13 +106,15 @@ function rowFrom(
 export const useLibraryUi = create<LibraryUiState>((set, get) => ({
   rows: [],
   loading: false,
+  error: null,
   recovery: null,
   recoveryDialogOpen: false,
   duplicate: null,
   snackbar: null,
 
   refresh: async () => {
-    set({ loading: true });
+    set({ loading: true, error: null });
+    const nextCoverUrls: string[] = [];
     try {
       const lm = libraryManager();
       const manifest = await lm.load();
@@ -120,6 +132,7 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
               customCoverUrl = URL.createObjectURL(
                 new Blob([coverBytes as BlobPart], { type: coverMime(meta.files.cover) })
               );
+              nextCoverUrls.push(customCoverUrl);
             }
           } catch {
             customCoverUrl = null;
@@ -137,15 +150,28 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
         return a.title.localeCompare(b.title);
       });
       const recovery = await lm.detectRecovery();
+      // Swap rows first, then release any URL the new batch does not use.
+      const stale = coverUrls.filter((url) => !nextCoverUrls.includes(url));
+      coverUrls = nextCoverUrls;
       set({
         rows,
         loading: false,
+        error: null,
         recovery:
           recovery.damaged.length > 0 || recovery.interrupted.length > 0 ? recovery : null,
       });
+      for (const url of stale) {
+        // Let React commit the new rows before releasing the previous batch.
+        // A macrotask runs after React's microtask flush; releasing inside a
+        // microtask could blank an image that is still on screen.
+        setTimeout(() => revokeCoverUrl(url), 0);
+      }
     } catch (e) {
+      // A failed refresh never owns its newly created URLs.
+      for (const url of nextCoverUrls) revokeCoverUrl(url);
       set({
         loading: false,
+        error: e instanceof Error ? e.message : "Library load failed",
         snackbar: { tone: "error", text: e instanceof Error ? e.message : "Load failed" },
       });
     }

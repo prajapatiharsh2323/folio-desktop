@@ -31,12 +31,14 @@ export function NotesScreen() {
   const [docTitles, setDocTitles] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Annotation | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [deleting, setDeleting] = useState<Annotation | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const lm = getLibraryManager();
       const manifest = await lm.load();
@@ -45,6 +47,8 @@ export function NotesScreen() {
       setDocTitles(titles);
       const all = await lm.annotations.list();
       setAnnotations(all);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Notes could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -93,6 +97,18 @@ export function NotesScreen() {
   };
 
   const count = filtered.length;
+  const filterLabel: Record<Filter, string> = {
+    all: "notes",
+    highlight: "highlights",
+    note: "notes",
+    bookmark: "bookmarks",
+  };
+  const emptyBody: Record<Filter, string> = {
+    all: "Highlights, notes, and bookmarks you make while reading appear here.",
+    highlight: "Select text while reading to highlight it.",
+    note: "Add a note from a highlight or bookmark while reading.",
+    bookmark: "Bookmark a page from the reader to find it here.",
+  };
 
   return (
     <>
@@ -126,10 +142,22 @@ export function NotesScreen() {
       <div className="folio-screen">
         {loading ? (
           <p className="folio-helper">Loading…</p>
+        ) : error ? (
+          <FolioEmptyState
+            title="Notes couldn't load"
+            body={error}
+            action={
+              <FolioButton variant="secondary" onClick={() => void refresh()}>
+                Retry
+              </FolioButton>
+            }
+          />
         ) : filtered.length === 0 ? (
           <FolioEmptyState
-            title="No notes yet"
-            body="Highlights and notes you make while reading appear here."
+            title={
+              filter === "all" ? "No notes yet" : `No ${filterLabel[filter]} yet`
+            }
+            body={emptyBody[filter]}
           />
         ) : (
           <div className="folio-notes-list">
@@ -141,32 +169,33 @@ export function NotesScreen() {
                   ? "var(--folio-accent)"
                   : SWATCH_CSS[a.color ?? "yellow"] ?? "var(--folio-swatch-yellow)";
               return (
-                <div key={a.id} className="folio-note-row" role="button" tabIndex={0}
-                  onClick={() => openAt(a)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") openAt(a);
-                  }}
-                >
-                  <span className="folio-note-row__rail" style={{ background: railColor }} aria-hidden="true" />
-                  <div className="folio-note-row__body">
-                    <div className="folio-note-row__meta">
-                      <span className="folio-note-row__title">{title}</span>
-                      {missing && <span className="folio-note-row__badge">missing document</span>}
-                      <span className="folio-note-row__badge">{kindLabel(a)}</span>
-                      {a.note && <span className="folio-note-row__badge">Has note</span>}
+                <div key={a.id} className="folio-note-row">
+                  <button
+                    type="button"
+                    className="folio-note-row__open"
+                    onClick={() => openAt(a)}
+                    aria-label={`Open ${kindLabel(a)} in ${title}`}
+                  >
+                    <span className="folio-note-row__rail" style={{ background: railColor }} aria-hidden="true" />
+                    <div className="folio-note-row__body">
+                      <div className="folio-note-row__meta">
+                        <span className="folio-note-row__title">{title}</span>
+                        {missing && <span className="folio-note-row__badge">missing document</span>}
+                        <span className="folio-note-row__badge">{kindLabel(a)}</span>
+                        {a.note && <span className="folio-note-row__badge">Has note</span>}
+                      </div>
+                      {a.quote && (
+                        <div className="folio-note-row__quote">{a.quote}</div>
+                      )}
+                      {a.note && <div className="folio-note-row__note">{a.note}</div>}
                     </div>
-                    {a.quote && (
-                      <div className="folio-note-row__quote">{a.quote}</div>
-                    )}
-                    {a.note && <div className="folio-note-row__note">{a.note}</div>}
-                  </div>
+                  </button>
                   <div className="folio-note-row__actions">
                     <button
                       type="button"
                       className="folio-iconbtn"
                       aria-label="Edit note"
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      onClick={() => {
                         setEditing(a);
                         setEditDraft(a.note ?? "");
                       }}
@@ -177,10 +206,7 @@ export function NotesScreen() {
                       type="button"
                       className="folio-iconbtn"
                       aria-label="Delete"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleting(a);
-                      }}
+                      onClick={() => setDeleting(a)}
                     >
                       <FolioIcons.Trash size="sm" />
                     </button>

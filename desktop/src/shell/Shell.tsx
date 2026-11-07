@@ -11,6 +11,7 @@ import { onLaunch, takePendingLaunch } from "../lib/openWith";
 import { filesFromTauriDrop, pickImportFiles } from "../lib/fileSource";
 import { getLibraryFs, LIBRARY_ROOT, useLibraryUi } from "../store/libraryUi";
 import { recoverInterruptedRestore } from "../backup/backupService";
+import { hasBlockingOverlay } from "./overlays";
 
 /** Single-window shell (02 §3, 03 §5.1): one route stack, sidebar hidden in reader. */
 export function Shell() {
@@ -23,7 +24,13 @@ export function Shell() {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const target = e.target as HTMLElement | null;
-      const typing = !!target?.closest("input, textarea, select, [contenteditable='true']");
+      const typing =
+        !!target?.closest("input, textarea, select, [contenteditable='true']") ||
+        !!target?.isContentEditable;
+      if (hasBlockingOverlay()) {
+        if (e.key === "Escape" && typing) target?.blur();
+        return;
+      }
       if (e.key === "F11") {
         e.preventDefault();
         void toggleFullscreen();

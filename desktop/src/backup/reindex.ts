@@ -52,12 +52,14 @@ export async function reindexDocs(
             id: c.id,
             title: c.title,
             order: c.order,
+            href: c.href,
             text: byChapterId.get(c.id) ?? parsed.chapters[i]?.text ?? "",
           }))
         : parsed.chapters.map((c) => ({
             id: c.id,
             title: c.title,
             order: c.order,
+            href: c.href,
             text: c.text,
           }));
 

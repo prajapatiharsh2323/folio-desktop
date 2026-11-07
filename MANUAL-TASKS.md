@@ -13,6 +13,12 @@ mirror the status in `TASKS.md`.
 automated half has been executed — see §0. The items still marked ⧗ are the ones
 that genuinely need a person in front of the screen.)*
 
+*(Update 2026-11-07: added §7 — manual checks for the cleanup & UX pass,
+session `S-20261107-01`: first-run onboarding/tour, Settings consolidation,
+Library control cleanup, search location/escaping, and resilience fixes. Linux
+automation is green (`tsc -b`, 238 Vitest tests / 28 files, `vite build`); none
+of §7 has been run in a real webview yet.)*
+
 ## 0. Progress — Windows 11 26100 pass, 2026-10-31 (session `S-20261031-06`)
 
 Automated half of the list is **done and green on this host**; only the
@@ -112,6 +118,96 @@ both actions work.
 - ~~Old installs may leave an orphaned `%APPDATA%\Folio\dict\` directory
   (dictionary feature removed 2026-10-31) — delete manually.~~ **N/A on this
   machine — no `dict\` directory; only `library\` and `user\` exist.**
+
+## 7. P0 — Cleanup & UX pass runtime checks (session `S-20261107-01`)
+
+Linux automation is green: `tsc -b` clean, **238 Vitest tests / 28 files**,
+`vite build` success. Nothing below has been checked in a real Windows/webview
+session yet — all items are ⧗.
+
+### 7.1 First-run setup and tour
+
+To simulate a fresh install, back up first (Settings → Export backup), close
+the app, then do **one** of:
+
+- Delete the app's WebView profile (typically
+  `%LOCALAPPDATA%\com.folio.desktop\EBWebView`) — this clears `localStorage`
+  but not the library; or
+- Run `pnpm tauri:dev`, open DevTools, and execute:
+  ```js
+  localStorage.removeItem("folio.onboarding.prefs-complete");
+  localStorage.removeItem("folio.onboarding.tour-complete");
+  location.reload();
+  ```
+
+- ⧗ Fresh launch opens **Set up your reading experience** (not the Library).
+- ⧗ Changing app appearance + reading theme/typeface/text size then **Save and
+  continue** writes the preferences; Settings → Default reading preferences
+  shows the same values.
+- ⧗ **Skip for now** moves on without changing global reading prefs or app
+  appearance (verify the app appearance is unchanged after relaunch).
+- ⧗ Setup hands off to the **five-step tour** (Library → Reader → Collections →
+  Notes → Settings), and each step switches the visible route.
+- ⧗ Tour closes via **Next → Start reading**, **Skip tour**, **Escape**, the
+  close button, and clicking the backdrop; it does not reappear on relaunch.
+- ⧗ Closing the app mid-tour and relaunching resumes at the tour, **not** at
+  preference setup.
+- ⧗ Settings → About → **Replay** runs the tour again; finishing returns to the
+  Library.
+- ⧗ Tour focus stays inside the card (Tab/Shift+Tab cycle); Escape dismisses.
+- ⧗ With the tour or a dialog open, `Ctrl+1…4`, `Ctrl+,`, `F11`, and `/` do not
+  act on the screen underneath.
+
+### 7.2 Settings
+
+- ⧗ Only one reading-preferences entry exists; the dialog edits theme, typeface,
+  and text size and does **not** duplicate the app-appearance chips.
+- ⧗ App appearance is a single Light / Dark / System control; System follows the
+  OS scheme without a restart, and the choice persists across relaunch.
+- ⧗ Cancel in the preferences dialog discards edits; Save persists them and
+  leaves other settings (width, margins, etc.) untouched.
+- ⧗ Library folder → Open launches Explorer at the library; in `pnpm dev`
+  (browser, no Tauri) the button is disabled and explains why.
+
+### 7.3 Library and Notes
+
+- ⧗ No sidebar wordmark; nav starts at the top.
+- ⧗ Populated library shows **one** Import control; empty library shows the
+  empty-state Import CTA; never two import buttons at once.
+- ⧗ No inert Sort/More header icons and no placeholder `All` / `#tag` /
+  `Collections` chips.
+- ⧗ Book rows open with mouse, **Enter**, and **Space**; no `…` action button is
+  shown (no action exists yet).
+- ⧗ In Select mode, the row’s accessible name becomes Select/Deselect and
+  clicking toggles selection instead of opening the book.
+- ⧗ Notes rows open with mouse/Enter/Space; Edit and Delete do not open the
+  reader; filters show their own empty copy.
+- ⧗ Optional error path: temporarily rename the library folder, reopen Library /
+  Notes / Collections → each shows a clear error with **Retry**; restore the
+  folder and Retry recovers. (Do not run this without a backup.)
+
+### 7.4 Search
+
+- ⧗ A query that matches a chapter title and body shows the **book title once**
+  with the chapter as secondary text (no duplicated title line).
+- ⧗ Clicking a result opens the reader **at that chapter**, not at the last
+  saved position.
+- ⧗ A library imported **before** this build (old text index without `href`)
+  still navigates to the right chapter (metadata fallback).
+- ⧗ Search text containing `<`, `>`, `&`, or quotes renders literally in the
+  snippet; no broken markup or missing text around the highlighted term.
+- ⧗ While typing in Library search, `/`, `Ctrl+F`, `Ctrl+I`, and `Ctrl+1…4` do
+  not fire; Escape closes search and clears the query.
+- ⧗ In-book search remains separate: its results stay inside the reader and do
+  not use the Library search panel.
+
+### 7.5 Covers and storage
+
+- ⧗ Import/replace a book with a custom cover, refresh the library, and confirm
+  covers still render (old object URLs are released only after the new rows
+  commit).
+- ⧗ Block site storage (or run in a privacy mode) and confirm the app still
+  starts and screens load instead of crashing on `localStorage`.
 
 ---
 

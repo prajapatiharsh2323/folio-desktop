@@ -13,26 +13,8 @@ import {
   clampParagraphSpacing,
   READER_THEME_COLORS,
 } from "../model/defaults";
-import type {
-  FontFamilyPref,
-  ReadingPrefs,
-  ReadingTheme,
-} from "../model/types";
-
-const THEMES: { value: ReadingTheme; label: string }[] = [
-  { value: "light", label: "Light" },
-  { value: "warm", label: "Paper" },
-  { value: "dark", label: "Dark" },
-  { value: "true-black", label: "True black" },
-  { value: "system", label: "System" },
-];
-
-const TYPEFACES: { value: FontFamilyPref; label: string; css: string }[] = [
-  { value: "serif", label: "Serif", css: '"Iowan Old Style", Georgia, serif' },
-  { value: "sans", label: "Sans", css: '"Segoe UI", system-ui, sans-serif' },
-  { value: "mono", label: "Mono", css: '"Cascadia Code", Consolas, monospace' },
-  { value: "publisher", label: "Publisher", css: "var(--folio-font-display)" },
-];
+import type { ReadingPrefs } from "../model/types";
+import { READING_THEME_OPTIONS, TYPEFACE_OPTIONS } from "./readingPrefsOptions";
 
 const WIDTH_PRESETS: { label: string; value: number }[] = [
   { label: "Compact", value: 640 },
@@ -64,7 +46,8 @@ export function AppearancePanel({
 }: AppearancePanelProps) {
   const patch = (part: Partial<ReadingPrefs>) => onChange({ ...prefs, ...part });
 
-  const activeFont = TYPEFACES.find((f) => f.value === prefs.fontFamily) ?? TYPEFACES[0];
+  const activeFont =
+    TYPEFACE_OPTIONS.find((f) => f.value === prefs.fontFamily) ?? TYPEFACE_OPTIONS[0];
   const previewColors = useMemo(() => {
     if (prefs.theme === "system") {
       const isDark =
@@ -189,7 +172,7 @@ export function AppearancePanel({
         <section>
           <FolioSectionHeader>Reading theme</FolioSectionHeader>
           <div className="folio-theme-grid" role="radiogroup" aria-label="Reading theme">
-            {THEMES.map((t) => {
+            {READING_THEME_OPTIONS.map((t) => {
               const colors = READER_THEME_COLORS[t.value];
               const selected = prefs.theme === t.value;
               return (
@@ -219,7 +202,7 @@ export function AppearancePanel({
         <section>
           <FolioSectionHeader>Typeface</FolioSectionHeader>
           <div className="folio-wrap-row" role="radiogroup" aria-label="Typeface">
-            {TYPEFACES.map((f) => (
+            {TYPEFACE_OPTIONS.map((f) => (
               <FolioChip
                 key={f.value}
                 selected={prefs.fontFamily === f.value}

@@ -10,11 +10,14 @@ import { useRouteStore } from "../store/routeStore";
 import { pickImportFiles, filesFromDataTransfer, filesFromTauriDrop } from "../lib/fileSource";
 import { MiniSearch } from "../search/miniSearch";
 import { libraryLayout as L } from "../lib/libraryPaths";
+import { readStorage, writeStorage } from "../lib/storage";
+import { hasBlockingOverlay } from "../shell/overlays";
 
 /** Library screen (03 §5.2) wired to the schema-1 library via LibraryManager. */
 export function LibraryScreen() {
   const rows = useLibraryUi((s) => s.rows);
   const loading = useLibraryUi((s) => s.loading);
+  const loadError = useLibraryUi((s) => s.error);
   const recovery = useLibraryUi((s) => s.recovery);
   const recoveryDialogOpen = useLibraryUi((s) => s.recoveryDialogOpen);
   const setRecoveryDialogOpen = useLibraryUi((s) => s.setRecoveryDialogOpen);
@@ -32,7 +35,7 @@ export function LibraryScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filterDocIds, setFilterDocIds] = useState<Set<string> | null>(null);
   const [sort, setSort] = useState<string>(
-    () => localStorage.getItem("folio.library.sort") || "recent"
+    () => readStorage("folio.library.sort") || "recent"
   );
   const [filterCollection, setFilterCollection] = useState<string | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
@@ -41,7 +44,14 @@ export function LibraryScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<
-    { id: string; title: string; chapterTitle?: string; snippet: string; docId?: string }[]
+    {
+      id: string;
+      title: string;
+      chapterTitle?: string;
+      snippet: string;
+      docId?: string;
+      location?: string;
+    }[]
   >([]);
   const searchIndexRef = useRef<MiniSearch | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -53,13 +63,28 @@ export function LibraryScreen() {
     for (const doc of manifest?.docs ?? []) {
       try {
         const raw = await getLibraryFs().readText(L.indexText(lm.root, doc.id));
-        const parsed = JSON.parse(raw) as { chapters: { id: string; title: string; text: string }[] };
+        const parsed = JSON.parse(raw) as {
+          chapters: { id: string; title: string; text: string; href?: string }[];
+        };
+        // Indexes written before hrefs were stored still resolve their chapter
+        // location through meta.json.
+        let metaHrefs: Map<string, string> | null = null;
+        if ((parsed.chapters ?? []).some((ch) => !ch.href)) {
+          try {
+            const meta = await lm.meta.read(doc.slug);
+            metaHrefs = new Map((meta?.chapters ?? []).map((c) => [c.id, c.href]));
+          } catch {
+            metaHrefs = null;
+          }
+        }
         for (const ch of parsed.chapters ?? []) {
           idx.add({
             id: `${doc.id}::${ch.id}`,
             title: doc.title,
+            docTitle: doc.title,
             text: ch.text ?? "",
             docId: doc.id,
+            href: ch.href ?? metaHrefs?.get(ch.id),
             chapterTitle: ch.title,
           });
         }
@@ -80,10 +105,11 @@ export function LibraryScreen() {
     setSearchResults(
       hits.map((h) => ({
         id: h.id,
-        title: h.chapterTitle ? h.chapterTitle : "Document",
+        title: h.docTitle ?? "Document",
         chapterTitle: h.chapterTitle,
         snippet: h.snippet,
         docId: h.docId,
+        location: h.href,
       }))
     );
   }, []);
@@ -108,7 +134,14 @@ export function LibraryScreen() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest("input, textarea, select")) return;
+      if (hasBlockingOverlay()) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.closest("input, textarea, select, [contenteditable='true']") ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
       if (e.key === "/") {
         e.preventDefault();
         setSearchOpen(true);
@@ -184,6 +217,7 @@ export function LibraryScreen() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (hasBlockingOverlay()) return;
       if (selectionMode && (e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
         e.preventDefault();
         setSelectedIds(new Set(rows.map((r) => r.id)));
@@ -224,7 +258,7 @@ export function LibraryScreen() {
   }, [filterCollection]);
 
   useEffect(() => {
-    localStorage.setItem("folio.library.sort", sort);
+    writeStorage("folio.library.sort", sort);
   }, [sort]);
 
   const visibleRows = rows
@@ -254,12 +288,6 @@ export function LibraryScreen() {
           onClick={() => setSearchOpen((v) => !v)}
         >
           <FolioIcons.Search />
-        </button>
-        <button type="button" className="folio-iconbtn" aria-label="Sort">
-          <FolioIcons.Sort />
-        </button>
-        <button type="button" className="folio-iconbtn" aria-label="More">
-          <FolioIcons.More />
         </button>
       </header>
 
@@ -291,13 +319,15 @@ export function LibraryScreen() {
               type="button"
               className="folio-searchresult"
               onClick={() => {
-                if (r.docId) openReader({ docId: r.docId });
+                if (r.docId) {
+                  openReader({ docId: r.docId, location: r.location ?? null });
+                }
                 setSearchOpen(false);
                 setSearchQuery("");
               }}
             >
               <div className="folio-searchresult__title">{r.title}</div>
-              {r.chapterTitle && (
+              {r.chapterTitle && r.chapterTitle !== r.title && (
                 <div className="folio-searchresult__chapter">{r.chapterTitle}</div>
               )}
               <div
@@ -323,69 +353,56 @@ export function LibraryScreen() {
         </div>
       )}
 
-      <div className="folio-toolbar" role="group" aria-label="Library filters" style={{ paddingTop: 0 }}>
-        <FolioChip selected>All</FolioChip>
-        <FolioChip>#tag</FolioChip>
-        <FolioChip>
-          Collections
-          <FolioIcons.ChevronDown size="sm" />
-        </FolioChip>
-        <div style={{ flex: 1 }} />
-        <FolioButton variant="primary" onClick={() => void onImport()}>
-          <FolioIcons.Import size="sm" />
-          Import
-        </FolioButton>
-        <button
-          type="button"
-          className="folio-iconbtn folio-iconbtn--accent"
-          aria-label="Import file"
-          onClick={() => void onImport()}
+      {count > 0 && (
+        <div
+          className="folio-toolbar"
+          role="group"
+          aria-label="Library controls"
+          style={{ paddingTop: 0, flexWrap: "wrap" }}
         >
-          <FolioIcons.Plus />
-        </button>
-      </div>
-
-      <div className="folio-toolbar" role="group" aria-label="Library sort and selection" style={{ paddingTop: 0, flexWrap: "wrap" }}>
-        <select
-          className="folio-filter-select"
-          value={filterCollection ?? ""}
-          onChange={(e) => setFilterCollection(e.target.value || null)}
-          aria-label="Filter by collection"
-        >
-          <option value="">All collections</option>
-          {collections.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="folio-filter-select"
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          aria-label="Sort"
-        >
-          <option value="recent">Recently read</option>
-          <option value="title">Title</option>
-          <option value="author">Author</option>
-        </select>
-        <FolioChip selected={selectionMode} onClick={() => setSelectionMode((v) => !v)}>
-          Select
-        </FolioChip>
-        {selectionMode && selectedIds.size > 0 && (
-          <>
-            <FolioButton variant="secondary" onClick={() => setAddToCollectionOpen(true)}>
-              Add to collection
-            </FolioButton>
-            <FolioButton
-              variant="danger"
-              onClick={() => setDeleteConfirmOpen(true)}
-            >
-              Delete
-            </FolioButton>
-          </>
-        )}
-      </div>
+          <FolioButton variant="primary" onClick={() => void onImport()}>
+            <FolioIcons.Import size="sm" />
+            Import
+          </FolioButton>
+          <div style={{ flex: 1 }} />
+          <select
+            className="folio-filter-select"
+            value={filterCollection ?? ""}
+            onChange={(e) => setFilterCollection(e.target.value || null)}
+            aria-label="Filter by collection"
+          >
+            <option value="">All collections</option>
+            {collections.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="folio-filter-select"
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            aria-label="Sort"
+          >
+            <option value="recent">Recently read</option>
+            <option value="title">Title</option>
+            <option value="author">Author</option>
+          </select>
+          <FolioChip selected={selectionMode} onClick={() => setSelectionMode((v) => !v)}>
+            Select
+          </FolioChip>
+          {selectionMode && selectedIds.size > 0 && (
+            <>
+              <FolioButton variant="secondary" onClick={() => setAddToCollectionOpen(true)}>
+                Add to collection
+              </FolioButton>
+              <FolioButton variant="danger" onClick={() => setDeleteConfirmOpen(true)}>
+                Delete
+              </FolioButton>
+            </>
+          )}
+        </div>
+      )}
 
       <div
         className={`folio-screen${dragOver ? " folio-drop-target" : ""}`}
@@ -402,15 +419,47 @@ export function LibraryScreen() {
           });
         }}
       >
+        {loadError && count > 0 && (
+          <div className="folio-banner folio-banner--warning" role="alert">
+            <span>{loadError}</span>
+            <FolioButton variant="secondary" onClick={() => void refresh()}>
+              Retry
+            </FolioButton>
+          </div>
+        )}
         {loading ? (
           <div className="folio-empty">
             <div className="folio-empty__body">Loading…</div>
           </div>
+        ) : loadError && count === 0 ? (
+          <FolioEmptyState
+            title="Library couldn't load"
+            body={loadError}
+            action={
+              <FolioButton variant="secondary" onClick={() => void refresh()}>
+                Retry
+              </FolioButton>
+            }
+          />
         ) : count === 0 ? (
           <FolioEmptyState
-            title="Nothing here yet"
-            body="Import EPUB, HTML or TXT files to start your library. You can also drag files onto this window."
-            action={<FolioButton variant="primary" onClick={() => void onImport()}>Import a file</FolioButton>}
+            title={filterCollection ? "No books in this collection" : "Nothing here yet"}
+            body={
+              filterCollection
+                ? "Add books to this collection from your library, or show all books."
+                : "Import EPUB, HTML or TXT files to start your library. You can also drag files onto this window."
+            }
+            action={
+              filterCollection ? (
+                <FolioButton variant="secondary" onClick={() => setFilterCollection(null)}>
+                  Show all books
+                </FolioButton>
+              ) : (
+                <FolioButton variant="primary" onClick={() => void onImport()}>
+                  Import a file
+                </FolioButton>
+              )
+            }
           />
         ) : (
           <div role="list" aria-label="Documents">
@@ -441,6 +490,11 @@ export function LibraryScreen() {
                     tint: r.tint,
                     coverUrl: r.coverUrl ?? undefined,
                   }}
+                  actionLabel={
+                    selectionMode
+                      ? `${selectedIds.has(r.id) ? "Deselect" : "Select"} ${r.title}`
+                      : undefined
+                  }
                   onOpen={() =>
                     selectionMode
                       ? setSelectedIds((prev) => {

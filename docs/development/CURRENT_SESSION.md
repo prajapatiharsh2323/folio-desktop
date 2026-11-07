@@ -1,5 +1,60 @@
 # Current Session Checkpoint
 
+**Session:** `S-20261107-01` — Cleanup & UX Pass (onboarding, Settings, Library, search, resilience)
+**Updated:** 2026-11-07
+**Status:** Implementation complete; Linux verification green (**238 tests / 28 files**, `tsc -b`, `vite build`). Windows/Tauri verification pending. Changes uncommitted. Record: [`S-20261107-01`](sessions/S-20261107-01-cleanup-ux-pass.md).
+Previous record: [`S-20261103-01`](#previous-checkpoint--s-20261103-01), [`S-20261101-02`](sessions/S-20261101-02-reader-redesign.md).
+
+## Completed Work (Cleanup & UX Pass)
+
+1. **First-run onboarding + five-step tour** (`src/onboarding/`):
+   - Preference setup on a fresh install: app appearance, reading theme,
+     typeface, text size; saved through the existing global `ReadingPrefs`
+     repository with unknown keys preserved.
+   - Separate persisted flags for setup vs tour (`folio.onboarding.prefs-complete`,
+     `folio.onboarding.tour-complete`); closing mid-tour resumes the tour.
+   - Tour is skippable, Escape/backdrop dismissable, focus-trapped, route-aware,
+     and replayable from Settings.
+   - "Skip for now" writes no preference. App appearance is a draft until Save.
+2. **Settings consolidation:** one "Default reading preferences" dialog using
+   the same editor as onboarding; app appearance remains a single control; tour
+   replay row; library-folder open is disabled outside Tauri and reports errors.
+3. **Library cleanup:** removed sidebar wordmark, inert Sort/More icons,
+   placeholder chips, and duplicate Import; one toolbar shown only when rows
+   exist; exactly one visible import entry per state.
+4. **Semantic rows:** `FolioBookRow` and Notes rows are real buttons with
+   sibling action controls (no nested interactive elements); the optional "…"
+   action renders only when a handler exists.
+5. **Search correctness:** snippets HTML-escape book text before `<mark>`;
+   results show the document title once with the chapter as secondary text;
+   chapter `href` is persisted in text indexes (import + reindex) with a
+   `meta.json` fallback for old indexes; results open at the chapter location.
+6. **Resilience/a11y:** retry + error states for Library, Notes, and
+   Collections; filter-aware empty copy; safe Web Storage wrapper; StrictMode-safe
+   theme listener; cover object-URL revocation after commit; global shortcuts
+   gated under overlays and while typing; Library/Notes shortcuts respect
+   `contenteditable`.
+
+## Verification (Linux)
+
+- `./node_modules/.bin/tsc -b` — clean.
+- `./node_modules/.bin/vitest run` — **238 passed / 28 files** (16 new tests:
+  onboarding state, snippet escaping, locator navigation, book-row semantics).
+- `./node_modules/.bin/vite build` — success (existing chunk-size warning only).
+- Rust/Tauri build and runtime checks were not run on this Linux host.
+
+## Exact next action
+
+1. On Windows: `cd desktop && pnpm install && pnpm exec tsc -b && pnpm exec vitest run && pnpm exec vite build`, then `cd src-tauri && cargo test --all-targets`.
+2. Runtime smoke: first-run setup → tour → Settings replay; search result opens
+   at the chapter; Library/Notes/Collections retries; overlay shortcut gating;
+   cover URLs after re-import.
+3. Do not commit/push without explicit authorization.
+
+---
+
+## Previous checkpoint — `S-20261103-01`
+
 **Session:** `S-20261103-01` — Release Audit Baseline, Critical Safety, Search Lifecycle & UI Polish
 **Updated:** 2026-11-03
 **Status:** Phase 0 Audit complete, critical issues resolved and verified across 216 tests. Audit record: [`R-20261103-01`](audits/results/R-20261103-01-release-audit.md).

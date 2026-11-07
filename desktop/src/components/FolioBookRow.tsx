@@ -24,15 +24,19 @@ const TINT_VARS = [
 ];
 
 /** Library row (03 §5.2): 56×78 r4 cover + title/author + kind + trailing % + 3px line.
- * Hover: surface-subtle background and a visible "…" button. */
+ * The row body is a real button; the optional "…" action is a sibling control so
+ * no interactive element is ever nested inside another. */
 export function FolioBookRow({
   data,
   onOpen,
   onMore,
+  actionLabel,
 }: {
   data: FolioBookRowData;
   onOpen?: (id: string) => void;
   onMore?: (id: string) => void;
+  /** Overrides the row button's accessible name (e.g. selection mode). */
+  actionLabel?: string;
 }) {
   const pct = Math.round((data.progress ?? 0) * 100);
   const initials = data.title
@@ -42,20 +46,8 @@ export function FolioBookRow({
     .join("");
   const tint = TINT_VARS[(data.tint ?? 0) % TINT_VARS.length];
 
-  return (
-    <div
-      className="folio-book-row"
-      role={onOpen ? "button" : undefined}
-      tabIndex={onOpen ? 0 : undefined}
-      onClick={() => onOpen?.(data.id)}
-      onKeyDown={
-        onOpen
-          ? (e) => {
-              if (e.key === "Enter") onOpen(data.id);
-            }
-          : undefined
-      }
-    >
+  const body = (
+    <>
       <div className="folio-book-row__cover" style={{ background: tint }}>
         {data.coverUrl ? <img src={data.coverUrl} alt="" /> : initials || <FolioIcons.Book />}
       </div>
@@ -73,18 +65,34 @@ export function FolioBookRow({
             </div>
           </>
         )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="folio-book-row">
+      {onOpen ? (
+        <button
+          type="button"
+          className="folio-book-row__open"
+          onClick={() => onOpen(data.id)}
+          aria-label={actionLabel ?? `Open ${data.title}`}
+        >
+          {body}
+        </button>
+      ) : (
+        <div className="folio-book-row__open">{body}</div>
+      )}
+      {onMore && (
         <button
           type="button"
           className="folio-iconbtn folio-book-row__more"
           aria-label={`Actions for ${data.title}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onMore?.(data.id);
-          }}
+          onClick={() => onMore(data.id)}
         >
           <FolioIcons.More size="sm" />
         </button>
-      </div>
+      )}
     </div>
   );
 }

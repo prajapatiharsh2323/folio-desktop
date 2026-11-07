@@ -1,8 +1,8 @@
 # Task Board
 
-Last updated: **2026-11-01** (session `S-20261101-01` — reader redesign M1+M2:
-serialized navigation, edge click zones, top bar + bottom dock, chrome holds;
-see `D-20261101-01`).
+Last updated: **2026-11-07** (session `S-20261107-01` — cleanup & UX pass:
+first-run onboarding/tour, Settings consolidation, Library dead-control removal,
+search/a11y/resilience fixes; see `S-20261107-01`).
 Statuses: `open`, `in-progress`, `blocked`, `done`. Keep this board limited to
 active or known work; move narrative detail to session/audit records.
 
@@ -23,6 +23,7 @@ active or known work; move narrative detail to session/audit records.
 | FT-014 | P0 | Release finalization Phase 0 audit & baseline: search index reuse/lifecycle, multi-select deletion confirmation, custom scrollbars, button size variants, 216 tests passing | done (code + tests) / next: installer build | Verified on Windows host: `tsc -b` clean, Vitest **216 / 216 (23 files)**, `vite build` clean, `cargo test` (23 passed), `cargo fmt` clean, `pnpm perf` within budgets. | [R-20261103-01](audits/results/R-20261103-01-release-audit.md) |
 | FT-015 | P1 | Custom cover art for books & collections: bundled presets, portrait book covers in LibraryScreen/ReaderSplash, panoramic landscape collection banners in CollectionsScreen, 221 tests passing | done (code + tests) | Bundled 5 cover images in `src/assets/covers`, created `coverPresets.ts` with deterministic hashing, wired `coverUrl` in `LibraryRow`, added banner/hero styling in `components.css`, 221/221 Vitest tests passing across 24 suites. | User Request |
 | FT-016 | P0 | Reader top bar clearance & Appearance tray Alignment/Hyphenation: prevent top bar from obscuring book text, elevate Justify/Hyphenate to Quick Adjustments + dedicated Typography section, fix panel contrast, 222 tests passing | done (code + tests) | Updated reader.css canvas geometry, AppearancePanel quick chips + section, components.css panel color, 222/222 Vitest tests passing across 24 suites. | User Request |
+| FT-017 | P1 | Cleanup & UX pass: first-run onboarding + five-step tour, Settings consolidation, Library dead-control removal, semantic book/note rows, search title/location/escaping fixes, error/retry states, safe storage, StrictMode theme, cover URL revocation, shortcut gating | done (code) / blocked (Windows verification) | Linux: `tsc -b` clean, Vitest **238 / 238 (28 files)**, `vite build` green. Windows runtime smoke + `cargo test` still needed. Uncommitted. | [`S-20261107-01`](sessions/S-20261107-01-cleanup-ux-pass.md) |
 
 ## Blocked work
 
@@ -48,6 +49,11 @@ active or known work; move narrative detail to session/audit records.
 `4cce075` / docs `a5e4a94` likewise)*
 
 ## Verified state
+
+- **Linux verification (2026-11-07, `S-20261107-01`, cleanup & UX pass):**
+  `tsc -b` clean; **238 Vitest tests / 28 files** passing; `vite build`
+  success (existing chunk-size warning only). Rust/Tauri build not run on this
+  host. Uncommitted; Windows automated + runtime checks still pending.
 
 - **Windows 11 26100 (2026-10-31, `S-20261031-06`, automated half of
   `MANUAL-TASKS.md`):** `pnpm install` up to date (pnpm 11.9.0 / Node 24.18.0);

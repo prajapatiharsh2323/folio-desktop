@@ -14,6 +14,7 @@ short live checkpoint and put narrative history here.
 | S-20261031-04 | 2026-10-31 | First Windows run: jump-list startup crash fixed (FT-001) | Complete; heap-corruption fix verified at runtime; uncommitted | [`S-20261031-04-jumplist-startup-crash.md`](S-20261031-04-jumplist-startup-crash.md) |
 | S-20261031-05 | 2026-10-31 | Audit repair batch 1: collections routing, navigation controller, menus, dictionary removed | Complete; Linux-verified, uncommitted; Windows runtime checks queued | [`S-20261031-05-audit-repair-batch-1.md`](S-20261031-05-audit-repair-batch-1.md) |
 | S-20261031-06 | 2026-10-31 | Windows host: automated half of `MANUAL-TASKS.md` (tests, `cargo test`, first dictionary-free NSIS build) | Complete for automated items; 173 Vitest + 23 Rust green, installer 3.06 MiB, app launches; runtime/visual checks still pending | [`S-20261031-06-windows-manual-verification.md`](S-20261031-06-windows-manual-verification.md) |
+| S-20261107-01 | 2026-11-07 | Cleanup and UX pass: onboarding/tour, Settings consolidation, Library cleanup, search/a11y/resilience | Complete (code); Linux-verified (238 tests); uncommitted; Windows checks pending | [`S-20261107-01-cleanup-ux-pass.md`](S-20261107-01-cleanup-ux-pass.md) |
 
 ## Convention
 

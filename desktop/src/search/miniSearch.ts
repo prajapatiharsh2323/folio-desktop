@@ -10,16 +10,32 @@ export interface SearchDoc {
   text: string;
   /** optional grouping key (document id) */
   docId?: string;
+  /** document title, when the chapter title is shown separately */
+  docTitle?: string;
+  /** chapter href (plus fragment) used to open the reader at this hit */
+  href?: string;
   chapterTitle?: string;
 }
 
 export interface SearchHit {
   id: string;
   score: number;
-  /** highlighted snippet with matched terms wrapped in <mark> */
+  /** highlighted snippet with matched terms wrapped in <mark>; text is HTML-escaped */
   snippet: string;
   docId?: string;
+  docTitle?: string;
+  href?: string;
   chapterTitle?: string;
+}
+
+/** Escape book text before it is inserted into a snippet's <mark> markup. */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 const K1 = 1.2;
@@ -119,6 +135,8 @@ export class MiniSearch {
         score,
         snippet: this.snippet(doc.text, qTokens),
         docId: doc.docId,
+        docTitle: doc.docTitle,
+        href: doc.href,
         chapterTitle: doc.chapterTitle,
       });
     }
@@ -166,12 +184,13 @@ export class MiniSearch {
         matched = qt;
       }
     }
-    if (idx === -1) return text.slice(0, 120);
+    if (idx === -1) return escapeHtml(text.slice(0, 120));
     const start = Math.max(0, idx - 40);
     const end = Math.min(text.length, idx + matched.length + 40);
-    const prefix = (start > 0 ? "…" : "") + text.slice(start, idx);
-    const term = text.slice(idx, idx + matched.length);
-    const suffix = text.slice(idx + matched.length, end) + (end < text.length ? "…" : "");
+    const prefix = (start > 0 ? "…" : "") + escapeHtml(text.slice(start, idx));
+    const term = escapeHtml(text.slice(idx, idx + matched.length));
+    const suffix =
+      escapeHtml(text.slice(idx + matched.length, end)) + (end < text.length ? "…" : "");
     return `${prefix}<mark>${term}</mark>${suffix}`;
   }
 }

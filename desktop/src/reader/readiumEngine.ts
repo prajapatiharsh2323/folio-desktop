@@ -265,6 +265,8 @@ export class ReadiumEngine implements ReaderEngine {
     this.searchIndexPromise = (async () => {
       const { MiniSearch } = await import("../search/miniSearch");
       const idx = new MiniSearch();
+      const bookTitle =
+        typeof pub.metadata?.title === "string" ? pub.metadata.title : undefined;
       for (const link of pub.readingOrder.items) {
         let text = "";
         try {
@@ -276,7 +278,9 @@ export class ReadiumEngine implements ReaderEngine {
         idx.add({
           id: link.href,
           title: link.title ?? link.href,
+          docTitle: bookTitle,
           text,
+          href: link.href,
           chapterTitle: link.title ?? link.href,
         });
       }
@@ -295,7 +299,7 @@ export class ReadiumEngine implements ReaderEngine {
     return hits.map((h) => ({
       chapterTitle: h.chapterTitle ?? "",
       snippetHtml: h.snippet,
-      locator: h.id,
+      locator: h.href ?? h.id,
     }));
   }
 

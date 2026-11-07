@@ -19,6 +19,7 @@ export function CollectionsScreen() {
     () => useRouteStore.getState().readerOrigin?.collectionId ?? null
   );
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -33,11 +34,14 @@ export function CollectionsScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const lm = getLibraryManager();
       const manifest = await lm.load();
       setManifestDocs(manifest?.docs ?? []);
       setCollections(await lm.collections.list());
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Collections could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -156,6 +160,16 @@ export function CollectionsScreen() {
         <div className="folio-screen">
           {loading ? (
             <p className="folio-helper">Loading…</p>
+          ) : loadError ? (
+            <FolioEmptyState
+              title="Collections couldn't load"
+              body={loadError}
+              action={
+                <FolioButton variant="secondary" onClick={() => void load()}>
+                  Retry
+                </FolioButton>
+              }
+            />
           ) : collections.length === 0 ? (
             <FolioEmptyState
               title="No collections yet"
