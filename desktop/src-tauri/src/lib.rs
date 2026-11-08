@@ -51,6 +51,15 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("Library") {
                 window_state::restore(&window);
 
+                // The window starts hidden so WebView2 cannot flash white
+                // before the theme is applied. The frontend shows it after the
+                // first frame; this timer is the crash-proof fallback.
+                let fallback = window.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    let _ = fallback.show();
+                });
+
                 let w = window.clone();
                 window.on_window_event(move |event| match event {
                     WindowEvent::Moved(_)
