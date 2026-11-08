@@ -17,6 +17,7 @@ import type { TextSelectionInfo } from "../reader/ReaderEngine";
 import { useReaderStore } from "../store/readerStore";
 import { useRouteStore } from "../store/routeStore";
 import { getLibraryFs, getLibraryManager } from "../store/libraryUi";
+import { pushToast } from "../shell/toasts";
 import { DEFAULT_READING_PREFS } from "../model/defaults";
 import type { ReadingPrefs, Annotation } from "../model/types";
 import { nowIso } from "../model/ids";
@@ -40,6 +41,7 @@ import {
   type ReaderNavigationCoordinator,
 } from "../reader/navigation";
 import { ProgressWriter } from "../reader/progress";
+import { flushAndClose } from "../lib/lifecycle";
 import { ReadingPaceStats, formatTimeLeft } from "../reader/pace";
 import { resumePlan, type ResumePlan } from "../reader/resume";
 import { hrefOf, sameLocation, withAnchor } from "../reader/locatorCodec";
@@ -53,6 +55,24 @@ import { resolveReaderTheme, scrimAlpha } from "../reader/readerThemes";
 
 const SPLASH_FADE_MS = 300;
 const SPLASH_FAILSAFE_MS = 8000;
+const CLOSE_FLUSH_CAP_MS = 1500;
+
+/** Resolve/reject within `ms`; used to cap the close-time progress flush. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
 /** Bottom hover band that reveals the dock (07 §2). */
 const DOCK_REVEAL_ZONE_PX = 56;
 
@@ -800,15 +820,62 @@ export function ReaderScreen() {
     showNavNotice,
   ]);
 
-  // Best-effort flush if window is closed
+  // Flush progress before the window goes away. `beforeunload` is not
+  // guaranteed to finish async work in WebView2, so Tauri's close request is
+  // intercepted, awaited (with a cap), and only then destroyed.
   useEffect(() => {
     if (!doc) return;
+
     const flush = () => {
       void writerRef.current?.flush();
       void keepAwakeRef.current?.release();
     };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
     window.addEventListener("beforeunload", flush);
-    return () => window.removeEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    if (isTauri()) {
+      void (async () => {
+        try {
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
+          const win = getCurrentWindow();
+          const un = await win.onCloseRequested(async (event) => {
+            event.preventDefault();
+            try {
+              await withTimeout(
+                Promise.all([
+                  writerRef.current?.flush(),
+                  keepAwakeRef.current?.release(),
+                ]),
+                CLOSE_FLUSH_CAP_MS
+              );
+            } catch {
+              // A hung write must not keep the window alive forever.
+            }
+            try {
+              await win.destroy();
+            } catch {
+              // If destroy is unavailable, fall back to the pending OS close.
+            }
+          });
+          if (disposed) un();
+          else unlisten = un;
+        } catch {
+          // Browser dev or a missing capability: beforeunload still flushes.
+        }
+      })();
+    }
+
+    return () => {
+      disposed = true;
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+      unlisten?.();
+    };
   }, [doc?.docId]);
 
   useEffect(() => {
@@ -820,10 +887,17 @@ export function ReaderScreen() {
   const handleBack = useCallback(async () => {
     if (disposedRef.current) return;
     disposedRef.current = true;
-    await writerRef.current?.flush();
-    await keepAwakeRef.current?.release();
-    closeDoc();
-    closeReader();
+    const { flushFailed } = await flushAndClose(
+      () => writerRef.current?.flush(),
+      () => keepAwakeRef.current?.release(),
+      () => {
+        closeDoc();
+        closeReader();
+      }
+    );
+    if (flushFailed) {
+      pushToast({ tone: "error", text: "Last page position may not have saved" });
+    }
   }, [closeDoc, closeReader]);
 
   const handleRetry = useCallback(() => {

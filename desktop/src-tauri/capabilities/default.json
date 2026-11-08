@@ -5,6 +5,7 @@
   "windows": ["Library"],
   "permissions": [
     "core:default",
+    "core:window:allow-destroy",
     "opener:default",
     "dialog:default"
   ]
