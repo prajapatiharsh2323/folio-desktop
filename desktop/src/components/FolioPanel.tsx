@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { FolioIcons } from "./FolioIcons";
 import { focusFirstIn, trapTabKey } from "./focusTrap";
+import { isTopModal, popModal, pushModal } from "../shell/modalStack";
 
 interface FolioPanelProps {
   open: boolean;
@@ -23,8 +24,10 @@ export function FolioPanel({ open, onClose, title, width = 360, children }: Foli
 
     const prevActive = document.activeElement as HTMLElement | null;
     focusFirstIn(panel);
+    const token = pushModal();
 
     const onKey = (e: KeyboardEvent) => {
+      if (!isTopModal(token)) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onClose();
@@ -35,6 +38,7 @@ export function FolioPanel({ open, onClose, title, width = 360, children }: Foli
     document.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("keydown", onKey, true);
+      popModal(token);
       prevActive?.focus();
     };
   }, [open, onClose]);

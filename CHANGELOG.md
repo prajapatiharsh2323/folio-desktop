@@ -5,6 +5,21 @@ nothing here has been pushed unless a later note says so.
 
 ## 2026-11-08 — Stabilization & polish pass
 
+### Phase 4 — Tour redesign
+
+- Escape, the backdrop, and the close button now dismiss the tour for this
+  session only and post a replay hint; only "Skip tour"/"Start reading" mark
+  it complete.
+- Steps spotlight the control they describe (search, import, and the sidebar
+  destinations) and place the card beside it; steps without a target stay
+  centred.
+- The shell is inert and hidden from assistive technology while the tour is
+  open, each step moves focus to its heading, and the counter is announced.
+- Finishing lands in the Library; dismissing returns to the route where the
+  tour opened.
+- Modal surfaces now share a stack, so Escape closes only the topmost dialog,
+  panel, or tour instead of every open surface at once.
+
 ### Phase 3 — Onboarding and appearance polish (O1–O8)
 
 - Setup fits a short window: the panel is centred when it fits, its top stays

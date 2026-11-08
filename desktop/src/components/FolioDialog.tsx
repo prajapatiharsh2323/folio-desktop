@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { FolioButton } from "./FolioButton";
 import { FolioIcons } from "./FolioIcons";
 import { focusFirstIn, trapTabKey } from "./focusTrap";
+import { isTopModal, popModal, pushModal } from "../shell/modalStack";
 
 interface FolioDialogProps {
   open: boolean;
@@ -24,8 +25,12 @@ export function FolioDialog({ open, onClose, title, actions, children }: FolioDi
 
     const prevActive = document.activeElement as HTMLElement | null;
     focusFirstIn(dialog);
+    // Register after focusing so Escape/Tab belong to this dialog until a
+    // newer surface (another dialog, a panel) is opened above it.
+    const token = pushModal();
 
     const onKey = (e: KeyboardEvent) => {
+      if (!isTopModal(token)) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onClose();
@@ -36,6 +41,7 @@ export function FolioDialog({ open, onClose, title, actions, children }: FolioDi
     document.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("keydown", onKey, true);
+      popModal(token);
       prevActive?.focus();
     };
   }, [open, onClose]);

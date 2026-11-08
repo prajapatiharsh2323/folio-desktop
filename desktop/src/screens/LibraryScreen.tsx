@@ -300,6 +300,7 @@ export function LibraryScreen() {
           type="button"
           className="folio-iconbtn"
           aria-label={searchOpen ? "Close search" : "Search library"}
+          data-tour="library-search"
           onClick={() => setSearchOpen((v) => !v)}
         >
           <FolioIcons.Search />
@@ -375,7 +376,7 @@ export function LibraryScreen() {
           aria-label="Library controls"
           style={{ paddingTop: 0, flexWrap: "wrap" }}
         >
-          <FolioButton variant="primary" onClick={() => void onImport()}>
+          <FolioButton variant="primary" onClick={() => void onImport()} data-tour="import">
             <FolioIcons.Import size="sm" />
             Import
           </FolioButton>
@@ -480,7 +481,11 @@ export function LibraryScreen() {
                   Show all books
                 </FolioButton>
               ) : (
-                <FolioButton variant="primary" onClick={() => void onImport()}>
+                <FolioButton
+                  variant="primary"
+                  onClick={() => void onImport()}
+                  data-tour="import"
+                >
                   Import a file
                 </FolioButton>
               )

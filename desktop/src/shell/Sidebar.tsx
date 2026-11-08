@@ -33,6 +33,7 @@ export function Sidebar({
             type="button"
             className={`folio-sidebar__item${active ? " is-active" : ""}`}
             aria-current={active ? "page" : undefined}
+            data-tour={`nav-${r}`}
             onClick={() => onNavigate(r)}
           >
             <Icon />
