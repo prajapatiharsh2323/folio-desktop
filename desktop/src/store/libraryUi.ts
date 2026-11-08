@@ -56,9 +56,45 @@ export function getLibraryFs(): FileStore {
 /** Custom covers are object URLs; every refresh must release the old batch. */
 let coverUrls: string[] = [];
 
+/**
+ * Per-document cover cache. Re-reading and re-decoding every cover on each
+ * refresh is the expensive part of the shelf; the stat key (size + mtime)
+ * makes a replaced cover file invalidate only its own entry.
+ */
+const coverCache = new Map<string, { key: string; url: string }>();
+
 function revokeCoverUrl(url: string): void {
   if (typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") {
     URL.revokeObjectURL(url);
+  }
+}
+
+async function loadCoverUrl(slug: string, coverPath: string): Promise<string | null> {
+  const path = `${LIBRARY_ROOT}/docs/${slug}/${coverPath.replace(/^\/+/, "")}`;
+  const cached = coverCache.get(slug);
+  let key = "unknown";
+  try {
+    const stat = await getLibraryFs().stat(path);
+    key = stat ? `${stat.size}:${stat.mtimeMs}` : "missing";
+  } catch {
+    key = "unknown";
+  }
+  if (cached && cached.key === key) return cached.url;
+
+  try {
+    const bytes = await getLibraryFs().readBytes(path);
+    if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+      return null;
+    }
+    const url = URL.createObjectURL(
+      new Blob([bytes as BlobPart], { type: coverMime(coverPath) })
+    );
+    if (cached) revokeCoverUrl(cached.url);
+    coverCache.set(slug, { key, url });
+    return url;
+  } catch {
+    // A transient read failure should not blank a cover that is already shown.
+    return cached?.url ?? null;
   }
 }
 
@@ -110,6 +146,7 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
   refresh: async () => {
     set({ loading: true, error: null });
     const nextCoverUrls: string[] = [];
+    const usedCoverSlugs = new Set<string>();
     try {
       const lm = libraryManager();
       const manifest = await lm.load();
@@ -119,19 +156,9 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
         const meta = await lm.meta.read(doc.slug);
         let customCoverUrl: string | null = null;
         if (meta?.files?.cover) {
-          try {
-            const coverBytes = await getLibraryFs().readBytes(
-              `${LIBRARY_ROOT}/docs/${doc.slug}/${meta.files.cover.replace(/^\/+/, "")}`
-            );
-            if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-              customCoverUrl = URL.createObjectURL(
-                new Blob([coverBytes as BlobPart], { type: coverMime(meta.files.cover) })
-              );
-              nextCoverUrls.push(customCoverUrl);
-            }
-          } catch {
-            customCoverUrl = null;
-          }
+          usedCoverSlugs.add(doc.slug);
+          customCoverUrl = await loadCoverUrl(doc.slug, meta.files.cover);
+          if (customCoverUrl) nextCoverUrls.push(customCoverUrl);
         }
         rows.push(rowFrom(doc, meta, progress[doc.id] ?? null, customCoverUrl));
       }
@@ -145,8 +172,10 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
         return a.title.localeCompare(b.title);
       });
       const recovery = await lm.detectRecovery();
-      // Swap rows first, then release any URL the new batch does not use.
-      const stale = coverUrls.filter((url) => !nextCoverUrls.includes(url));
+      // Swap rows first, then release covers that are no longer referenced.
+      const stale = [...coverCache.entries()].filter(
+        ([slug]) => !usedCoverSlugs.has(slug)
+      );
       coverUrls = nextCoverUrls;
       set({
         rows,
@@ -155,15 +184,23 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
         recovery:
           recovery.damaged.length > 0 || recovery.interrupted.length > 0 ? recovery : null,
       });
-      for (const url of stale) {
-        // Let React commit the new rows before releasing the previous batch.
+      for (const [slug, entry] of stale) {
+        coverCache.delete(slug);
+        // Let React commit the new rows before releasing the previous cover.
         // A macrotask runs after React's microtask flush; releasing inside a
         // microtask could blank an image that is still on screen.
-        setTimeout(() => revokeCoverUrl(url), 0);
+        setTimeout(() => revokeCoverUrl(entry.url), 0);
       }
     } catch (e) {
-      // A failed refresh never owns its newly created URLs.
-      for (const url of nextCoverUrls) revokeCoverUrl(url);
+      // A failed refresh never owns the URLs it created: keep the previous
+      // batch alive and release only the fresh ones.
+      for (const url of nextCoverUrls) {
+        if (coverUrls.includes(url)) continue;
+        revokeCoverUrl(url);
+        for (const [slug, entry] of coverCache) {
+          if (entry.url === url) coverCache.delete(slug);
+        }
+      }
       const message = e instanceof Error ? e.message : "Library load failed";
       set({ loading: false, error: message });
       pushToast({ tone: "error", text: message });

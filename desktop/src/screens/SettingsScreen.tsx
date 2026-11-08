@@ -390,7 +390,7 @@ export function SettingsScreen() {
         />
         <FolioSettingsRow
           title="Version"
-          helper="0.1.0"
+          helper={__APP_VERSION__}
         />
       </div>
 

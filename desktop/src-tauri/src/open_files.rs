@@ -77,7 +77,7 @@ pub fn take_pending_launch() -> LaunchRequest {
 
 /// Bring the single window to the foreground.
 pub fn focus_main(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("Library") {
+    if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();

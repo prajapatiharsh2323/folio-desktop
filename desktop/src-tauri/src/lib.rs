@@ -48,7 +48,7 @@ pub fn run() {
             // Taskbar jump list (09 §3): Open Folio / Import file…
             jumplist::install();
 
-            if let Some(window) = app.get_webview_window("Library") {
+            if let Some(window) = app.get_webview_window("main") {
                 window_state::restore(&window);
 
                 // The window starts hidden so WebView2 cannot flash white

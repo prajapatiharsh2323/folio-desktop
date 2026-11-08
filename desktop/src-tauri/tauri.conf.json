@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "label": "Library",
+        "label": "main",
         "title": "Folio",
         "width": 1100,
         "height": 760,

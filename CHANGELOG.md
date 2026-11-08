@@ -5,6 +5,24 @@ nothing here has been pushed unless a later note says so.
 
 ## 2026-11-08 — Stabilization & polish pass
 
+### Phase 5 — Remaining audit items and cleanup (G5–G8)
+
+- Library search builds its index once per corpus instead of re-reading every
+  text index each time the search panel opens; it rebuilds after imports,
+  deletes, or retitles and re-runs a query typed while it was building.
+- Custom cover URLs are cached per document and invalidated by the cover
+  file's size and mtime, so refreshes no longer decode every cover again; a
+  failed refresh still releases only the URLs it created.
+- Collections are sorted most-recently-updated first with a name tie-break;
+  returning from the reader no longer flashes the gallery while the restored
+  collection loads, and collection operation errors use the global host.
+- The About row reads the real version from `package.json` through Vite
+  instead of a hard-coded string.
+- Reading pace is created before the navigation coordinator that closes over
+  it, removing a temporal-dead-zone hazard.
+- The Tauri window label is now `main` (config, capabilities, and Rust
+  lookups), replacing the old `Library` label.
+
 ### Phase 4 — Tour redesign
 
 - Escape, the backdrop, and the close button now dismiss the tour for this
@@ -66,6 +84,6 @@ nothing here has been pushed unless a later note says so.
 
 ### Verification
 
-- Linux: `tsc -b` clean, Vitest 272/272 passing (35 files), `vite build`
+- Linux: `tsc -b` clean, Vitest 283/283 passing (39 files), `vite build`
   successful (existing chunk-size warning only).
 - Rust/Tauri compile and Windows runtime checks were not run on this host.

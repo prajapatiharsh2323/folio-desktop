@@ -454,6 +454,11 @@ export function ReaderScreen() {
     });
     engineRef.current = engine;
 
+    // Create pacing before the coordinator: its onBeforeMove callback closes
+    // over this binding, and the coordinator may invoke it during setup.
+    const pace = new ReadingPaceStats(doc.progress?.pace ?? null);
+    paceRef.current = pace;
+
     // Every navigation goes through one coordinator: page clicks, keyboard,
     // scrubbing, TOC, search. It gates seek state, sequences overlapping requests
     // and returns success/failure outcomes.
@@ -466,8 +471,6 @@ export function ReaderScreen() {
     });
     navRef.current = nav;
 
-    const pace = new ReadingPaceStats(doc.progress?.pace ?? null);
-    paceRef.current = pace;
     const writer = new ProgressWriter(async (snapshot) => {
       await persistProgress({
         location: snapshot.location,

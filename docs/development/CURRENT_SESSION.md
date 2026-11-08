@@ -2,7 +2,7 @@
 
 **Session:** `S-20261108-01` — Stabilization & polish pass (5 phases)
 **Updated:** 2026-11-08
-**Status:** Phases 1–3 implemented and committed locally; Linux verification green (**272 tests / 35 files**, `tsc -b`, `vite build`). Phases 4 (tour redesign) and 5 (unreviewed areas, G5–G8) next. Windows/Tauri runtime checks pending.
+**Status:** All five phases implemented and committed locally; Linux verification green (**283 tests / 39 files**, `tsc -b`, `vite build`). Windows/Tauri runtime checks pending.
 
 ## Completed in this pass
 
@@ -24,13 +24,23 @@
    linking, "Use defaults" copy, save timeout and load warning, accessible
    radio groups everywhere, real-size/publisher-aware preview, focus trap,
    step label and reflowing swatch grid.
+5. **Tour redesign and modal stack:** spotlighted anchors, safe session-only
+   dismissal with a replay hint, inert shell and per-step focus, origin
+   restore, and last-opened-wins Escape/Tab handling for stacked surfaces.
+6. **Remaining audit items (G5–G8):** cached library search index and custom
+   cover URLs, collections sort/restore polish and global error toasts, real
+   app version from `package.json`, pace-before-coordinator ordering, and the
+   Tauri window label renamed to `main`.
 
 ## Exact next action
 
-1. Phase 4: shared modal stack, tour anchors/spotlight, safe dismissal,
-   focus/inert handling, origin/ending steps, reduced-motion polish.
-2. Phase 5: review the remaining unaudited screens, then G5–G8; refresh
-   `TASKS.md`/`CURRENT_SESSION.md` and `CHANGELOG.md` at the end.
+1. On Windows: run `pnpm exec tsc -b`, `pnpm exec vitest run`,
+   `pnpm exec vite build`, then `cd src-tauri && cargo test --all-targets` and
+   `cargo fmt --all -- --check`.
+2. Runtime smoke: hidden-window launch (no white flash), first-run setup →
+   tour spotlight/escape, reader close flush, import queue under overlays,
+   collections round-trip, cover cache after replacing a cover.
+3. Commit/push only with explicit authorization (local commits already made).
 
 ---
 

@@ -7,6 +7,7 @@ import { FolioRow } from "../components/FolioRow";
 import { useRouteStore, type ReaderOrigin } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
 import { getCollectionCoverPreset } from "../lib/coverPresets";
+import { pushToast } from "../shell/toasts";
 import type { Collection, ManifestDoc } from "../model/types";
 
 /** Collections gallery + detail (03 §5.5, 06 §1/§2). */
@@ -21,7 +22,6 @@ export function CollectionsScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
@@ -39,7 +39,17 @@ export function CollectionsScreen() {
       const lm = getLibraryManager();
       const manifest = await lm.load();
       setManifestDocs(manifest?.docs ?? []);
-      setCollections(await lm.collections.list());
+      const list = await lm.collections.list();
+      // Most recently changed first; a name tie-break keeps the gallery stable.
+      list.sort((a, b) => {
+        const au = a.updatedAt ?? "";
+        const bu = b.updatedAt ?? "";
+        if (au && bu) return bu.localeCompare(au);
+        if (au) return -1;
+        if (bu) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      setCollections(list);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Collections could not be loaded.");
     } finally {
@@ -62,11 +72,15 @@ export function CollectionsScreen() {
     async (fn: () => Promise<void>) => {
       if (busy) return;
       setBusy(true);
-      setError(null);
       try {
         await fn();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "That change didn't go through.");
+        // The global host survives dialog state; the dialog itself stays open
+        // so the user can retry or cancel instead of losing their input.
+        pushToast({
+          tone: "error",
+          text: e instanceof Error ? e.message : "That change didn't go through.",
+        });
       } finally {
         setBusy(false);
       }
@@ -137,6 +151,23 @@ export function CollectionsScreen() {
   const titleOf = (id: string) => manifestDocs.find((d) => d.id === id)?.title ?? null;
 
   // ---- Gallery ----
+  // Returning from the reader restores a collection id before the list has
+  // loaded; hold the detail frame instead of flashing the gallery first.
+  if (!selected && selectedId && loading) {
+    return (
+      <>
+        <header className="folio-toolbar">
+          <div className="folio-toolbar__titles">
+            <div className="folio-toolbar__title">Collection</div>
+          </div>
+        </header>
+        <div className="folio-screen">
+          <p className="folio-helper">Loading collection…</p>
+        </div>
+      </>
+    );
+  }
+
   if (!selected) {
     return (
       <>
@@ -231,12 +262,6 @@ export function CollectionsScreen() {
             autoFocus
           />
         </FolioDialog>
-
-        {error && (
-          <div className="folio-snackbar folio-snackbar--warn" role="alert">
-            {error}
-          </div>
-        )}
       </>
     );
   }
@@ -367,12 +392,6 @@ export function CollectionsScreen() {
           </div>
         )}
       </div>
-
-      {error && (
-        <div className="folio-snackbar folio-snackbar--warn" role="alert">
-          {error}
-        </div>
-      )}
 
       <FolioDialog
         open={renameOpen}

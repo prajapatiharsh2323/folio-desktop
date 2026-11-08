@@ -12,6 +12,7 @@ import { MiniSearch } from "../search/miniSearch";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { readStorage, writeStorage } from "../lib/storage";
 import { visibleRowIds } from "../lib/libraryView";
+import { searchSignature } from "../lib/searchCache";
 import { hasBlockingOverlay } from "../shell/overlays";
 import { pushToast } from "../shell/toasts";
 
@@ -55,16 +56,20 @@ export function LibraryScreen() {
       location?: string;
     }[]
   >([]);
-  const searchIndexRef = useRef<MiniSearch | null>(null);
+  const searchIndexRef = useRef<{ signature: string; index: MiniSearch } | null>(null);
+  const [searchIndexVersion, setSearchIndexVersion] = useState(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buildSearchIndex = useCallback(async () => {
+    const signature = searchSignature(rows);
+    const cached = searchIndexRef.current;
+    if (cached && cached.signature === signature) return;
+
     const lm = getLibraryManager();
-    const manifest = await lm.load();
     const idx = new MiniSearch();
-    for (const doc of manifest?.docs ?? []) {
+    for (const row of rows) {
       try {
-        const raw = await getLibraryFs().readText(L.indexText(lm.root, doc.id));
+        const raw = await getLibraryFs().readText(L.indexText(lm.root, row.id));
         const parsed = JSON.parse(raw) as {
           chapters: { id: string; title: string; text: string; href?: string }[];
         };
@@ -73,7 +78,7 @@ export function LibraryScreen() {
         let metaHrefs: Map<string, string> | null = null;
         if ((parsed.chapters ?? []).some((ch) => !ch.href)) {
           try {
-            const meta = await lm.meta.read(doc.slug);
+            const meta = await lm.meta.read(row.slug);
             metaHrefs = new Map((meta?.chapters ?? []).map((c) => [c.id, c.href]));
           } catch {
             metaHrefs = null;
@@ -81,11 +86,11 @@ export function LibraryScreen() {
         }
         for (const ch of parsed.chapters ?? []) {
           idx.add({
-            id: `${doc.id}::${ch.id}`,
-            title: doc.title,
-            docTitle: doc.title,
+            id: `${row.id}::${ch.id}`,
+            title: row.title,
+            docTitle: row.title,
             text: ch.text ?? "",
-            docId: doc.id,
+            docId: row.id,
             href: ch.href ?? metaHrefs?.get(ch.id),
             chapterTitle: ch.title,
           });
@@ -94,11 +99,13 @@ export function LibraryScreen() {
         /* no index yet */
       }
     }
-    searchIndexRef.current = idx;
-  }, []);
+    searchIndexRef.current = { signature, index: idx };
+    // Results typed while the index was building must run against it.
+    setSearchIndexVersion((v) => v + 1);
+  }, [rows]);
 
   const runSearch = useCallback((q: string) => {
-    const idx = searchIndexRef.current;
+    const idx = searchIndexRef.current?.index;
     if (!idx || !q.trim()) {
       setSearchResults([]);
       return;
@@ -127,7 +134,7 @@ export function LibraryScreen() {
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
-  }, [searchQuery, runSearch]);
+  }, [searchQuery, runSearch, searchIndexVersion]);
 
   useEffect(() => {
     void refresh();
