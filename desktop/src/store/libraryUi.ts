@@ -7,6 +7,7 @@ import { LibraryManager } from "./libraryManager";
 import { importFile, type DuplicateResolution, type ImportResult } from "../import/importService";
 import { tintIndexFromHash } from "../import/cover";
 import { getBookCoverPreset } from "../lib/coverPresets";
+import { pushToast } from "../shell/toasts";
 import type { Progress } from "../model/types";
 
 export interface LibraryRow {
@@ -25,11 +26,6 @@ export interface RecoveryInfo {
   interrupted: { slug: string; hasFiles: boolean }[];
 }
 
-interface Snackbar {
-  tone: "busy" | "success" | "error";
-  text: string;
-}
-
 interface LibraryUiState {
   rows: LibraryRow[];
   loading: boolean;
@@ -37,11 +33,11 @@ interface LibraryUiState {
   recovery: RecoveryInfo | null;
   recoveryDialogOpen: boolean;
   duplicate: { title: string; resolve: (r: DuplicateResolution) => void } | null;
-  snackbar: Snackbar | null;
   refresh: () => Promise<void>;
   importPicked: (files: { name: string; bytes: Uint8Array }[]) => Promise<void>;
   resolveDuplicate: (r: DuplicateResolution) => void;
-  dismissSnackbar: () => void;
+  /** Resolve a pending duplicate prompt as "skip" when its screen unmounts. */
+  cancelDuplicate: () => void;
   removeDamaged: (id: string, slug: string) => Promise<void>;
   removeInterrupted: (slug: string) => Promise<void>;
   setRecoveryDialogOpen: (open: boolean) => void;
@@ -110,7 +106,6 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
   recovery: null,
   recoveryDialogOpen: false,
   duplicate: null,
-  snackbar: null,
 
   refresh: async () => {
     set({ loading: true, error: null });
@@ -169,42 +164,13 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
     } catch (e) {
       // A failed refresh never owns its newly created URLs.
       for (const url of nextCoverUrls) revokeCoverUrl(url);
-      set({
-        loading: false,
-        error: e instanceof Error ? e.message : "Library load failed",
-        snackbar: { tone: "error", text: e instanceof Error ? e.message : "Load failed" },
-      });
+      const message = e instanceof Error ? e.message : "Library load failed";
+      set({ loading: false, error: message });
+      pushToast({ tone: "error", text: message });
     }
   },
 
-  importPicked: async (files) => {
-    if (files.length === 0) return;
-    const lm = libraryManager();
-    for (const f of files) {
-      set({ snackbar: { tone: "busy", text: `Importing ${f.name}…` } });
-      const result: ImportResult = await importFile(lm, f.name, f.bytes, (title) => {
-        return new Promise<DuplicateResolution>((resolve) => {
-          set({ duplicate: { title, resolve } });
-        });
-      });
-      if (result.status === "imported" || result.status === "replaced") {
-        set({
-          snackbar: {
-            tone: "success",
-            text:
-              result.status === "replaced"
-                ? `Replaced “${result.title}”`
-                : `Imported “${result.title}”`,
-          },
-        });
-      } else if (result.status === "skipped") {
-        set({ snackbar: { tone: "success", text: "Already in your library — skipped" } });
-      } else {
-        set({ snackbar: { tone: "error", text: result.error ?? "Import failed" } });
-      }
-    }
-    await get().refresh();
-  },
+  importPicked: (files) => enqueueImport(files),
 
   resolveDuplicate: (r) => {
     const dup = get().duplicate;
@@ -212,7 +178,12 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
     dup?.resolve(r);
   },
 
-  dismissSnackbar: () => set({ snackbar: null }),
+  cancelDuplicate: () => {
+    const dup = get().duplicate;
+    if (!dup) return;
+    set({ duplicate: null });
+    dup.resolve("skip");
+  },
 
   removeDamaged: async (id, slug) => {
     const lm = libraryManager();
@@ -229,3 +200,114 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
 
   setRecoveryDialogOpen: (open) => set({ recoveryDialogOpen: open }),
 }));
+
+// Imports are serialised process-wide: open-with, Ctrl+I, a drop and the empty
+// state button can all fire before the previous batch finishes. A single chain
+// keeps duplicate prompts and manifest writes from interleaving.
+let importQueue: Promise<void> = Promise.resolve();
+
+function enqueueImport(files: { name: string; bytes: Uint8Array }[]): Promise<void> {
+  if (files.length === 0) return Promise.resolve();
+  const run = importQueue.then(
+    () => runImportBatch(files),
+    () => runImportBatch(files)
+  );
+  importQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+async function runImportBatch(files: { name: string; bytes: Uint8Array }[]): Promise<void> {
+  const lm = libraryManager();
+  const multi = files.length > 1;
+  let imported = 0;
+  let replaced = 0;
+  let skipped = 0;
+  let lastTitle: string | null = null;
+  const failures: string[] = [];
+
+  try {
+    for (const [index, file] of files.entries()) {
+      pushToast({
+        tone: "busy",
+        text: multi
+          ? `Importing ${index + 1} of ${files.length}: ${file.name}…`
+          : `Importing ${file.name}…`,
+      });
+      try {
+        const result: ImportResult = await importFile(
+          lm,
+          file.name,
+          file.bytes,
+          (title) =>
+            new Promise<DuplicateResolution>((resolve) => {
+              useLibraryUi.setState({ duplicate: { title, resolve } });
+            })
+        );
+        if (result.status === "imported") {
+          imported += 1;
+          lastTitle = result.title ?? file.name;
+        } else if (result.status === "replaced") {
+          replaced += 1;
+          lastTitle = result.title ?? file.name;
+        } else if (result.status === "skipped") {
+          skipped += 1;
+        } else {
+          failures.push(`${file.name}: ${result.error ?? "Import failed"}`);
+        }
+      } catch (e) {
+        failures.push(`${file.name}: ${e instanceof Error ? e.message : "Import failed"}`);
+      }
+    }
+  } finally {
+    // Always reconcile the shelf, even when every file failed.
+    await useLibraryUi.getState().refresh();
+  }
+
+  const refreshError = useLibraryUi.getState().error;
+  const details = refreshError ? [...failures, `Library refresh: ${refreshError}`] : failures;
+  const added = imported + replaced;
+
+  if (!multi) {
+    if (failures.length > 0) {
+      pushToast({ tone: "error", text: "Import failed", details });
+      return;
+    }
+    if (skipped === 1) {
+      pushToast({ tone: "success", text: "Already in your library — skipped" });
+      return;
+    }
+    if (added > 0) {
+      const verb = replaced > 0 ? "Replaced" : "Imported";
+      pushToast({
+        tone: refreshError ? "error" : "success",
+        text: refreshError
+          ? `${verb} “${lastTitle ?? "book"}” — library refresh failed`
+          : `${verb} “${lastTitle ?? "book"}”`,
+        details: refreshError ? details : undefined,
+      });
+      return;
+    }
+    if (refreshError) pushToast({ tone: "error", text: "Library refresh failed", details });
+    return;
+  }
+
+  if (added === 0 && skipped === 0 && failures.length === 0) {
+    if (refreshError) pushToast({ tone: "error", text: "Library refresh failed", details });
+    return;
+  }
+
+  const parts: string[] = [];
+  if (added > 0) parts.push(`Imported ${added}`);
+  if (skipped > 0) parts.push(`skipped ${skipped}`);
+  if (failures.length > 0) parts.push(`${failures.length} failed`);
+  if (refreshError) parts.push("refresh failed");
+
+  pushToast({
+    tone: failures.length > 0 || refreshError ? "error" : "success",
+    text: parts.join(", "),
+    details: details.length > 0 ? details : undefined,
+  });
+}

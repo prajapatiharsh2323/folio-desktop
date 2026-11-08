@@ -23,8 +23,7 @@ export function LibraryScreen() {
   const setRecoveryDialogOpen = useLibraryUi((s) => s.setRecoveryDialogOpen);
   const duplicate = useLibraryUi((s) => s.duplicate);
   const resolveDuplicate = useLibraryUi((s) => s.resolveDuplicate);
-  const snackbar = useLibraryUi((s) => s.snackbar);
-  const dismissSnackbar = useLibraryUi((s) => s.dismissSnackbar);
+  const cancelDuplicate = useLibraryUi((s) => s.cancelDuplicate);
   const refresh = useLibraryUi((s) => s.refresh);
   const importPicked = useLibraryUi((s) => s.importPicked);
   const removeDamaged = useLibraryUi((s) => s.removeDamaged);
@@ -126,11 +125,14 @@ export function LibraryScreen() {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
   }, [searchQuery, runSearch]);
-  const snackbarTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // An import prompt cannot outlive the screen that renders it: resolve it as
+  // "skip" so the serialised import queue is never left waiting.
+  useEffect(() => () => cancelDuplicate(), [cancelDuplicate]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -171,15 +173,6 @@ export function LibraryScreen() {
       }
     })();
   }, []);
-
-  useEffect(() => {
-    if (!snackbar || snackbar.tone === "busy") return;
-    if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
-    snackbarTimer.current = setTimeout(dismissSnackbar, 4000);
-    return () => {
-      if (snackbarTimer.current) clearTimeout(snackbarTimer.current);
-    };
-  }, [snackbar, dismissSnackbar]);
 
   // Tauri drag-and-drop (webview-level); HTML5 dnd is the browser fallback.
   useEffect(() => {
@@ -645,12 +638,6 @@ export function LibraryScreen() {
         ))}
       </FolioDialog>
 
-      {/* Progress / result snackbar */}
-      {snackbar && (
-        <div className={`folio-snackbar folio-snackbar--${snackbar.tone}`} role="status">
-          {snackbar.text}
-        </div>
-      )}
     </>
   );
 }

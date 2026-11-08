@@ -12,6 +12,7 @@ import { filesFromTauriDrop, pickImportFiles } from "../lib/fileSource";
 import { getLibraryFs, LIBRARY_ROOT, useLibraryUi } from "../store/libraryUi";
 import { recoverInterruptedRestore } from "../backup/backupService";
 import { hasBlockingOverlay } from "./overlays";
+import { ToastHost } from "../components/ToastHost";
 
 /** Single-window shell (02 §3, 03 §5.1): one route stack, sidebar hidden in reader. */
 export function Shell() {
@@ -155,6 +156,7 @@ export function Shell() {
           {route === "reader" && <ReaderScreen />}
         </main>
       </div>
+      <ToastHost />
     </div>
   );
 }

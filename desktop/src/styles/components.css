@@ -482,6 +482,9 @@
   left: 50%;
   bottom: var(--folio-space-6);
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-3);
   background: var(--folio-text-primary);
   color: var(--folio-canvas);
   padding: var(--folio-space-3) var(--folio-space-5);
@@ -491,11 +494,52 @@
   font-weight: var(--folio-type-label-weight);
   box-shadow: 0 8px 24px rgba(20,23,19,.25);
   animation: folio-snackbar-in var(--folio-motion-panel) var(--folio-motion-panel-ease);
-  z-index: 50;
-  max-width: calc(100vw - 96px);
-  white-space: nowrap;
+  z-index: 90;
+  max-width: min(560px, calc(100vw - 96px));
+}
+
+.folio-snackbar__text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folio-snackbar__close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--folio-radius-pill);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.folio-snackbar__close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.folio-snackbar__details {
+  flex: 1;
+  min-width: 0;
+  font-weight: 400;
+}
+
+.folio-snackbar__details summary {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.folio-snackbar__details ul {
+  margin: var(--folio-space-2) 0 0;
+  padding-left: 1.1em;
+  max-height: 30vh;
+  overflow-y: auto;
+  white-space: normal;
 }
 
 @keyframes folio-snackbar-in {
@@ -503,10 +547,23 @@
   to { transform: translate(-50%, 0); opacity: 1; }
 }
 
-/* Operation-failure tone (collections errors) */
-.folio-snackbar--warn {
+@media (prefers-reduced-motion: reduce) {
+  .folio-snackbar {
+    animation: none;
+  }
+}
+
+/* Operation-failure tones (collections errors, failed imports, tour notices) */
+.folio-snackbar--warn,
+.folio-snackbar--error {
   background: var(--folio-danger);
   color: var(--folio-on-accent);
+}
+
+.folio-snackbar--info {
+  background: var(--folio-surface-raised);
+  color: var(--folio-text-primary);
+  border: var(--folio-divider) solid var(--folio-border);
 }
 
 /* ---- Notes screen (03 §5.6) ---- */
