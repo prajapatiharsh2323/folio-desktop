@@ -12,12 +12,12 @@ export default function App() {
   useBoot();
 
   if (stage === "booting") return <BootSplash />;
-  if (stage === "prefs") return <OnboardingFlow />;
+  if (stage === "look" || stage === "library") return <OnboardingFlow />;
 
   return (
     <>
       <Shell />
-      {stage === "tour" && tourOpen && <Tour />}
+      {tourOpen && <Tour />}
     </>
   );
 }

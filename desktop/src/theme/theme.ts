@@ -4,6 +4,7 @@ import { readStorage, writeStorage } from "../lib/storage";
 export type ThemeSetting = "light" | "dark" | "system";
 
 const STORAGE_KEY = "folio.theme-setting";
+export const THEME_STORAGE_KEY = STORAGE_KEY;
 
 interface ThemeState {
   setting: ThemeSetting;

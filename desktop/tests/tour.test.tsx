@@ -60,7 +60,7 @@ beforeEach(() => {
   memory.clear();
   resetModalStack();
   useToasts.setState({ toast: null });
-  useOnboarding.setState({ stage: "tour", tourOpen: true });
+  useOnboarding.setState({ stage: "done", tourOpen: true });
   useRouteStore.setState({ route: "library", readerRequest: null, readerOrigin: null });
 });
 
@@ -82,7 +82,7 @@ describe("welcome tour", () => {
       );
     });
 
-    expect(useOnboarding.getState().stage).toBe("tour");
+    expect(useOnboarding.getState().stage).toBe("done");
     expect(useOnboarding.getState().tourOpen).toBe(false);
     expect(memory.get(TOUR_COMPLETE_KEY)).toBeUndefined();
     expect(useToasts.getState().toast?.tone).toBe("info");

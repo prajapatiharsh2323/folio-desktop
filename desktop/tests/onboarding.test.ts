@@ -27,7 +27,7 @@ import {
   useOnboarding,
 } from "../src/onboarding/onboardingState";
 
-describe("onboarding state", () => {
+describe("setup state machine", () => {
   beforeEach(() => {
     memory.clear();
     probe.mockReset();
@@ -35,47 +35,68 @@ describe("onboarding state", () => {
     useOnboarding.getState().refresh();
   });
 
-  it("starts a fresh install at preference setup", () => {
-    expect(useOnboarding.getState().stage).toBe("prefs");
+  it("starts a fresh install at the look step", () => {
+    expect(useOnboarding.getState().stage).toBe("look");
   });
 
-  it("hands off from preference setup to the tour, not straight to done", () => {
+  it("moves from look to library, never straight to done", () => {
     useOnboarding.getState().completePrefs();
     expect(memory.get(PREFS_COMPLETE_KEY)).toBe("1");
     expect(memory.get(TOUR_COMPLETE_KEY)).toBeUndefined();
-    expect(useOnboarding.getState().stage).toBe("tour");
+    expect(useOnboarding.getState().stage).toBe("library");
   });
 
-  it("resumes the tour after a restart once setup is complete", () => {
-    useOnboarding.getState().completePrefs();
-    // Simulate closing and reopening: module state is rebuilt from storage.
+  it("does not let a stale step-2 flag skip the second screen", () => {
+    // Regression: a tour flag left by an earlier build made completePrefs jump
+    // straight to done while the screen still claimed "Step 1 of 2".
+    memory.set(TOUR_COMPLETE_KEY, "1");
     useOnboarding.getState().refresh();
-    expect(useOnboarding.getState().stage).toBe("tour");
+    expect(useOnboarding.getState().stage).toBe("look");
+
+    useOnboarding.getState().completePrefs();
+    expect(memory.get(TOUR_COMPLETE_KEY)).toBeUndefined();
+    expect(useOnboarding.getState().stage).toBe("library");
   });
 
-  it("finishes onboarding only when the tour is completed", () => {
+  it("resumes step 2 after a restart once step 1 is complete", () => {
     useOnboarding.getState().completePrefs();
-    useOnboarding.getState().completeTour();
+    useOnboarding.getState().refresh();
+    expect(useOnboarding.getState().stage).toBe("library");
+  });
+
+  it("finishes only when step 2 finishes", () => {
+    useOnboarding.getState().completePrefs();
+    useOnboarding.getState().completeSetup();
     expect(memory.get(TOUR_COMPLETE_KEY)).toBe("1");
     expect(useOnboarding.getState().stage).toBe("done");
   });
 
-  it("replays only the tour", () => {
-    useOnboarding.getState().completePrefs();
-    useOnboarding.getState().completeTour();
+  it("treats both flags as done", () => {
+    memory.set(PREFS_COMPLETE_KEY, "1");
+    memory.set(TOUR_COMPLETE_KEY, "1");
+    useOnboarding.getState().refresh();
+    expect(useOnboarding.getState().stage).toBe("done");
+  });
+
+  it("replays the tour without changing setup state", () => {
+    memory.set(PREFS_COMPLETE_KEY, "1");
+    memory.set(TOUR_COMPLETE_KEY, "1");
+    useOnboarding.getState().refresh();
     useOnboarding.getState().replayTour();
-    expect(memory.get(PREFS_COMPLETE_KEY)).toBe("1");
-    expect(memory.get(TOUR_COMPLETE_KEY)).toBeUndefined();
-    expect(useOnboarding.getState().stage).toBe("tour");
+    expect(useOnboarding.getState().tourOpen).toBe(true);
+    expect(useOnboarding.getState().stage).toBe("done");
+    // The opt-in tour must not clear the step-2 flag, or the next launch would
+    // resume setup instead of opening the library.
+    expect(memory.get(TOUR_COMPLETE_KEY)).toBe("1");
   });
 
   it("treats a malformed saved flag as not completed", () => {
     memory.set(PREFS_COMPLETE_KEY, "yes");
     useOnboarding.getState().refresh();
-    expect(useOnboarding.getState().stage).toBe("prefs");
+    expect(useOnboarding.getState().stage).toBe("look");
   });
 
-  it("skips setup and tour when the library already has documents", async () => {
+  it("skips both steps when the library already has documents", async () => {
     probe.mockResolvedValue({ hasDocs: true, hasSettings: false });
     await useOnboarding.getState().boot();
     expect(useOnboarding.getState().stage).toBe("done");
@@ -84,26 +105,28 @@ describe("onboarding state", () => {
     expect(memory.get(TOUR_COMPLETE_KEY)).toBe("1");
   });
 
-  it("skips setup but keeps the tour when only saved preferences exist", async () => {
+  it("skips step 1 but keeps step 2 when saved preferences already exist", async () => {
     probe.mockResolvedValue({ hasDocs: false, hasSettings: true });
     await useOnboarding.getState().boot();
-    expect(useOnboarding.getState().stage).toBe("tour");
-    expect(useOnboarding.getState().tourOpen).toBe(true);
+    expect(useOnboarding.getState().stage).toBe("library");
+    expect(useOnboarding.getState().tourOpen).toBe(false);
     expect(memory.get(PREFS_COMPLETE_KEY)).toBe("1");
     expect(memory.get(TOUR_COMPLETE_KEY)).toBeUndefined();
   });
 
-  it("starts a truly fresh install at setup", async () => {
+  it("starts a truly fresh install at step 1", async () => {
     await useOnboarding.getState().boot();
-    expect(useOnboarding.getState().stage).toBe("prefs");
+    expect(useOnboarding.getState().stage).toBe("look");
   });
 
-  it("closes the tour for this session without writing the flag", () => {
-    useOnboarding.getState().completePrefs();
-    expect(useOnboarding.getState().tourOpen).toBe(true);
+  it("closes the opt-in tour for this session without writing anything", () => {
+    memory.set(PREFS_COMPLETE_KEY, "1");
+    memory.set(TOUR_COMPLETE_KEY, "1");
+    useOnboarding.getState().refresh();
+    useOnboarding.getState().replayTour();
     useOnboarding.getState().dismissTour();
-    expect(useOnboarding.getState().stage).toBe("tour");
     expect(useOnboarding.getState().tourOpen).toBe(false);
-    expect(memory.get(TOUR_COMPLETE_KEY)).toBeUndefined();
+    expect(useOnboarding.getState().stage).toBe("done");
+    expect(memory.get(TOUR_COMPLETE_KEY)).toBe("1");
   });
 });

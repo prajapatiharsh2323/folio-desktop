@@ -34,6 +34,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * without a per-book override inherit these defaults.
  */
 export function OnboardingFlow() {
+  const stage = useOnboarding((s) => s.stage);
   const completePrefs = useOnboarding((s) => s.completePrefs);
   const storedAppTheme = useThemeStore((s) => s.setting);
   const setAppTheme = useThemeStore((s) => s.setSetting);
@@ -130,8 +131,27 @@ export function OnboardingFlow() {
 
   const skip = () => {
     setError(null);
+    previewTheme(null);
     completePrefs();
   };
+
+  // Step 2 is replaced by the full "Add your first book" surface next; this
+  // keeps the linear flow usable in between.
+  if (stage === "library") {
+    return (
+      <div className="folio-onboarding" data-folio-modal>
+        <div className="folio-onboarding__panel" role="dialog" aria-modal="true">
+          <h1 className="folio-onboarding__title">Add your first book</h1>
+          <FolioButton
+            variant="primary"
+            onClick={() => useOnboarding.getState().completeSetup()}
+          >
+            I&apos;ll do this later
+          </FolioButton>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="folio-onboarding" data-folio-modal>

@@ -7,12 +7,12 @@ import { useRouteStore } from "../store/routeStore";
 import { getLibraryFs, LIBRARY_ROOT, useLibraryUi } from "../store/libraryUi";
 
 /**
- * True once the shell can act on a launch request. The tour overlay owns the
- * keyboard while open, so imports wait until it closes or finishes.
+ * True once the shell can act on a launch request. Setup and the tour own the
+ * keyboard while visible, so imports wait until both are finished.
  */
 function interactive(): boolean {
   const state = useOnboarding.getState();
-  return state.stage === "done" || (state.stage === "tour" && !state.tourOpen);
+  return state.stage === "done" && !state.tourOpen;
 }
 
 /**
