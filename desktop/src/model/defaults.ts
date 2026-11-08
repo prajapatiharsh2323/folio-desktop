@@ -30,9 +30,13 @@ export const READER_THEME_COLORS: Record<
   system: { bg: "#FAFAF7", text: "#1C1B19" }, // resolved at runtime by OS scheme
 };
 
+/** Reading text-size bounds (04 §3): shared by the editor and the reader panel. */
+export const FONT_SIZE_MIN = 14;
+export const FONT_SIZE_MAX = 32;
+
 /** Clamp + round helpers for prefs ranges (04 §3). */
 export function clampFontSize(px: number): number {
-  return Math.min(32, Math.max(14, Math.round(px)));
+  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(px)));
 }
 export function clampLineHeight(v: number): number {
   return Math.min(2.4, Math.max(1.3, Math.round(v * 10) / 10));

@@ -1,5 +1,41 @@
 # Current Session Checkpoint
 
+**Session:** `S-20261108-01` — Stabilization & polish pass (5 phases)
+**Updated:** 2026-11-08
+**Status:** Phases 1–3 implemented and committed locally; Linux verification green (**272 tests / 35 files**, `tsc -b`, `vite build`). Phases 4 (tour redesign) and 5 (unreviewed areas, G5–G8) next. Windows/Tauri runtime checks pending.
+
+## Completed in this pass
+
+1. **Import and selection safety (S5, S6, G1, G2):** one process-wide import
+   queue, per-file error handling, aggregate batch summaries with details, a
+   global toast host (errors persist, successes expire after 4 s), Ctrl+A
+   limited to visible rows, selection cleared on filter/search change, bulk
+   delete that survives per-document failures, and authors-last sorting.
+2. **Library and reader safety (G3, G4, S1):** Reader Back always navigates
+   even when persistence fails; Tauri close requests flush progress (1.5 s
+   cap) before destroy; progress flushes on visibility change; the window is
+   hidden until the stored theme has been applied (Rust 1.5 s fallback).
+3. **Boot and onboarding (S2, S3, S4):** booting splash, 1 s library probe,
+   existing documents skip setup and tour, saved settings skip setup only,
+   pending vs visible tour state, `useBoot` recovery/launch ordering, drops
+   ignored under overlays.
+4. **Onboarding and appearance polish (O1–O8):** short-window layout and
+   sticky actions, live app-theme preview with revert, reading→app theme
+   linking, "Use defaults" copy, save timeout and load warning, accessible
+   radio groups everywhere, real-size/publisher-aware preview, focus trap,
+   step label and reflowing swatch grid.
+
+## Exact next action
+
+1. Phase 4: shared modal stack, tour anchors/spotlight, safe dismissal,
+   focus/inert handling, origin/ending steps, reduced-motion polish.
+2. Phase 5: review the remaining unaudited screens, then G5–G8; refresh
+   `TASKS.md`/`CURRENT_SESSION.md` and `CHANGELOG.md` at the end.
+
+---
+
+## Previous checkpoint — `S-20261107-01`
+
 **Session:** `S-20261107-01` — Cleanup & UX Pass (onboarding, Settings, Library, search, resilience)
 **Updated:** 2026-11-07
 **Status:** Implementation complete; Linux verification green (**238 tests / 28 files**, `tsc -b`, `vite build`). Windows/Tauri verification pending. Changes uncommitted. Record: [`S-20261107-01`](sessions/S-20261107-01-cleanup-ux-pass.md).

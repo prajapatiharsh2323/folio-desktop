@@ -1037,7 +1037,9 @@
   z-index: 70;
   overflow-y: auto;
   display: flex;
-  align-items: center;
+  /* flex-start + auto margins below centre the panel when it fits and keep
+     the top reachable when it is taller than a short window. */
+  align-items: flex-start;
   justify-content: center;
   padding: var(--folio-space-6);
   background: var(--folio-canvas);
@@ -1046,6 +1048,7 @@
 
 .folio-onboarding__panel {
   width: min(1040px, 100%);
+  margin: auto;
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: var(--folio-space-6);
@@ -1054,6 +1057,14 @@
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-dialog);
   box-shadow: 0 16px 48px rgba(20, 23, 19, 0.18);
+}
+
+.folio-onboarding__step {
+  margin: 0;
+  color: var(--folio-text-secondary);
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  font-weight: var(--folio-type-micro-weight);
 }
 
 .folio-onboarding__intro {
@@ -1117,6 +1128,10 @@
   gap: var(--folio-space-5);
 }
 
+.folio-preferences .folio-theme-grid {
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+}
+
 .folio-preferences__group {
   display: flex;
   flex-direction: column;
@@ -1131,17 +1146,41 @@
 
 .folio-onboarding__actions {
   grid-column: 1 / -1;
+  position: sticky;
+  bottom: calc(-1 * var(--folio-space-6));
+  z-index: 1;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: var(--folio-space-3);
+  gap: var(--folio-space-4);
   padding-top: var(--folio-space-4);
+  padding-bottom: var(--folio-space-2);
   border-top: var(--folio-divider) solid var(--folio-border);
+  background: var(--folio-surface-raised);
+}
+
+.folio-onboarding__actions-note {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--folio-text-secondary);
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+}
+
+.folio-onboarding__buttons {
+  display: flex;
+  gap: var(--folio-space-3);
 }
 
 .folio-onboarding__error {
   grid-column: 1 / -1;
   margin: 0;
   color: var(--folio-danger);
+}
+
+.folio-onboarding__warning {
+  margin: 0;
 }
 
 .folio-tour {
@@ -1240,9 +1279,21 @@
   .folio-onboarding__panel {
     grid-template-columns: 1fr;
     min-height: 100%;
+    margin: 0;
     padding: var(--folio-space-5);
     border-radius: 0;
     border: none;
+  }
+
+  .folio-onboarding__actions {
+    bottom: calc(-1 * var(--folio-space-5));
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--folio-space-2);
+  }
+
+  .folio-onboarding__buttons {
+    justify-content: flex-end;
   }
 
   .folio-onboarding__intro {

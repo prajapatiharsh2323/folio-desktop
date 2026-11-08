@@ -1,11 +1,13 @@
-import { useMemo, type CSSProperties } from "react";
-import { FolioChip } from "../components/FolioChip";
+import { useMemo } from "react";
+import { FolioRadioGroup } from "../components/FolioRadioGroup";
 import { FolioSectionHeader } from "../components/FolioSectionHeader";
 import {
   clampFontSize,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
   READER_THEME_COLORS,
 } from "../model/defaults";
-import type { ReadingPrefs } from "../model/types";
+import type { ReadingPrefs, ReadingTheme } from "../model/types";
 import {
   READING_THEME_OPTIONS,
   TYPEFACE_OPTIONS,
@@ -17,6 +19,8 @@ const APP_THEME_OPTIONS: { value: ThemeSetting; label: string }[] = [
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" },
 ];
+
+const SERIF_CSS = '"Iowan Old Style", Georgia, serif';
 
 export interface PreferencesEditorProps {
   prefs: ReadingPrefs;
@@ -40,8 +44,16 @@ export function PreferencesEditor({
   showAppAppearance = false,
 }: PreferencesEditorProps) {
   const patch = (part: Partial<ReadingPrefs>) => onChange({ ...prefs, ...part });
-  const activeFont =
-    TYPEFACE_OPTIONS.find((f) => f.value === prefs.fontFamily) ?? TYPEFACE_OPTIONS[0];
+
+  // "Publisher" means the book supplies its own face; the picker and preview
+  // must not pretend that is the app display font.
+  const previewFont = prefs.fontFamily === "publisher" ? SERIF_CSS : undefined;
+  const activeFont = useMemo(() => {
+    const option =
+      TYPEFACE_OPTIONS.find((font) => font.value === prefs.fontFamily) ??
+      TYPEFACE_OPTIONS[0];
+    return prefs.fontFamily === "publisher" ? { ...option, css: SERIF_CSS } : option;
+  }, [prefs.fontFamily]);
 
   const previewColors = useMemo(() => {
     if (prefs.theme === "system") {
@@ -58,65 +70,76 @@ export function PreferencesEditor({
       {showAppAppearance && appTheme !== undefined && onAppThemeChange && (
         <section className="folio-preferences__group">
           <FolioSectionHeader>App appearance</FolioSectionHeader>
-          <div className="folio-wrap-row" role="group" aria-label="App appearance">
-            {APP_THEME_OPTIONS.map((option) => (
-              <FolioChip
-                key={option.value}
-                selected={appTheme === option.value}
-                onClick={() => onAppThemeChange(option.value)}
-              >
-                {option.label}
-              </FolioChip>
-            ))}
-          </div>
+          <FolioRadioGroup
+            label="App appearance"
+            className="folio-wrap-row"
+            value={appTheme}
+            options={APP_THEME_OPTIONS}
+            onChange={onAppThemeChange}
+          />
           <p className="folio-helper">Light, dark, or follow your system setting.</p>
         </section>
       )}
 
       <section className="folio-preferences__group">
         <FolioSectionHeader>Reading theme</FolioSectionHeader>
-        <div className="folio-theme-grid" role="radiogroup" aria-label="Reading theme">
-          {READING_THEME_OPTIONS.map((theme) => {
-            const colors = READER_THEME_COLORS[theme.value];
-            const selected = prefs.theme === theme.value;
+        <FolioRadioGroup<ReadingTheme>
+          label="Reading theme"
+          className="folio-theme-grid"
+          value={prefs.theme}
+          options={READING_THEME_OPTIONS}
+          onChange={(theme) => patch({ theme })}
+          renderOption={({ option, selected, tabIndex, select, setButton }) => {
+            const colors = READER_THEME_COLORS[option.value];
+            const system = option.value === "system";
             return (
               <button
-                key={theme.value}
+                ref={setButton}
                 type="button"
                 role="radio"
                 aria-checked={selected}
+                tabIndex={tabIndex}
                 className={`folio-theme-swatch${selected ? " is-selected" : ""}`}
-                onClick={() => patch({ theme: theme.value })}
+                onClick={select}
               >
                 <span
-                  className="folio-theme-swatch__page"
-                  style={{ background: colors.bg, color: colors.text }}
+                  className={`folio-theme-swatch__page${
+                    system ? " folio-theme-swatch__page--split" : ""
+                  }`}
+                  style={
+                    system
+                      ? undefined
+                      : { background: colors.bg, color: colors.text }
+                  }
                   aria-hidden="true"
                 >
                   Aa
                 </span>
-                <span className="folio-theme-swatch__label">{theme.label}</span>
+                <span className="folio-theme-swatch__label">{option.label}</span>
               </button>
             );
-          })}
-        </div>
+          }}
+        />
       </section>
 
       <section className="folio-preferences__group">
         <FolioSectionHeader>Typeface</FolioSectionHeader>
-        <div className="folio-wrap-row" role="radiogroup" aria-label="Typeface">
-          {TYPEFACE_OPTIONS.map((font) => (
-            <FolioChip
-              key={font.value}
-              selected={prefs.fontFamily === font.value}
-              asRadio
-              style={{ fontFamily: font.css } as CSSProperties}
-              onClick={() => patch({ fontFamily: font.value })}
-            >
-              {font.label}
-            </FolioChip>
-          ))}
-        </div>
+        <FolioRadioGroup
+          label="Typeface"
+          className="folio-wrap-row"
+          value={prefs.fontFamily}
+          options={TYPEFACE_OPTIONS.map((font) => ({
+            value: font.value,
+            label: font.label,
+            style: {
+              fontFamily: font.value === "publisher" ? SERIF_CSS : font.css,
+            },
+          }))}
+          onChange={(fontFamily) => patch({ fontFamily })}
+        />
+        {prefs.fontFamily === "publisher" && (
+          <p className="folio-helper">Uses the book's own font — shown here in Serif.</p>
+        )}
       </section>
 
       <section className="folio-preferences__group">
@@ -126,7 +149,7 @@ export function PreferencesEditor({
             type="button"
             className="folio-stepper__btn"
             aria-label="Smaller text"
-            disabled={prefs.fontSize <= 14}
+            disabled={prefs.fontSize <= FONT_SIZE_MIN}
             onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize - 1) })}
           >
             −
@@ -134,19 +157,21 @@ export function PreferencesEditor({
           <input
             type="range"
             className="folio-slider"
-            min={14}
-            max={32}
+            min={FONT_SIZE_MIN}
+            max={FONT_SIZE_MAX}
             step={1}
             value={prefs.fontSize}
             aria-label="Text size"
             aria-valuetext={`${prefs.fontSize} pixels`}
-            onChange={(e) => patch({ fontSize: clampFontSize(Number(e.currentTarget.value)) })}
+            onChange={(e) =>
+              patch({ fontSize: clampFontSize(Number(e.currentTarget.value)) })
+            }
           />
           <button
             type="button"
             className="folio-stepper__btn"
             aria-label="Larger text"
-            disabled={prefs.fontSize >= 32}
+            disabled={prefs.fontSize >= FONT_SIZE_MAX}
             onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize + 1) })}
           >
             +
@@ -160,8 +185,8 @@ export function PreferencesEditor({
         style={{
           backgroundColor: previewColors.bg,
           color: previewColors.text,
-          fontFamily: activeFont.css,
-          fontSize: `${Math.min(22, Math.max(14, prefs.fontSize))}px`,
+          fontFamily: previewFont ?? activeFont.css,
+          fontSize: `${prefs.fontSize}px`,
         }}
         aria-hidden="true"
       >

@@ -21,14 +21,18 @@ export function trapTabKey(container: HTMLElement, e: KeyboardEvent): void {
   const first = focusables[0];
   const last = focusables[focusables.length - 1];
   const active = document.activeElement as HTMLElement | null;
+  // The dialog may focus a heading (tabindex="-1") on open. That element is
+  // inside the container but is not a tab stop, so treat it as outside for
+  // wrapping purposes instead of letting the first Tab escape the dialog.
+  const onStop = active !== null && focusables.includes(active);
 
   if (e.shiftKey) {
-    if (active === first || !container.contains(active)) {
+    if (!onStop || active === first) {
       e.preventDefault();
       last.focus();
     }
   } else {
-    if (active === last || !container.contains(active)) {
+    if (!onStop || active === last) {
       e.preventDefault();
       first.focus();
     }

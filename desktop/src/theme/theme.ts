@@ -43,6 +43,14 @@ export const useThemeStore = create<ThemeState>((set) => ({
   },
 }));
 
+/**
+ * Apply a theme without persisting it (first-run setup preview). Pass `null` to
+ * restore whatever the saved setting is.
+ */
+export function previewTheme(setting: ThemeSetting | null): void {
+  applyTheme(setting ?? useThemeStore.getState().setting);
+}
+
 let media: MediaQueryList | null = null;
 let mediaHandler: (() => void) | null = null;
 

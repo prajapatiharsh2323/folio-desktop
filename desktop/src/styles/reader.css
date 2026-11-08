@@ -1095,6 +1095,16 @@
   font-weight: 600;
 }
 
+/* "System" has no single colour: show it as a diagonal light/dark split. */
+.folio-theme-swatch__page--split {
+  background: linear-gradient(
+    115deg,
+    #fbfaf5 0 49.5%,
+    #1b1e1a 50.5% 100%
+  );
+  color: #7c7f76;
+}
+
 .folio-theme-swatch__label {
   font-size: var(--folio-type-micro-size);
   line-height: var(--folio-type-micro-line);

@@ -8,7 +8,7 @@ vi.mock("../src/lib/storage", () => ({
   removeStorage: (key: string) => memory.delete(key),
 }));
 
-import { initTheme } from "../src/theme/theme";
+import { initTheme, previewTheme, useThemeStore } from "../src/theme/theme";
 
 describe("theme bootstrap", () => {
   beforeEach(() => {
@@ -34,6 +34,37 @@ describe("theme bootstrap", () => {
     memory.set("folio.theme-setting", "sepia");
     const cleanup = initTheme();
     expect(document.documentElement.dataset.theme).toBe("light");
+    cleanup();
+  });
+});
+
+describe("theme preview", () => {
+  beforeEach(() => {
+    memory.clear();
+    document.documentElement.removeAttribute("data-theme");
+  });
+
+  it("applies without persisting the previewed setting", () => {
+    memory.set("folio.theme-setting", "light");
+    const cleanup = initTheme();
+    const before = memory.get("folio.theme-setting");
+
+    previewTheme("dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(memory.get("folio.theme-setting")).toBe(before);
+    expect(useThemeStore.getState().setting).toBe("light");
+
+    cleanup();
+  });
+
+  it("restores the saved setting when the preview ends", () => {
+    memory.set("folio.theme-setting", "dark");
+    const cleanup = initTheme();
+
+    previewTheme("light");
+    expect(document.documentElement.dataset.theme).toBe("light");
+    previewTheme(null);
+    expect(document.documentElement.dataset.theme).toBe("dark");
     cleanup();
   });
 });
