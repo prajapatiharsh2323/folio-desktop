@@ -7,10 +7,6 @@ import { NotesScreen } from "../screens/NotesScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { ReaderScreen } from "../screens/ReaderScreen";
 import { exitFullscreen, toggleFullscreen } from "../lib/fullscreen";
-import { onLaunch, takePendingLaunch } from "../lib/openWith";
-import { filesFromTauriDrop, pickImportFiles } from "../lib/fileSource";
-import { getLibraryFs, LIBRARY_ROOT, useLibraryUi } from "../store/libraryUi";
-import { recoverInterruptedRestore } from "../backup/backupService";
 import { hasBlockingOverlay } from "./overlays";
 import { ToastHost } from "../components/ToastHost";
 
@@ -64,85 +60,6 @@ export function Shell() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [inReader, setRoute]);
-
-  // Restore swap is two renames; if the app died between them, put the
-  // rollback tree back before the library screen shows an empty shelf.
-  useEffect(() => {
-    void (async () => {
-      try {
-        const recovered = await recoverInterruptedRestore(
-          getLibraryFs(),
-          LIBRARY_ROOT
-        );
-        if (recovered) await useLibraryUi.getState().refresh();
-      } catch {
-        // Best-effort: a failed cleanup must not block app start.
-      }
-    })();
-  }, []);
-
-  // Open-with / second-instance file hand-off (09 §3). Register the listener
-  // before draining so a launch racing app start cannot be lost.
-  useEffect(() => {
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    let running = false;
-    let again = false;
-
-    const handle = async () => {
-      if (disposed) return;
-      if (running) {
-        again = true;
-        return;
-      }
-      running = true;
-      try {
-        const request = await takePendingLaunch();
-        if (request.files.length > 0) {
-          setRoute("library");
-          const picked = await filesFromTauriDrop(request.files);
-          if (picked && picked.length > 0) {
-            await useLibraryUi.getState().importPicked(picked);
-          }
-        }
-        if (request.importRequested) {
-          setRoute("library");
-          const picked = await pickImportFiles();
-          if (picked.length > 0) {
-            await useLibraryUi.getState().importPicked(picked);
-          }
-        }
-      } catch {
-        // A failed open must never take the app down; the library screen
-        // surfaces import errors through its snackbar.
-      } finally {
-        running = false;
-        // A second Open-with can arrive while the first import is still
-        // running; its queued paths must not wait for another launch.
-        if (again && !disposed) {
-          again = false;
-          void handle();
-        }
-      }
-    };
-
-    const onLaunchEvent = () => {
-      if (running) again = true;
-      else void handle();
-    };
-
-    (async () => {
-      const un = await onLaunch(onLaunchEvent);
-      if (disposed) un();
-      else unlisten = un;
-      if (!disposed) await handle();
-    })();
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [setRoute]);
 
   return (
     <div className="folio-app">

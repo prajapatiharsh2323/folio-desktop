@@ -189,6 +189,9 @@ export function LibraryScreen() {
           else if (event.payload.type === "leave") setDragOver(false);
           else if (event.payload.type === "drop") {
             setDragOver(false);
+            // The tour, onboarding and dialogs own the window; a drop must
+            // not import underneath them.
+            if (hasBlockingOverlay()) return;
             void filesFromTauriDrop(event.payload.paths).then((f) => {
               if (f) void importPicked(f);
             });
@@ -429,12 +432,13 @@ export function LibraryScreen() {
         className={`folio-screen${dragOver ? " folio-drop-target" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
-          setDragOver(true);
+          if (!hasBlockingOverlay()) setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
+          if (hasBlockingOverlay()) return;
           void filesFromDataTransfer(e.dataTransfer).then((f) => {
             if (f.length > 0) void importPicked(f);
           });
