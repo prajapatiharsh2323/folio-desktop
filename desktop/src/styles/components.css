@@ -553,6 +553,12 @@
   }
 }
 
+.folio-selection-count {
+  color: var(--folio-text-secondary);
+  font-size: var(--folio-type-label-size);
+  white-space: nowrap;
+}
+
 /* Operation-failure tones (collections errors, failed imports, tour notices) */
 .folio-snackbar--warn,
 .folio-snackbar--error {

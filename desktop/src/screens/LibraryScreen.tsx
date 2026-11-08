@@ -11,7 +11,9 @@ import { pickImportFiles, filesFromDataTransfer, filesFromTauriDrop } from "../l
 import { MiniSearch } from "../search/miniSearch";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { readStorage, writeStorage } from "../lib/storage";
+import { visibleRowIds } from "../lib/libraryView";
 import { hasBlockingOverlay } from "../shell/overlays";
+import { pushToast } from "../shell/toasts";
 
 /** Library screen (03 §5.2) wired to the schema-1 library via LibraryManager. */
 export function LibraryScreen() {
@@ -40,6 +42,7 @@ export function LibraryScreen() {
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [addToCollectionOpen, setAddToCollectionOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<
@@ -208,12 +211,37 @@ export function LibraryScreen() {
     await importPicked(files);
   };
 
+  const visibleRows = rows
+    .filter((r) => (filterDocIds ? filterDocIds.has(r.id) : true))
+    .slice()
+    .sort((a, b) => {
+      if (sort === "title") return a.title.localeCompare(b.title);
+      if (sort === "author") {
+        // Authors last, then title (06 §1.2): a book without an author must
+        // not jump ahead of named authors just because "" sorts first.
+        const aa = a.author?.trim() ?? "";
+        const bb = b.author?.trim() ?? "";
+        if (aa && !bb) return -1;
+        if (!aa && bb) return 1;
+        const byAuthor = aa.localeCompare(bb);
+        if (byAuthor !== 0) return byAuthor;
+        return a.title.localeCompare(b.title);
+      }
+      return 0;
+    });
+
+  // A filter or search change invalidates the old selection: acting on hidden
+  // rows is how Ctrl+A used to delete books the user could not see.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filterCollection, searchQuery]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (hasBlockingOverlay()) return;
       if (selectionMode && (e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
         e.preventDefault();
-        setSelectedIds(new Set(rows.map((r) => r.id)));
+        setSelectedIds(visibleRowIds(rows, filterDocIds));
       } else if (selectionMode && e.key === "Escape") {
         e.preventDefault();
         setSelectionMode(false);
@@ -222,7 +250,7 @@ export function LibraryScreen() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectionMode, rows]);
+  }, [selectionMode, rows, filterDocIds]);
 
   const addToCollection = async (collectionId: string) => {
     const lm = getLibraryManager();
@@ -253,15 +281,6 @@ export function LibraryScreen() {
   useEffect(() => {
     writeStorage("folio.library.sort", sort);
   }, [sort]);
-
-  const visibleRows = rows
-    .filter((r) => (filterDocIds ? filterDocIds.has(r.id) : true))
-    .slice()
-    .sort((a, b) => {
-      if (sort === "title") return a.title.localeCompare(b.title);
-      if (sort === "author") return (a.author ?? "").localeCompare(b.author ?? "");
-      return 0;
-    });
 
   const count = visibleRows.length;
 
@@ -381,11 +400,20 @@ export function LibraryScreen() {
             <option value="title">Title</option>
             <option value="author">Author</option>
           </select>
-          <FolioChip selected={selectionMode} onClick={() => setSelectionMode((v) => !v)}>
+          <FolioChip
+            selected={selectionMode}
+            onClick={() => {
+              if (selectionMode) setSelectedIds(new Set());
+              setSelectionMode(!selectionMode);
+            }}
+          >
             Select
           </FolioChip>
           {selectionMode && selectedIds.size > 0 && (
             <>
+              <span className="folio-selection-count" aria-live="polite">
+                {selectedIds.size} selected
+              </span>
               <FolioButton variant="secondary" onClick={() => setAddToCollectionOpen(true)}>
                 Add to collection
               </FolioButton>
@@ -516,16 +544,47 @@ export function LibraryScreen() {
             </FolioButton>
             <FolioButton
               variant="danger"
+              disabled={deleting}
               onClick={async () => {
+                if (deleting) return;
+                setDeleting(true);
                 const lm = getLibraryManager();
-                for (const id of selectedIds) await lm.deleteDoc(id);
-                setSelectedIds(new Set());
-                setSelectionMode(false);
-                setDeleteConfirmOpen(false);
-                await refresh();
+                const titles = new Map(rows.map((r) => [r.id, r.title]));
+                const failures: string[] = [];
+                let deleted = 0;
+                try {
+                  for (const id of selectedIds) {
+                    try {
+                      await lm.deleteDoc(id);
+                      deleted += 1;
+                    } catch (e) {
+                      failures.push(
+                        `${titles.get(id) ?? id}: ${e instanceof Error ? e.message : "Delete failed"}`
+                      );
+                    }
+                  }
+                } finally {
+                  setSelectedIds(new Set());
+                  setSelectionMode(false);
+                  setDeleteConfirmOpen(false);
+                  setDeleting(false);
+                  await refresh();
+                }
+                if (failures.length > 0) {
+                  pushToast({
+                    tone: "error",
+                    text: `Deleted ${deleted}, ${failures.length} failed`,
+                    details: failures,
+                  });
+                } else if (deleted > 0) {
+                  pushToast({
+                    tone: "success",
+                    text: `Deleted ${deleted} document${deleted === 1 ? "" : "s"}`,
+                  });
+                }
               }}
             >
-              Delete
+              {deleting ? "Deleting…" : "Delete"}
             </FolioButton>
           </>
         }
