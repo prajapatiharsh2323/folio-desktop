@@ -19,6 +19,13 @@ Library control cleanup, search location/escaping, and resilience fixes. Linux
 automation is green (`tsc -b`, 238 Vitest tests / 28 files, `vite build`); none
 of §7 has been run in a real webview yet.)*
 
+*(Update 2026-11-09: §0-style automated pass executed on this Windows 11 26100
+host for §8 (session `S-20261108-01`): install / `tsc -b` / **283 Vitest
+tests / 39 files** / `vite build` / `cargo test` (23/0) / `cargo fmt` all
+green, `pnpm tauri:build` produced a fresh NSIS installer, and the build-tree
+exe smoke-launched cleanly. The items still marked ⧗ are the ones that
+genuinely need a person in front of the screen.)*
+
 *(Update 2026-11-08: §7 labels corrected for the redesigned setup/tour, and
 added §8 — manual checks for the stabilization & polish pass, session
 `S-20261108-01` (imports, selection, reader close, startup/theme, onboarding,
@@ -236,17 +243,26 @@ then the runtime items; every item below is ⧗ until checked in a real webview.
 
 ```powershell
 cd desktop
-pnpm install
-pnpm exec tsc -b
-pnpm exec vitest run          # expect 283 passed / 39 files
-pnpm exec vite build
+# pnpm install            — DONE 2026-11-09: up to date (pnpm 11.9.0, Node 24.18.0)
+# pnpm exec tsc -b        — DONE 2026-11-09: exit 0
+# pnpm exec vitest run    — DONE 2026-11-09: 283 passed / 39 files, exit 0
+# pnpm exec vite build    — DONE 2026-11-09: success, 8.2 s (existing chunk-size warning only)
 cd src-tauri
-cargo test --all-targets
-cargo fmt --all -- --check
+# cargo test --all-targets   — DONE 2026-11-09: 23 passed / 0 failed, exit 0
+# cargo fmt --all -- --check — DONE 2026-11-09: exit 0
 ```
 
-- ⧗ Record the exact counts/results in `TASKS.md` (FT-018).
-- ⧗ `pnpm tauri:build`, then launch the new NSIS installer build.
+- ~~⧗ Record the exact counts/results in `TASKS.md` (FT-018).~~
+  **DONE 2026-11-09:** recorded under "Verified state" and on the FT-018 row.
+- ~~⧗ `pnpm tauri:build`, then launch the new NSIS installer build.~~
+  **DONE 2026-11-09 (automated half):** `pnpm tauri:build` success — frontend
+  build 12.4 s, release compile 3 m 01 s,
+  `desktop/src-tauri/target/release/bundle/nsis/Folio_0.1.0_x64-setup.exe`
+  (5 796 050 bytes / 5.53 MiB, exe 14 253 568 bytes). Smoke test: build-tree
+  `folio-desktop.exe` launched, window title `Folio`, 31.7 MB working set,
+  alive at 8 s, then stopped. *Installing via the NSIS setup and launching the
+  installed copy is still a human step below (§8.8).*
+
 
 ### 8.1 Startup, theme, and boot (S1–S4)
 

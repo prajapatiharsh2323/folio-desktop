@@ -1,8 +1,13 @@
 # Current Session Checkpoint
 
 **Session:** `S-20261108-01` — Stabilization & polish pass (5 phases)
-**Updated:** 2026-11-08
-**Status:** All five phases implemented and committed locally; Linux verification green (**283 tests / 39 files**, `tsc -b`, `vite build`). Windows/Tauri runtime checks pending.
+**Updated:** 2026-11-09
+**Status:** All five phases implemented and committed locally. Automated half
+of the Windows checklist (`MANUAL-TASKS.md` §8.0) executed **2026-11-09** and
+green: `tsc -b`, **283 tests / 39 files**, `vite build`, `cargo test`
+(23 passed / 0 failed), `cargo fmt`, `pnpm tauri:build` (NSIS installer
+5 796 050 bytes) + build-tree smoke launch. Human-at-screen runtime checks
+(§8.1–§8.9) remain pending.
 
 ## Completed in this pass
 
@@ -34,10 +39,11 @@
 
 ## Exact next action
 
-1. On Windows: run `pnpm exec tsc -b`, `pnpm exec vitest run`,
+1. ~~On Windows: run `pnpm exec tsc -b`, `pnpm exec vitest run`,
    `pnpm exec vite build`, then `cd src-tauri && cargo test --all-targets` and
-   `cargo fmt --all -- --check`.
-2. Runtime smoke: hidden-window launch (no white flash), first-run setup →
+   `cargo fmt --all -- --check`.~~ **DONE 2026-11-09** — all green; installer
+   built and build-tree exe smoke-launched (see `MANUAL-TASKS.md` §8.0).
+2. Runtime smoke (human at the screen, `MANUAL-TASKS.md` §8.1–§8.9): hidden-window launch (no white flash), first-run setup →
    tour spotlight/escape, reader close flush, import queue under overlays,
    collections round-trip, cover cache after replacing a cover.
 3. Commit/push only with explicit authorization (local commits already made).

@@ -24,7 +24,7 @@ active or known work; move narrative detail to session/audit records.
 | FT-015 | P1 | Custom cover art for books & collections: bundled presets, portrait book covers in LibraryScreen/ReaderSplash, panoramic landscape collection banners in CollectionsScreen, 221 tests passing | done (code + tests) | Bundled 5 cover images in `src/assets/covers`, created `coverPresets.ts` with deterministic hashing, wired `coverUrl` in `LibraryRow`, added banner/hero styling in `components.css`, 221/221 Vitest tests passing across 24 suites. | User Request |
 | FT-016 | P0 | Reader top bar clearance & Appearance tray Alignment/Hyphenation: prevent top bar from obscuring book text, elevate Justify/Hyphenate to Quick Adjustments + dedicated Typography section, fix panel contrast, 222 tests passing | done (code + tests) | Updated reader.css canvas geometry, AppearancePanel quick chips + section, components.css panel color, 222/222 Vitest tests passing across 24 suites. | User Request |
 | FT-017 | P1 | Cleanup & UX pass: first-run onboarding + five-step tour, Settings consolidation, Library dead-control removal, semantic book/note rows, search title/location/escaping fixes, error/retry states, safe storage, StrictMode theme, cover URL revocation, shortcut gating | done (code) / blocked (Windows verification) | Linux: `tsc -b` clean, Vitest **238 / 238 (28 files)**, `vite build` green. Windows runtime smoke + `cargo test` still needed. Uncommitted. | [`S-20261107-01`](sessions/S-20261107-01-cleanup-ux-pass.md) |
-| FT-018 | P0 | Stabilization & polish: import queue/toasts, visible-only selection, bulk-delete and reader-close safety, startup theme/boot/onboarding probe, appearance polish, tour redesign, remaining audit items G5–G8 | done (code) / blocked (Windows verification) | Linux: `tsc -b` clean, Vitest **283 / 283 (39 files)**, `vite build` green. Windows runtime smoke + `cargo test` pending (checklist: `MANUAL-TASKS.md` §8). | This session (`S-20261108-01`), `CHANGELOG.md` |
+| FT-018 | P0 | Stabilization & polish: import queue/toasts, visible-only selection, bulk-delete and reader-close safety, startup theme/boot/onboarding probe, appearance polish, tour redesign, remaining audit items G5–G8 | done (code) / automated Windows half verified | Linux: `tsc -b` clean, Vitest **283 / 283 (39 files)**, `vite build` green. Windows 2026-11-09: full automated suite green (283 tests, `tsc`, `vite build`, `cargo test` 23/0, `cargo fmt`), `pnpm tauri:build` success + smoke launch. Remaining: §8.1–§8.9 human-at-screen runtime checks (`MANUAL-TASKS.md`). | This session (`S-20261108-01`), `CHANGELOG.md` |
 
 ## Blocked work
 
@@ -50,6 +50,19 @@ active or known work; move narrative detail to session/audit records.
 `4cce075` / docs `a5e4a94` likewise)*
 
 ## Verified state
+
+- **Windows 11 26100 (2026-11-09, automated half of `MANUAL-TASKS.md` §8 for**
+  **`S-20261108-01`):** `pnpm install` up to date (pnpm 11.9.0, Node 24.18.0);
+  `tsc -b` exit 0; **283 Vitest tests / 39 files** passing; `vite build`
+  success (8.2 s, existing chunk-size warning only); `cargo test --all-targets`
+  **23 passed / 0 failed** (exit 0); `cargo fmt --all -- --check` clean;
+  **`pnpm tauri:build` success** — frontend 12.4 s, release compile 3 m 01 s,
+  NSIS
+  `desktop/src-tauri/target/release/bundle/nsis/Folio_0.1.0_x64-setup.exe`
+  (5 796 050 bytes / 5.53 MiB, exe 14 253 568 bytes). Smoke test: build-tree
+  `folio-desktop.exe` launched, window `Folio`, 31.7 MB working set, still
+  alive at 8 s. Still human-only: §8.1–§8.9 runtime checks and §1–§5 of the
+  earlier items.
 
 - **Linux verification (2026-11-08, `S-20261108-01`, stabilization & polish):**
   `tsc -b` clean; **283 Vitest tests / 39 files** passing; `vite build`
