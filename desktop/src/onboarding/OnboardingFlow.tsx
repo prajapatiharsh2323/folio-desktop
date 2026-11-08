@@ -1,16 +1,39 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { FolioButton } from "../components/FolioButton";
+import { FolioRadioGroup } from "../components/FolioRadioGroup";
 import { trapTabKey } from "../components/focusTrap";
-import { DEFAULT_READING_PREFS } from "../model/defaults";
-import type { ReadingPrefs } from "../model/types";
-import { getLibraryManager } from "../store/libraryUi";
+import { READER_THEME_COLORS } from "../model/defaults";
+import type { FontFamilyPref, ReadingPrefs } from "../model/types";
+import { filesFromDataTransfer, filesFromTauriDrop, pickImportFiles } from "../lib/fileSource";
+import { getLibraryManager, useLibraryUi } from "../store/libraryUi";
+import { useRouteStore } from "../store/routeStore";
 import { previewTheme, useThemeStore, type ThemeSetting } from "../theme/theme";
-import { PreferencesEditor } from "./PreferencesEditor";
-import { appThemeForReadingTheme } from "./themeLink";
 import { useOnboarding } from "./onboardingState";
 
 /** Saving must not spin forever if the filesystem hangs. */
 const SAVE_TIMEOUT_MS = 10_000;
+
+/** How long an imported title stays on screen before setup finishes. */
+const IMPORT_CONFIRM_MS = 1000;
+
+type SizeChoice = 16 | 18 | 22;
+
+const THEME_OPTIONS: { value: ThemeSetting; label: string }[] = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+];
+
+const FACE_OPTIONS: { value: FontFamilyPref; label: string; css: string }[] = [
+  { value: "serif", label: "Serif", css: '"Iowan Old Style", Georgia, serif' },
+  { value: "sans", label: "Sans", css: '"Segoe UI", system-ui, sans-serif' },
+];
+
+const SIZE_OPTIONS: { value: SizeChoice; label: string }[] = [
+  { value: 16, label: "Small" },
+  { value: 18, label: "Medium" },
+  { value: 22, label: "Large" },
+];
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -28,102 +51,143 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+function sizeChoiceFor(px: number): SizeChoice {
+  if (px <= 17) return 16;
+  if (px <= 20) return 18;
+  return 22;
+}
+
+function colorsFor(theme: ThemeSetting): { bg: string; text: string } {
+  if (theme === "system") {
+    const dark =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    return READER_THEME_COLORS[dark ? "dark" : "light"];
+  }
+  return READER_THEME_COLORS[theme];
+}
+
+function faceCssFor(face: FontFamilyPref): string {
+  return FACE_OPTIONS.find((option) => option.value === face)?.css ?? FACE_OPTIONS[0].css;
+}
+
+/** A quiet, screen-reader-only step label on the dot pair. */
+function ProgressDots({ step }: { step: 1 | 2 }) {
+  return (
+    <div
+      className="folio-setup__progress"
+      role="img"
+      aria-label={step === 1 ? "Step 1 of 2" : "Step 2 of 2"}
+    >
+      <span className={`folio-setup__dot${step === 1 ? " is-active" : ""}`} />
+      <span className={`folio-setup__dot${step === 2 ? " is-active" : ""}`} />
+    </div>
+  );
+}
+
+function isEnterActivationTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return true;
+  if (el.closest("[role='radiogroup'], button, input, textarea, select, a")) return false;
+  return true;
+}
+
+function focusHeading(ref: React.RefObject<HTMLElement | null>): void {
+  ref.current?.focus();
+}
+
 /**
- * First-run setup: welcome copy plus the shared preference editor. Saving
- * writes the global ReadingPrefs through the existing repository, so books
- * without a per-book override inherit these defaults.
+ * First-run setup is two screens, owned by the onboarding state machine:
+ * `look` (reading appearance) → `library` (add a book).
  */
 export function OnboardingFlow() {
   const stage = useOnboarding((s) => s.stage);
+  return stage === "library" ? <AddBookStep /> : <LookStep />;
+}
+
+/**
+ * Step 1: one choice about reading. Theme selects the app and reading theme,
+ * which preview live on the whole canvas; nothing is written until Continue.
+ */
+function LookStep() {
   const completePrefs = useOnboarding((s) => s.completePrefs);
   const storedAppTheme = useThemeStore((s) => s.setting);
   const setAppTheme = useThemeStore((s) => s.setSetting);
 
-  const [prefs, setPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS);
-  // App appearance is a draft too: "Use defaults" must not write any
-  // preference, so the store is only updated when the user saves.
-  const [appTheme, setAppThemeDraft] = useState<ThemeSetting>(storedAppTheme);
-  const [appThemeTouched, setAppThemeTouched] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [loadWarning, setLoadWarning] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeSetting>(storedAppTheme);
+  const [face, setFace] = useState<FontFamilyPref>("serif");
+  const [size, setSize] = useState<SizeChoice>(18);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // The saved values load in the background; a user who has already answered
+  // must not have their choice overwritten by a late read.
+  const touched = useRef(false);
+
+  useEffect(() => {
+    focusHeading(headingRef);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const current = await getLibraryManager().prefs.global();
-        if (!cancelled) setPrefs(current);
+        const current: ReadingPrefs = await getLibraryManager().prefs.global();
+        if (cancelled || touched.current) return;
+        setFace(current.fontFamily === "sans" ? "sans" : "serif");
+        setSize(sizeChoiceFor(current.fontSize));
       } catch {
-        // Keep built-in defaults; saving still works, but say so rather than
-        // making the values look like saved ones.
-        if (!cancelled) {
-          setLoadWarning(
-            "Couldn't load your saved preferences — starting from the built-in defaults."
-          );
-        }
-      } finally {
-        if (!cancelled) setLoaded(true);
+        // Defaults are already on screen; Continue re-reads before it writes.
       }
     })();
-    headingRef.current?.focus();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Live app-theme preview (O2). The visual result is immediate; nothing is
-  // written until Save. Leaving without saving restores the saved setting.
+  // Live preview on the whole canvas; nothing is persisted by this effect.
   useEffect(() => {
-    previewTheme(appTheme);
-  }, [appTheme]);
+    previewTheme(theme);
+  }, [theme]);
   useEffect(() => () => previewTheme(null), []);
 
-  const changePrefs = (next: ReadingPrefs) => {
-    // Until the user expresses an app-theme preference, follow the reading
-    // theme so a dark page is not surrounded by a light app (O6).
-    if (next.theme !== prefs.theme && !appThemeTouched) {
-      setAppThemeDraft(appThemeForReadingTheme(next.theme));
-    }
-    setPrefs(next);
+  const chooseTheme = (next: ThemeSetting) => {
+    touched.current = true;
+    setTheme(next);
   };
-
-  const changeAppTheme = (setting: ThemeSetting) => {
-    setAppThemeTouched(true);
-    setAppThemeDraft(setting);
+  const chooseFace = (next: FontFamilyPref) => {
+    touched.current = true;
+    setFace(next);
+  };
+  const chooseSize = (next: SizeChoice) => {
+    touched.current = true;
+    setSize(next);
   };
 
   const save = async () => {
-    if (saving || !loaded) return;
+    if (saving) return;
     setSaving(true);
     setError(null);
     try {
       const lm = getLibraryManager();
       const current = await lm.prefs.global();
-      // Only the fields this editor owns are written; other global prefs and
+      // Only the fields this screen owns are written; other global prefs and
       // unknown schema-1 keys stay exactly as they were.
       await withTimeout(
         lm.prefs.writeGlobal({
           ...current,
-          theme: prefs.theme,
-          fontFamily: prefs.fontFamily,
-          fontSize: prefs.fontSize,
+          theme,
+          fontFamily: face,
+          fontSize: size,
         }),
         SAVE_TIMEOUT_MS
       );
-      setAppTheme(appTheme);
+      setAppTheme(theme);
       completePrefs();
-    } catch (e) {
-      setError(
-        e instanceof Error && e.message === "timeout"
-          ? "Saving is taking longer than expected. Try again, or use the defaults."
-          : e instanceof Error
-            ? e.message
-            : "Your preferences could not be saved."
-      );
+    } catch {
+      setError("Couldn't save. Try again, or Skip.");
     } finally {
       setSaving(false);
     }
@@ -135,97 +199,331 @@ export function OnboardingFlow() {
     completePrefs();
   };
 
-  // Step 2 is replaced by the full "Add your first book" surface next; this
-  // keeps the linear flow usable in between.
-  if (stage === "library") {
-    return (
-      <div className="folio-onboarding" data-folio-modal>
-        <div className="folio-onboarding__panel" role="dialog" aria-modal="true">
-          <h1 className="folio-onboarding__title">Add your first book</h1>
-          <FolioButton
-            variant="primary"
-            onClick={() => useOnboarding.getState().completeSetup()}
-          >
-            I&apos;ll do this later
-          </FolioButton>
-        </div>
-      </div>
-    );
-  }
+  const previewColors = colorsFor(theme);
 
   return (
-    <div className="folio-onboarding" data-folio-modal>
+    <div className="folio-setup" data-folio-modal>
       <div
-        className="folio-onboarding__panel"
+        className="folio-setup__panel folio-setup__step"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="folio-onboarding-title"
+        aria-labelledby="folio-setup-title"
         ref={panelRef}
         onKeyDown={(e) => {
           if (panelRef.current) trapTabKey(panelRef.current, e.nativeEvent);
+          if (e.key === "Enter" && !saving && isEnterActivationTarget(e.target)) {
+            e.preventDefault();
+            void save();
+          }
         }}
       >
-        <div className="folio-onboarding__intro">
-          <p className="folio-onboarding__step">Step 1 of 2 · Reading setup</p>
-          <p className="folio-onboarding__eyebrow">Welcome to Folio</p>
+        <div className="folio-boot__wordmark folio-setup__wordmark">Folio</div>
+
+        <div className="folio-setup__content">
           <h1
-            id="folio-onboarding-title"
-            className="folio-onboarding__title"
+            id="folio-setup-title"
+            className="folio-setup__title"
             ref={headingRef}
             tabIndex={-1}
           >
-            Set up your reading experience
+            How do you like to read?
           </h1>
-          <p className="folio-onboarding__lede">
-            Pick how the app looks and how books read by default. You can change
-            any of this later in Settings, and individual books can still keep
-            their own appearance.
-          </p>
-          <ul className="folio-onboarding__points">
-            <li>App appearance applies to the whole app.</li>
-            <li>Reading defaults apply to books without their own overrides.</li>
-            <li>Your library and notes are not changed by this setup.</li>
-          </ul>
-          {loadWarning && (
-            <p className="folio-helper folio-onboarding__warning" role="status">
-              {loadWarning}
-            </p>
-          )}
-        </div>
 
-        <div className="folio-onboarding__form">
-          <PreferencesEditor
-            prefs={prefs}
-            onChange={changePrefs}
-            appTheme={appTheme}
-            onAppThemeChange={changeAppTheme}
-            showAppAppearance
-          />
+          <section className="folio-setup__group" aria-labelledby="folio-setup-theme">
+            <span className="folio-setup__label" id="folio-setup-theme">
+              Theme
+            </span>
+            <FolioRadioGroup<ThemeSetting>
+              label="Theme"
+              className="folio-setup__themes"
+              value={theme}
+              options={THEME_OPTIONS}
+              onChange={chooseTheme}
+              renderOption={({ option, selected, tabIndex, select, setButton }) => {
+                const colors = READER_THEME_COLORS[option.value];
+                const system = option.value === "system";
+                const pageStyle: CSSProperties = system
+                  ? {
+                      background: `linear-gradient(115deg, ${READER_THEME_COLORS.light.bg} 0 49.5%, ${READER_THEME_COLORS.dark.bg} 50.5% 100%)`,
+                    }
+                  : { background: colors.bg, color: colors.text };
+                return (
+                  <button
+                    ref={setButton}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={tabIndex}
+                    className={`folio-setup__swatch${selected ? " is-selected" : ""}`}
+                    onClick={select}
+                  >
+                    <span
+                      className="folio-setup__swatch-page"
+                      style={pageStyle}
+                      aria-hidden="true"
+                    >
+                      Aa
+                    </span>
+                    <span className="folio-setup__swatch-label">{option.label}</span>
+                  </button>
+                );
+              }}
+            />
+          </section>
+
+          <section className="folio-setup__group" aria-labelledby="folio-setup-face">
+            <span className="folio-setup__label" id="folio-setup-face">
+              Typeface
+            </span>
+            <FolioRadioGroup<FontFamilyPref>
+              label="Typeface"
+              className="folio-setup__segmented"
+              value={face}
+              options={FACE_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+                style: { fontFamily: option.css },
+              }))}
+              onChange={chooseFace}
+            />
+          </section>
+
+          <section className="folio-setup__group" aria-labelledby="folio-setup-size">
+            <span className="folio-setup__label" id="folio-setup-size">
+              Size
+            </span>
+            <FolioRadioGroup
+              label="Size"
+              className="folio-setup__segmented"
+              value={String(size)}
+              options={SIZE_OPTIONS.map((option) => ({
+                value: String(option.value),
+                label: option.label,
+              }))}
+              onChange={(next) => chooseSize(Number(next) as SizeChoice)}
+            />
+          </section>
+
+          <div
+            className="folio-setup__preview"
+            style={{
+              backgroundColor: previewColors.bg,
+              color: previewColors.text,
+              fontFamily: faceCssFor(face),
+              fontSize: `${size}px`,
+            }}
+            aria-hidden="true"
+          >
+            <p>
+              The quick brown fox jumps over the lazy dog, and the quiet page
+              asks nothing more of you than a little attention.
+            </p>
+          </div>
         </div>
 
         {error && (
-          <p className="folio-helper folio-onboarding__error" role="alert">
+          <p className="folio-setup__error" role="alert">
             {error}
           </p>
         )}
 
-        <div className="folio-onboarding__actions">
-          <p className="folio-onboarding__actions-note">
-            Saving stores these as your defaults. Using the defaults writes
-            nothing and keeps your current settings.
-          </p>
-          <div className="folio-onboarding__buttons">
-            <FolioButton variant="secondary" onClick={skip} disabled={saving}>
-              Use defaults
+        <div className="folio-setup__footer">
+          <div className="folio-setup__actions">
+            <FolioButton variant="primary" onClick={() => void save()} disabled={saving}>
+              {saving ? "Saving…" : "Continue"}
             </FolioButton>
-            <FolioButton
-              variant="primary"
-              onClick={() => void save()}
-              disabled={saving || !loaded}
-            >
-              {saving ? "Saving…" : loaded ? "Save and continue" : "Loading…"}
-            </FolioButton>
+            <button type="button" className="folio-link folio-setup__skip" onClick={skip}>
+              Skip
+            </button>
           </div>
+          <ProgressDots step={1} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Step 2: add one book, or finish with the defaults. The tour is offered here
+ * but never opens by itself.
+ */
+function AddBookStep() {
+  const completeSetup = useOnboarding((s) => s.completeSetup);
+  const replayTour = useOnboarding((s) => s.replayTour);
+  const setRoute = useRouteStore((s) => s.setRoute);
+  const importPicked = useLibraryUi((s) => s.importPicked);
+
+  const [dragOver, setDragOver] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [addedTitle, setAddedTitle] = useState<string | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    focusHeading(headingRef);
+    return () => {
+      if (finishTimer.current) clearTimeout(finishTimer.current);
+    };
+  }, []);
+
+  const finish = useCallback(() => {
+    completeSetup();
+    setRoute("library");
+  }, [completeSetup, setRoute]);
+
+  const importFiles = useCallback(
+    async (files: { name: string; bytes: Uint8Array }[]) => {
+      if (files.length === 0 || busy) return;
+      setBusy(true);
+      setError(null);
+      setAddedTitle(null);
+      try {
+        const result = await importPicked(files);
+        if (result.failures.length > 0 || result.added + result.skipped === 0) {
+          setError("Couldn't import that file. Try again.");
+          return;
+        }
+        setAddedTitle(result.title ?? files[0].name);
+        finishTimer.current = setTimeout(() => {
+          finishTimer.current = null;
+          finish();
+        }, IMPORT_CONFIRM_MS);
+      } catch {
+        setError("Couldn't import that file. Try again.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, finish, importPicked]
+  );
+
+  const chooseFiles = async () => {
+    if (busy) return;
+    setError(null);
+    try {
+      const files = await pickImportFiles();
+      await importFiles(files);
+    } catch {
+      setError("Couldn't open the file picker. Try again.");
+    }
+  };
+
+  // Tauri delivers OS drops at the webview level. This screen owns the window,
+  // so it listens directly instead of waiting for the Library screen.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+        const un = await getCurrentWebview().onDragDropEvent((event) => {
+          if (event.payload.type === "over") setDragOver(true);
+          else if (event.payload.type === "leave") setDragOver(false);
+          else if (event.payload.type === "drop") {
+            setDragOver(false);
+            void filesFromTauriDrop(event.payload.paths).then((picked) => {
+              if (picked && picked.length > 0) void importFiles(picked);
+            });
+          }
+        });
+        if (cancelled) un();
+        else unlisten = un;
+      } catch {
+        /* browser dev: the HTML5 handlers cover it */
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [importFiles]);
+
+  const later = () => {
+    setError(null);
+    finish();
+  };
+
+  const tour = () => {
+    finish();
+    replayTour();
+  };
+
+  return (
+    <div className="folio-setup" data-folio-modal>
+      <div
+        className="folio-setup__panel folio-setup__step"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="folio-setup-title"
+        ref={panelRef}
+        onKeyDown={(e) => {
+          if (panelRef.current) trapTabKey(panelRef.current, e.nativeEvent);
+          if (e.key === "Enter" && !busy && isEnterActivationTarget(e.target)) {
+            e.preventDefault();
+            void chooseFiles();
+          }
+        }}
+      >
+        <div className="folio-boot__wordmark folio-setup__wordmark">Folio</div>
+
+        <div className="folio-setup__content">
+          <h1
+            id="folio-setup-title"
+            className="folio-setup__title"
+            ref={headingRef}
+            tabIndex={-1}
+          >
+            Add your first book
+          </h1>
+
+          <div
+            className={`folio-setup__drop${dragOver ? " is-dragging" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              void filesFromDataTransfer(e.dataTransfer).then((files) => {
+                if (files.length > 0) void importFiles(files);
+              });
+            }}
+          >
+            {addedTitle ? (
+              <p className="folio-setup__added" role="status">
+                {addedTitle}
+              </p>
+            ) : (
+              <>
+                <p className="folio-setup__drop-copy">Drop an EPUB, HTML or text file</p>
+                <FolioButton variant="primary" onClick={() => void chooseFiles()} disabled={busy}>
+                  {busy ? "Importing…" : "Choose files"}
+                </FolioButton>
+              </>
+            )}
+          </div>
+
+          {error && (
+            <p className="folio-setup__error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="folio-setup__footer">
+          <div className="folio-setup__actions">
+            <button type="button" className="folio-link" onClick={later}>
+              I&apos;ll do this later
+            </button>
+            <button type="button" className="folio-link folio-setup__tour-link" onClick={tour}>
+              Take a short tour
+            </button>
+          </div>
+          <ProgressDots step={2} />
         </div>
       </div>
     </div>

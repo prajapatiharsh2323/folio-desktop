@@ -26,6 +26,15 @@ export interface RecoveryInfo {
   interrupted: { slug: string; hasFiles: boolean }[];
 }
 
+export interface ImportOutcome {
+  /** Documents added or replaced. */
+  added: number;
+  skipped: number;
+  failures: string[];
+  /** Title of the last added/replaced/skipped document, when known. */
+  title: string | null;
+}
+
 interface LibraryUiState {
   rows: LibraryRow[];
   loading: boolean;
@@ -34,7 +43,7 @@ interface LibraryUiState {
   recoveryDialogOpen: boolean;
   duplicate: { title: string; resolve: (r: DuplicateResolution) => void } | null;
   refresh: () => Promise<void>;
-  importPicked: (files: { name: string; bytes: Uint8Array }[]) => Promise<void>;
+  importPicked: (files: { name: string; bytes: Uint8Array }[]) => Promise<ImportOutcome>;
   resolveDuplicate: (r: DuplicateResolution) => void;
   /** Resolve a pending duplicate prompt as "skip" when its screen unmounts. */
   cancelDuplicate: () => void;
@@ -243,8 +252,12 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
 // keeps duplicate prompts and manifest writes from interleaving.
 let importQueue: Promise<void> = Promise.resolve();
 
-function enqueueImport(files: { name: string; bytes: Uint8Array }[]): Promise<void> {
-  if (files.length === 0) return Promise.resolve();
+function enqueueImport(
+  files: { name: string; bytes: Uint8Array }[]
+): Promise<ImportOutcome> {
+  if (files.length === 0) {
+    return Promise.resolve({ added: 0, skipped: 0, failures: [], title: null });
+  }
   const run = importQueue.then(
     () => runImportBatch(files),
     () => runImportBatch(files)
@@ -256,7 +269,9 @@ function enqueueImport(files: { name: string; bytes: Uint8Array }[]): Promise<vo
   return run;
 }
 
-async function runImportBatch(files: { name: string; bytes: Uint8Array }[]): Promise<void> {
+async function runImportBatch(
+  files: { name: string; bytes: Uint8Array }[]
+): Promise<ImportOutcome> {
   const lm = libraryManager();
   const multi = files.length > 1;
   let imported = 0;
@@ -291,6 +306,7 @@ async function runImportBatch(files: { name: string; bytes: Uint8Array }[]): Pro
           lastTitle = result.title ?? file.name;
         } else if (result.status === "skipped") {
           skipped += 1;
+          lastTitle = result.title ?? file.name;
         } else {
           failures.push(`${file.name}: ${result.error ?? "Import failed"}`);
         }
@@ -306,15 +322,16 @@ async function runImportBatch(files: { name: string; bytes: Uint8Array }[]): Pro
   const refreshError = useLibraryUi.getState().error;
   const details = refreshError ? [...failures, `Library refresh: ${refreshError}`] : failures;
   const added = imported + replaced;
+  const outcome: ImportOutcome = { added, skipped, failures, title: lastTitle };
 
   if (!multi) {
     if (failures.length > 0) {
       pushToast({ tone: "error", text: "Import failed", details });
-      return;
+      return outcome;
     }
     if (skipped === 1) {
       pushToast({ tone: "success", text: "Already in your library — skipped" });
-      return;
+      return outcome;
     }
     if (added > 0) {
       const verb = replaced > 0 ? "Replaced" : "Imported";
@@ -325,15 +342,15 @@ async function runImportBatch(files: { name: string; bytes: Uint8Array }[]): Pro
           : `${verb} “${lastTitle ?? "book"}”`,
         details: refreshError ? details : undefined,
       });
-      return;
+      return outcome;
     }
     if (refreshError) pushToast({ tone: "error", text: "Library refresh failed", details });
-    return;
+    return outcome;
   }
 
   if (added === 0 && skipped === 0 && failures.length === 0) {
     if (refreshError) pushToast({ tone: "error", text: "Library refresh failed", details });
-    return;
+    return outcome;
   }
 
   const parts: string[] = [];
@@ -347,4 +364,5 @@ async function runImportBatch(files: { name: string; bytes: Uint8Array }[]): Pro
     text: parts.join(", "),
     details: details.length > 0 ? details : undefined,
   });
+  return outcome;
 }

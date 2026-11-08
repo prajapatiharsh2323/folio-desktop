@@ -1031,95 +1031,242 @@
   color: var(--folio-text-secondary);
 }
 
-.folio-onboarding {
+/* First-run setup: two full-bleed screens, one choice each. */
+.folio-setup {
   position: fixed;
   inset: 0;
   z-index: 70;
   overflow-y: auto;
   display: flex;
-  /* flex-start + auto margins below centre the panel when it fits and keep
-     the top reachable when it is taller than a short window. */
-  align-items: flex-start;
   justify-content: center;
-  padding: var(--folio-space-6);
   background: var(--folio-canvas);
   color: var(--folio-text-primary);
 }
 
-.folio-onboarding__panel {
-  width: min(1040px, 100%);
-  margin: auto;
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: var(--folio-space-6);
-  padding: var(--folio-space-6);
-  background: var(--folio-surface-raised);
-  border: var(--folio-divider) solid var(--folio-border);
-  border-radius: var(--folio-radius-dialog);
-  box-shadow: 0 16px 48px rgba(20, 23, 19, 0.18);
-}
-
-.folio-onboarding__step {
-  margin: 0;
-  color: var(--folio-text-secondary);
-  font-size: var(--folio-type-micro-size);
-  line-height: var(--folio-type-micro-line);
-  font-weight: var(--folio-type-micro-weight);
-}
-
-.folio-onboarding__intro {
+.folio-setup__panel {
+  width: min(440px, 100%);
+  min-height: 100%;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--folio-space-3);
-  align-self: start;
-  position: sticky;
-  top: 0;
+  gap: var(--folio-space-6);
+  padding: var(--folio-space-7) var(--folio-space-6) var(--folio-space-6);
 }
 
-.folio-onboarding__eyebrow {
-  margin: 0;
-  color: var(--folio-text-secondary);
-  font-size: var(--folio-type-micro-size);
-  line-height: var(--folio-type-micro-line);
-  font-weight: var(--folio-type-micro-weight);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+/* A fresh screen fades in and lifts 8px — 200ms, skipped for reduced motion. */
+.folio-setup__step {
+  animation: folio-setup-step-in 200ms var(--folio-motion-panel-ease);
 }
 
-.folio-onboarding__title {
+@keyframes folio-setup-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.folio-setup__wordmark {
+  align-self: center;
+  color: var(--folio-text-primary);
+}
+
+.folio-setup__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-5);
+  min-width: 0;
+}
+
+.folio-setup__title {
   margin: 0;
+  text-align: center;
+  text-wrap: balance;
   font-family: var(--folio-font-display);
-  font-size: 30px;
-  line-height: 38px;
-  font-weight: var(--folio-type-title-weight);
+  font-size: var(--folio-type-display-title-size);
+  line-height: var(--folio-type-display-title-line);
+  font-weight: var(--folio-type-display-title-weight);
 }
 
-.folio-onboarding__title:focus-visible {
+.folio-setup__title:focus-visible {
   outline: 2px solid var(--folio-accent);
   outline-offset: 4px;
   border-radius: var(--folio-radius-control);
 }
 
-.folio-onboarding__lede {
+.folio-setup__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-2);
+}
+
+.folio-setup__label {
+  color: var(--folio-text-secondary);
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+}
+
+.folio-setup__themes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--folio-space-3);
+}
+
+.folio-setup__swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--folio-space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--folio-radius-card);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.folio-setup__swatch-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64px;
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-control);
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 600;
+  transition:
+    border-color var(--folio-motion-hover) ease,
+    box-shadow var(--folio-motion-hover) ease;
+}
+
+.folio-setup__swatch.is-selected .folio-setup__swatch-page {
+  border-color: var(--folio-accent);
+  box-shadow: 0 0 0 2px var(--folio-accent-container);
+}
+
+.folio-setup__swatch-label {
+  color: var(--folio-text-secondary);
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  font-weight: var(--folio-type-micro-weight);
+  text-align: center;
+}
+
+.folio-setup__swatch.is-selected .folio-setup__swatch-label {
+  color: var(--folio-text-primary);
+}
+
+.folio-setup__segmented {
+  display: flex;
+  gap: var(--folio-space-2);
+}
+
+.folio-setup__segmented .folio-chip {
+  flex: 1;
+  justify-content: center;
+}
+
+.folio-setup__preview {
+  border-radius: var(--folio-radius-card);
+  padding: var(--folio-space-4);
+  box-shadow: inset 0 0 0 1px var(--folio-border);
+  line-height: 1.6;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+.folio-setup__preview p {
+  margin: 0;
+}
+
+/* Step 2 — add a book. */
+.folio-setup__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--folio-space-4);
+  min-height: 168px;
+  padding: var(--folio-space-6);
+  border: 2px dashed var(--folio-border);
+  border-radius: var(--folio-radius-card);
+  background: var(--folio-surface-subtle);
+  text-align: center;
+  transition:
+    border-color var(--folio-motion-hover) ease,
+    background var(--folio-motion-hover) ease;
+}
+
+.folio-setup__drop.is-dragging {
+  border-color: var(--folio-accent);
+  background: var(--folio-accent-container);
+}
+
+.folio-setup__drop-copy {
   margin: 0;
   color: var(--folio-text-secondary);
   font-size: var(--folio-type-body-size);
   line-height: var(--folio-type-body-line);
 }
 
-.folio-onboarding__points {
+.folio-setup__added {
   margin: 0;
-  padding-left: 1.1em;
-  display: flex;
-  flex-direction: column;
-  gap: var(--folio-space-2);
-  color: var(--folio-text-secondary);
-  font-size: var(--folio-type-label-size);
-  line-height: var(--folio-type-label-line);
+  font-family: var(--folio-font-display);
+  font-size: var(--folio-type-title-l-size);
+  line-height: var(--folio-type-title-l-line);
+  font-weight: var(--folio-type-title-l-weight);
+  overflow-wrap: anywhere;
 }
 
-.folio-onboarding__form {
-  min-width: 0;
+.folio-setup__error {
+  margin: 0;
+  color: var(--folio-danger);
+  font-size: var(--folio-type-body-size);
+  line-height: var(--folio-type-body-line);
+  text-align: center;
+}
+
+.folio-setup__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--folio-space-4);
+  margin-top: auto;
+  padding-top: var(--folio-space-5);
+}
+
+.folio-setup__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-4);
+}
+
+.folio-setup__skip {
+  color: var(--folio-text-secondary);
+}
+
+.folio-setup__progress {
+  display: flex;
+  gap: var(--folio-space-2);
+  flex-shrink: 0;
+}
+
+.folio-setup__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--folio-radius-pill);
+  background: var(--folio-border);
+}
+
+.folio-setup__dot.is-active {
+  background: var(--folio-accent);
 }
 
 .folio-preferences {
@@ -1142,45 +1289,6 @@
   border-radius: var(--folio-radius-card);
   padding: var(--folio-space-4);
   line-height: 1.6;
-}
-
-.folio-onboarding__actions {
-  grid-column: 1 / -1;
-  position: sticky;
-  bottom: calc(-1 * var(--folio-space-6));
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--folio-space-4);
-  padding-top: var(--folio-space-4);
-  padding-bottom: var(--folio-space-2);
-  border-top: var(--folio-divider) solid var(--folio-border);
-  background: var(--folio-surface-raised);
-}
-
-.folio-onboarding__actions-note {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  color: var(--folio-text-secondary);
-  font-size: var(--folio-type-label-size);
-  line-height: var(--folio-type-label-line);
-}
-
-.folio-onboarding__buttons {
-  display: flex;
-  gap: var(--folio-space-3);
-}
-
-.folio-onboarding__error {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: var(--folio-danger);
-}
-
-.folio-onboarding__warning {
-  margin: 0;
 }
 
 .folio-tour {
@@ -1306,45 +1414,61 @@
 }
 
 @media (max-width: 820px) {
-  .folio-onboarding {
-    padding: 0;
-    align-items: flex-start;
-  }
-
-  .folio-onboarding__panel {
-    grid-template-columns: 1fr;
-    min-height: 100%;
-    margin: 0;
-    padding: var(--folio-space-5);
-    border-radius: 0;
-    border: none;
-  }
-
-  .folio-onboarding__actions {
-    bottom: calc(-1 * var(--folio-space-5));
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--folio-space-2);
-  }
-
-  .folio-onboarding__buttons {
-    justify-content: flex-end;
-  }
-
-  .folio-onboarding__intro {
-    position: static;
-  }
-
-  .folio-onboarding__title {
-    font-size: var(--folio-type-title-l-size);
-    line-height: var(--folio-type-title-l-line);
-  }
-
   .folio-tour {
     padding: var(--folio-space-3);
   }
 
   .folio-preferences .folio-theme-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .folio-setup__panel {
+    padding: var(--folio-space-5) var(--folio-space-4) var(--folio-space-4);
+  }
+
+  .folio-setup__themes {
+    gap: var(--folio-space-2);
+  }
+}
+
+/* 720×560 is the minimum window: hide the decorative preview and tighten the
+   rhythm so the two screens never grow a scrollbar. */
+@media (max-height: 639px) {
+  .folio-setup__panel {
+    gap: var(--folio-space-4);
+    padding: var(--folio-space-4) var(--folio-space-4) var(--folio-space-3);
+  }
+
+  .folio-setup__content {
+    gap: var(--folio-space-3);
+  }
+
+  .folio-setup__preview {
+    display: none;
+  }
+
+  .folio-setup__drop {
+    min-height: 0;
+    padding: var(--folio-space-4);
+  }
+
+  .folio-setup__footer {
+    padding-top: var(--folio-space-3);
+  }
+
+  .folio-setup__swatch-page {
+    height: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folio-setup__step {
+    animation: none;
+  }
+
+  .folio-setup__preview {
+    transition: none;
   }
 }
