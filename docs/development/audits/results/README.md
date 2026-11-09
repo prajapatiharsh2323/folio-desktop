@@ -7,6 +7,7 @@ do not claim unrun checks.
 |---|---|---|---|---|---|
 | R-20261029-01 | 2026-10-29 | Knowledge-base bootstrap | Linux VM, Node 24, existing `node_modules` | Pass (frontend checks only) | [`R-20261029-01-knowledge-bootstrap.md`](R-20261029-01-knowledge-bootstrap.md) |
 | R-20261031-02 | 2026-10-31 | FT-005 perf-harness + method + Linux baseline | Linux/x64, Node 24, jsdom DOMParser | Harness done; budget verdicts pending Windows | [`R-20261031-02-performance-method.md`](R-20261031-02-performance-method.md) (+ `perf-20261031-linux.json`) |
+| R-20261109-01 | 2026-11-09 | 0.1.0 release acceptance (Parts A–E) | Linux/x64, Node 26, jsdom | Code/Linux checks pass; Windows installer/runtime blocked | [`R-20261109-01-release-acceptance.md`](R-20261109-01-release-acceptance.md) |
 
 ## Convention
 

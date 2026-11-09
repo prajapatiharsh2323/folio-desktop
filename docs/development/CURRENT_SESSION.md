@@ -26,7 +26,9 @@ display-scaling checks remain unverified.
    restored windows promoted to 720×560 (`e7958c4`); release checklist, root
    README, CHANGELOG 0.1.0, repo hygiene and search-field focus rings.
 5. **Part E — acceptance:** Linux commands run end-to-end; Windows checklist
-   consolidated in `docs/development/RELEASE.md` and reported separately.
+   consolidated in `docs/development/RELEASE.md` and the acceptance status
+   recorded in
+   [`audits/results/R-20261109-01`](audits/results/R-20261109-01-release-acceptance.md).
 
 ## Exact next action
 
