@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 const desktop = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function read(path: string): string {
-  return readFileSync(join(desktop, path), "utf8");
+  // Normalize checkout line endings so Windows (CRLF) and Linux (LF) agree.
+  return readFileSync(join(desktop, path), "utf8").replace(/\r\n/g, "\n");
 }
 
 function versionOf(path: string, pattern: RegExp): string {

@@ -42,12 +42,12 @@ const changed = [
   // Rust crate version (Cargo + the single lock entry for this package).
   rewrite(
     "src-tauri/Cargo.toml",
-    /(\[package\][\s\S]*?\nversion\s*=\s*")[^"]+(")/,
+    /(\[package\][\s\S]*?\r?\nversion\s*=\s*")[^"]+(")/,
     `$1${version}$2`
   ),
   rewrite(
     "src-tauri/Cargo.lock",
-    /(\[\[package\]\]\nname = "folio-desktop"\nversion = ")[^"]+(")/,
+    /(\[\[package\]\]\r?\nname = "folio-desktop"\r?\nversion = ")[^"]+(")/,
     `$1${version}$2`
   ),
   // Backup archives tag their writer version; tests pin this to package.json.

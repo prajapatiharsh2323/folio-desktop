@@ -303,7 +303,11 @@ describe("setup — step 2 (library)", () => {
 });
 
 describe("setup layout contract", () => {
-  const css = readFileSync(resolve(process.cwd(), "src/styles/components.css"), "utf8");
+  // Normalize CRLF so the @media block slicing also works on Windows checkouts.
+  const css = readFileSync(
+    resolve(process.cwd(), "src/styles/components.css"),
+    "utf8"
+  ).replace(/\r\n/g, "\n");
 
   it("hides the decorative preview on short windows (720×560 minimum)", () => {
     const short = css.slice(css.indexOf("@media (max-height: 639px)"));
