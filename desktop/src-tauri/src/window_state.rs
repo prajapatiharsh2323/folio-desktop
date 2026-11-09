@@ -16,6 +16,12 @@ use tauri::{PhysicalPosition, PhysicalSize, WebviewWindow};
 
 static SAVE_GEN: AtomicU64 = AtomicU64::new(0);
 
+/// Keep restored windows at the same minimum the app declares in
+/// `tauri.conf.json` (minWidth/minHeight); the OS may not re-apply the
+/// constraint when geometry is restored programmatically.
+const MIN_WIDTH: u32 = 720;
+const MIN_HEIGHT: u32 = 560;
+
 fn state_path() -> Option<PathBuf> {
     appdir::app_dir().map(|d| d.join("user").join("window.json"))
 }
@@ -137,8 +143,11 @@ fn clamp_rect(
     wa_w: u32,
     wa_h: u32,
 ) -> (i32, i32, u32, u32) {
-    let w = width.min(wa_w).max(1);
-    let h = height.min(wa_h).max(1);
+    // Enforce the app minimum before fitting the window to the monitor, so a
+    // saved 400x300 (or a corrupt 1x1) cannot reopen unusably small. A work
+    // area below the minimum still wins: the window must never exceed it.
+    let w = width.max(MIN_WIDTH).min(wa_w).max(1);
+    let h = height.max(MIN_HEIGHT).min(wa_h).max(1);
 
     // Keep at least 120 px of the window horizontally and the title bar
     // vertically inside the work area.
@@ -208,5 +217,27 @@ mod tests {
     fn clamp_keeps_title_bar_on_screen() {
         let (_, y, _, _) = clamp_rect(100, 99999, 1100, 760, 0, 0, 1920, 1040);
         assert_eq!(y, 1000);
+    }
+
+    #[test]
+    fn clamp_promotes_a_saved_size_below_the_app_minimum() {
+        // A stale or hand-edited 400x300 must reopen at the 720x560 minimum.
+        let (x, y, w, h) = clamp_rect(-5000, 100, 400, 300, 0, 0, 1920, 1040);
+        assert_eq!((w, h), (MIN_WIDTH, MIN_HEIGHT));
+        // The off-screen rule uses the promoted width, leaving 120 px visible.
+        assert_eq!(x, -600);
+        assert_eq!(y, 100);
+
+        // Corrupt zero-size entries are treated the same way.
+        let (_, _, w, h) = clamp_rect(0, 0, 0, 0, 0, 0, 1920, 1040);
+        assert_eq!((w, h), (MIN_WIDTH, MIN_HEIGHT));
+    }
+
+    #[test]
+    fn clamp_still_fits_a_work_area_smaller_than_the_minimum() {
+        // The monitor wins over the minimum; never restore a window larger
+        // than the usable desktop (e.g. a 640x480 remote session).
+        let (_, _, w, h) = clamp_rect(0, 0, 1100, 760, 0, 0, 640, 480);
+        assert_eq!((w, h), (640, 480));
     }
 }
