@@ -162,6 +162,19 @@ describe("sanitize", () => {
       expect(img.ext).toBe("png");
     }
   });
+
+  it("drops remote and relative images so the app never loads them", async () => {
+    const out = await sanitizeHtml(
+      `<body><p>text</p>
+        <img src="https://tracker.example/pixel.png" alt="remote">
+        <img src="images/local.png" alt="relative">
+        <img src="//cdn.example/x.png" alt="protocol-relative">
+      </body>`
+    );
+    expect(out.html).not.toContain("<img");
+    expect(out.html).not.toContain("tracker.example");
+    expect(out.html).not.toContain("cdn.example");
+  });
 });
 
 describe("import pipeline", () => {

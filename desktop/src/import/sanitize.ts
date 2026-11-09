@@ -96,7 +96,15 @@ export async function sanitizeHtml(
     }
     if (tag === "img") {
       const src = attrs.find((x) => x.name === "src")?.value ?? "";
-      if (src) el.setAttribute("src", src);
+      // Only inline images survive; they are extracted to hash-named local
+      // files below. Remote and relative sources would either make a network
+      // request (privacy) or point at a path that does not exist in the
+      // library, so the element is dropped.
+      if (!src.startsWith("data:")) {
+        el.remove();
+        return;
+      }
+      el.setAttribute("src", src);
       const alt = attrs.find((x) => x.name === "alt")?.value;
       if (alt) el.setAttribute("alt", alt);
     }
