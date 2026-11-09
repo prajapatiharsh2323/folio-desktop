@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "perf": "node --experimental-transform-types --import ./scripts/perf-register.mjs scripts/perf.ts",
+    "bump-version": "node scripts/bump-version.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
