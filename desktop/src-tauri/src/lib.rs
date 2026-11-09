@@ -5,7 +5,7 @@ mod jumplist;
 mod open_files;
 mod window_state;
 
-use commands::{fs, hash, power, shell, zip};
+use commands::{fs, hash, logging, power, shell, zip};
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {
@@ -31,6 +31,9 @@ pub fn run() {
             shell::open_external_url,
             shell::open_app_dir,
             shell::library_path,
+            logging::log_error,
+            logging::log_path,
+            logging::open_log_dir,
             power::prevent_display_sleep,
             open_files::take_pending_launch
         ])

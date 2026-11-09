@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { initTheme, previewTheme, THEME_STORAGE_KEY, useThemeStore } from "./theme/theme";
 import { showMainWindow } from "./lib/appWindow";
+import { installGlobalErrorHandlers } from "./lib/errorLog";
 import { removeStorage } from "./lib/storage";
 import {
   PREFS_COMPLETE_KEY,
@@ -18,6 +19,9 @@ import "./styles/reader.css";
 // paints a light frame first. The window itself starts hidden (tauri.conf) and
 // is shown once the first frame is ready.
 initTheme();
+
+// Keep a local, rotating diagnostic trail; nothing leaves the machine.
+installGlobalErrorHandlers();
 
 // Dev-only: replay first-run setup without clearing the library.
 if (import.meta.env.DEV) {

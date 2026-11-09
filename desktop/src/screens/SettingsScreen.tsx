@@ -94,6 +94,7 @@ export function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [libPath, setLibPath] = useState(LIBRARY_ROOT);
+  const [logPath, setLogPath] = useState("");
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [draftPrefs, setDraftPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS);
   const replayTour = useOnboarding((s) => s.replayTour);
@@ -136,6 +137,9 @@ export function SettingsScreen() {
     if (isTauri()) {
       void invoke<string>("library_path")
         .then(setLibPath)
+        .catch(() => {});
+      void invoke<string>("log_path")
+        .then(setLogPath)
         .catch(() => {});
     }
   }, [loadPrefs, loadStorage]);
@@ -385,6 +389,29 @@ export function SettingsScreen() {
           control={
             <FolioButton variant="secondary" onClick={replayTour}>
               Replay
+            </FolioButton>
+          }
+        />
+        <FolioSettingsRow
+          title="Error log"
+          helper={
+            isTauri()
+              ? logPath || "Local diagnostics; nothing is uploaded."
+              : "Available in the desktop app."
+          }
+          control={
+            <FolioButton
+              variant="secondary"
+              disabled={!isTauri()}
+              onClick={() => {
+                if (!isTauri()) return;
+                setMessage(null);
+                void invoke("open_log_dir").catch(() => {
+                  setMessage("The log folder could not be opened.");
+                });
+              }}
+            >
+              Open log folder
             </FolioButton>
           }
         />
