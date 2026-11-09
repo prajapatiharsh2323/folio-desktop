@@ -1,8 +1,8 @@
 # Task Board
 
-Last updated: **2026-11-08** (session `S-20261108-01` — stabilization &
-polish: import/selection/reader safety, startup/boot, onboarding/appearance,
-tour and remaining-audit work; see `CHANGELOG.md`).
+Last updated: **2026-11-09** (session `S-20261109-01` — release finalization
+Parts A–E: setup machine, two-screen onboarding, review fixes, CSP/logging,
+version bump, window clamp and release docs; see `CHANGELOG.md` 0.1.0).
 Statuses: `open`, `in-progress`, `blocked`, `done`. Keep this board limited to
 active or known work; move narrative detail to session/audit records.
 
@@ -25,6 +25,7 @@ active or known work; move narrative detail to session/audit records.
 | FT-016 | P0 | Reader top bar clearance & Appearance tray Alignment/Hyphenation: prevent top bar from obscuring book text, elevate Justify/Hyphenate to Quick Adjustments + dedicated Typography section, fix panel contrast, 222 tests passing | done (code + tests) | Updated reader.css canvas geometry, AppearancePanel quick chips + section, components.css panel color, 222/222 Vitest tests passing across 24 suites. | User Request |
 | FT-017 | P1 | Cleanup & UX pass: first-run onboarding + five-step tour, Settings consolidation, Library dead-control removal, semantic book/note rows, search title/location/escaping fixes, error/retry states, safe storage, StrictMode theme, cover URL revocation, shortcut gating | done (code) / blocked (Windows verification) | Linux: `tsc -b` clean, Vitest **238 / 238 (28 files)**, `vite build` green. Windows runtime smoke + `cargo test` still needed. Uncommitted. | [`S-20261107-01`](sessions/S-20261107-01-cleanup-ux-pass.md) |
 | FT-018 | P0 | Stabilization & polish: import queue/toasts, visible-only selection, bulk-delete and reader-close safety, startup theme/boot/onboarding probe, appearance polish, tour redesign, remaining audit items G5–G8 | done (code) / automated Windows half verified | Linux: `tsc -b` clean, Vitest **283 / 283 (39 files)**, `vite build` green. Windows 2026-11-09: full automated suite green (283 tests, `tsc`, `vite build`, `cargo test` 23/0, `cargo fmt`), `pnpm tauri:build` success + smoke launch. Remaining: §8.1–§8.9 human-at-screen runtime checks (`MANUAL-TASKS.md`). | This session (`S-20261108-01`), `CHANGELOG.md` |
+| FT-019 | P0 | Release finalization Parts A–E: linear setup machine, two-screen onboarding, code review, CSP/logging/version/window hardening, installer checklist | done (code + Linux verification) / blocked (Windows installer) | Linux: `tsc -b` clean, Vitest **315 / 315 (43 files)**, `vite build` green, `pnpm perf` within measurable budgets. Windows installer/runtime checklist: `docs/development/RELEASE.md`. | This session (`S-20261109-01`), `CHANGELOG.md` |
 
 ## Blocked work
 
@@ -63,6 +64,14 @@ active or known work; move narrative detail to session/audit records.
   `folio-desktop.exe` launched, window `Folio`, 31.7 MB working set, still
   alive at 8 s. Still human-only: §8.1–§8.9 runtime checks and §1–§5 of the
   earlier items.
+
+- **Linux verification (2026-11-09, `S-20261109-01`, release finalization):**
+  `tsc -b` clean; **315 Vitest tests / 43 files** passing; `vite build`
+  success (existing chunk-size warning only); `pnpm perf` run (reader parse
+  ~255 ms median, locator decode ~0.18 ms; import-path parse recorded without a
+  budget). Rust/Tauri build and the installer are not run on this host. Local
+  commits only; Windows automated + runtime checks still pending
+  (`docs/development/RELEASE.md`).
 
 - **Linux verification (2026-11-08, `S-20261108-01`, stabilization & polish):**
   `tsc -b` clean; **283 Vitest tests / 39 files** passing; `vite build`

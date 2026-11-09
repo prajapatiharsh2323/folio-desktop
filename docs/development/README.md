@@ -13,6 +13,7 @@ resume**.
 | Architecture, commands, invariants, environment gotchas | [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md) |
 | Current priorities, blockers, and statuses | [`TASKS.md`](TASKS.md) |
 | Last checkpoint and exact next action | [`CURRENT_SESSION.md`](CURRENT_SESSION.md) |
+| Release installer, upgrade and privacy checklist | [`RELEASE.md`](RELEASE.md) |
 | A specific past session | [`sessions/`](sessions/README.md) |
 | Feature specs and implementation plans | [`plans/`](plans/README.md) |
 | UI/UX, bug, and verification reports | [`audits/`](audits/README.md) |

@@ -3,6 +3,12 @@
 Tauri 2 + TypeScript/React desktop app for Folio. Specs live in `../.docs/`
 (reference the prompt pack `08-vibe-coding-prompt-pack.md` for build phases).
 
+**Release status (2026-11-09):** 0.1.0 code-complete on Linux verification
+(`tsc -b`, Vitest, `vite build`); the Windows installer/runtime checklist is in
+[`../docs/development/RELEASE.md`](../docs/development/RELEASE.md). See the
+root [`../README.md`](../README.md) for the current overview; this file remains
+the historical phase log.
+
 ## Phase 0 status (scaffold)
 
 - **Done**: repo layout, Rust thin core command set, TypeScript `FileStore`

@@ -1,5 +1,47 @@
 # Current Session Checkpoint
 
+**Session:** `S-20261109-01` — Release finalization (Parts A–E)
+**Updated:** 2026-11-09
+**Status:** Parts A–D implemented and committed locally; Part E acceptance
+report prepared. Linux verification green (**315 tests / 43 files**, `tsc -b`,
+`vite build`, `pnpm perf`). Windows/Tauri runtime, installer, Narrator and
+display-scaling checks remain unverified.
+
+## Completed in this pass
+
+1. **Part A — linear setup machine:** boot rules are explicit (no preferences →
+   look; preferences without step 2 → library; existing documents or both flags
+   → done), the step label comes from the machine, step 1 always clears the
+   step-2 flag, and `window.__folioResetOnboarding()` is dev-only
+   (`8325219`).
+2. **Part B — two-screen setup:** full-bleed look/library screens, tour opt-in
+   only, 200 ms cross-fade + 8 px slide, no scrollbar at 720×560, accessible
+   radio groups and focus handling (`b8940f0`).
+3. **Part C — review:** no High findings; fixed notes write safety, cached
+   search rejection, non-Unicode argv panic, encoded OPF paths and restore
+   total-budget bypass; eight Low items recorded in `FINDINGS.md` (`cfd496a`).
+4. **Part D — release hardening:** article images restricted to `data:` and CSP
+   `img-src` no longer allows `https:` (`1b3a183`); local rotating error log +
+   Settings row (`a22bddc`); one-command version bump + drift test (`b21a9bb`);
+   restored windows promoted to 720×560 (`e7958c4`); release checklist, root
+   README, CHANGELOG 0.1.0, repo hygiene and search-field focus rings.
+5. **Part E — acceptance:** Linux commands run end-to-end; Windows checklist
+   consolidated in `docs/development/RELEASE.md` and reported separately.
+
+## Exact next action
+
+1. On Windows: run the automated gate and installer checklist in
+   `docs/development/RELEASE.md` (`tsc -b`, Vitest, `vite build`,
+   `cargo test --all-targets`, `cargo fmt --all -- --check`, `pnpm tauri:build`).
+2. Run the clean-profile and existing-library installer checks, including the
+   error-log folder, opt-in tour, backup round-trip and off-screen restore.
+3. Record the installer size and any signed/unsigned verdict in the release
+   issue. Do not push without explicit authorization.
+
+---
+
+## Previous checkpoint — `S-20261108-01`
+
 **Session:** `S-20261108-01` — Stabilization & polish pass (5 phases)
 **Updated:** 2026-11-09
 **Status:** All five phases implemented and committed locally. Automated half

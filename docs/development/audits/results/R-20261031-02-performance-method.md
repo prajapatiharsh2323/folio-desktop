@@ -22,8 +22,13 @@ real Windows app run. No Windows number in this record is claimed pass/fail.
 
 ```
 cd desktop && pnpm perf
-# = node --experimental-transform-types --import ./scripts/perf-register.mjs scripts/perf.ts
+# = node --import ./scripts/perf-register.mjs scripts/perf.ts   (Node 22.18+/26)
 ```
+
+> **2026-11-09 update:** Node 26 removed `--experimental-transform-types`.
+> `scripts/perf-loader.mjs` now transpiles `.ts` through the installed
+> TypeScript compiler, so the harness runs without the flag; the byte-stable
+> fixture and procedure below are unchanged.
 
 - Produces deterministic machine-readable JSON (`harness`, `environment`,
   `fixture`, per-case `samplesMs`/`medianMs`/`budget.withinBudget`). The
@@ -31,10 +36,8 @@ cd desktop && pnpm perf
   compressed with pseudo-random, def-resistant text (LCG, fixed seed), so runs
   stay comparable across hosts and days.
 - Method: median of N timed runs after warmups (N documented per case).
-- `--experimental-transform-types` is required because the app sources use
-  TypeScript parameter properties (strip-only mode rejects them);
-  `scripts/perf-loader.mjs` resolves the extensionless relative imports the
-  app sources use.
+- The loader transpiles TypeScript (including parameter properties) and
+  resolves the extensionless relative imports the app sources use.
 
 ### Baseline (this host, 2026-10-31 — informational, conservative)
 

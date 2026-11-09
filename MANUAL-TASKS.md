@@ -382,6 +382,30 @@ cd src-tauri
 
 ---
 
+## 9. P0 — 0.1.0 release acceptance (session `S-20261109-01`)
+
+Linux automation is green: `tsc -b` clean, **315 Vitest tests / 43 files**,
+`vite build` success, `pnpm perf` within measurable budgets. The full checklist
+lives in [`docs/development/RELEASE.md`](docs/development/RELEASE.md); run it on
+a clean Windows profile **and** an existing-library profile.
+
+Highlights still needing a person at the screen:
+
+- ⧗ Installer installs per-user without elevation; version `0.1.0` in Apps.
+- ⧗ First run shows the two-screen setup; step 1 Skip then quit resumes at the
+  library screen; the tour only opens from Settings → Replay tour.
+- ⧗ Error log row opens `%APPDATA%\Folio\user\logs`; a forced error writes
+  `folio.log` and rotation keeps one previous file.
+- ⧗ Remote `<img>` in an imported HTML article is dropped and the Network panel
+  shows no request.
+- ⧗ Window restores at no less than 720×560 and reopens reachable if the saved
+  position is off-screen.
+- ⧗ Backup export → replace restore round-trip; interrupt a replace restore and
+  confirm the previous library survives.
+- ⧗ Keyboard/Narrator spot checks, display scaling, and the three perf budgets.
+
+---
+
 *Never claim a Tauri/`cargo` build passed unless it actually ran on this
 Windows host (AGENTS.md platform rule). Commit/push results back with user
 authorization.*

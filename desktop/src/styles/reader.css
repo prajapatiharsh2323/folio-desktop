@@ -655,6 +655,13 @@
   color: var(--folio-text-secondary);
 }
 
+/* The input itself suppresses the browser ring to avoid a second outline;
+   the field container carries the visible focus indicator instead. */
+.folio-workspace__search-bar:focus-within {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: 2px;
+}
+
 .folio-workspace__search-input {
   flex: 1;
   border: none;
@@ -1336,6 +1343,12 @@
   border-radius: var(--folio-radius-field);
   background: var(--folio-surface, #FFFEFB);
   color: var(--folio-text-secondary);
+}
+
+/* Match the workspace search: the field shows focus for its borderless input. */
+.folio-inbook-search-panel__field:focus-within {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: 2px;
 }
 
 .folio-inbook-search-panel__input {

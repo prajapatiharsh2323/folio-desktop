@@ -4,9 +4,9 @@
 // real Windows app run — see
 // docs/development/audits/results/R-20261031-02-performance-method.md.
 //
-// Run:  cd desktop && node --experimental-transform-types --import ./scripts/perf-register.mjs scripts/perf.ts
-// (`--experimental-transform-types` is required for parameter properties in
-// the app sources; plain strip-only mode cannot run epubPublication.ts.)
+// Run:  cd desktop && node --import ./scripts/perf-register.mjs scripts/perf.ts
+// (Node 22.18+ strips TypeScript natively. The app sources avoid parameter
+// properties so strip-only mode can load them; see AGENTS.md.)
 import { JSDOM } from "jsdom";
 import os from "node:os";
 

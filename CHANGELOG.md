@@ -3,6 +3,64 @@
 User-visible and data-safety changes for Folio Desktop. Local commits only;
 nothing here has been pushed unless a later note says so.
 
+## 0.1.0 — 2026-11-09 — First release
+
+### First-run setup and tour
+
+- Setup is now two full-bleed screens driven by one linear machine:
+  `look → library → done`. The step label comes from the machine, step 1 always
+  clears the step-2 flag, and boot rules are explicit (no preferences → setup;
+  preferences without step 2 → setup at step 2; existing documents or both
+  flags → straight to the Library).
+- The old two-column setup (eyebrow, lede, bullets, footer note, separate app
+  appearance group, five-theme grid, pixel slider, sticky action bar) is gone.
+  The look screen previews type and size; the library screen collects reading
+  preferences and imports in place.
+- Step 1 **Skip** saves only the completion flag, so quitting before step 2
+  resumes at the library screen instead of repeating step 1.
+- The tour no longer auto-opens after setup. It is opt-in via Settings → About
+  → **Replay tour**; dismissing it no longer marks it complete or blocks
+  first-run. Setup fits a 720×560 window without a scrollbar and transitions
+  with a 200 ms cross-fade plus an 8 px slide.
+- Development builds expose `window.__folioResetOnboarding()` to replay setup
+  without clearing the library.
+
+### Review hardening (no High-severity findings)
+
+- Notes edits/deletes have a busy guard, report failures through the toast host
+  and keep the draft/dialog open for retry.
+- A failed search-index build is retried instead of being cached for the life
+  of the book.
+- Non-Unicode launch arguments no longer panic startup; such paths are skipped.
+- Percent-encoded EPUB container paths reach the decoded OPF.
+- Restore counts actual expanded bytes, closing a total-budget bypass.
+- Deferred Low items are listed in [`FINDINGS.md`](FINDINGS.md).
+
+### Privacy, diagnostics and release engineering
+
+- HTML articles keep only inline `data:` images; remote, protocol-relative and
+  relative images are dropped before import. `img-src` no longer allows
+  `https:` in the release or dev CSP.
+- Unhandled errors are appended to `%APPDATA%\Folio\user\logs\folio.log` by
+  Rust (512 KB rotation, one previous file). Settings shows the real path and
+  can open the folder. Nothing is uploaded and the app still makes no network
+  requests.
+- `pnpm bump-version` updates package.json, `tauri.conf.json`, `Cargo.toml`,
+  `Cargo.lock` and the backup `APP_VERSION` together; a test fails on drift.
+- Restored windows are promoted to the 720×560 minimum while still fitting
+  monitors with a smaller work area.
+- Added a root README and the Windows installer/release checklist in
+  `docs/development/RELEASE.md`.
+- `pnpm perf` runs under Node's native TypeScript loading (Node 22.18+/26).
+
+### Verification
+
+- Linux: `tsc -b` clean, **315 Vitest tests / 43 files** passing, `vite build`
+  successful (existing chunk-size warning only), `pnpm perf` within its
+  measurable budgets.
+- Rust/Tauri build, installer, Narrator and display-scaling checks require a
+  Windows host and remain tracked in `MANUAL-TASKS.md` / `RELEASE.md`.
+
 ## 2026-11-08 — Stabilization & polish pass
 
 ### Phase 5 — Remaining audit items and cleanup (G5–G8)
