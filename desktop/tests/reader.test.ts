@@ -1,7 +1,7 @@
 import { createReadiumEngine } from "../src/reader/readiumEngine";
 import { DEFAULT_READING_PREFS } from "../src/model/defaults";
 import { describe, it, expect } from "vitest";
-import { strToU8, zipSync } from "fflate";
+import { strToU8, unzipSync, zipSync } from "fflate";
 import { openEpubFromBytes } from "../src/reader/epubPublication";
 import { generatePositions, progressionForLocator, locatorForProgression, POSITION_LENGTH } from "../src/reader/positions";
 import { resumePlan, isCfi } from "../src/reader/resume";
@@ -85,6 +85,20 @@ describe("epubPublication", () => {
     const pkg = openEpubFromBytes(makeEpub("T"));
     const hrefs = new Set(pkg.positions.map((p) => p.href));
     expect(hrefs.size).toBe(2);
+    pkg.close();
+  });
+
+  it("opens a package whose container full-path is percent-encoded", () => {
+    const entries = unzipSync(makeEpub("Encoded", [
+      { id: "a", title: "A", body: "alpha" },
+    ]));
+    entries["META-INF/container.xml"] = strToU8(
+      `<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+        <rootfiles><rootfile full-path="OEBPS/content%2Eopf" media-type="application/oebps-package+xml"/></rootfiles>
+      </container>`
+    );
+    const pkg = openEpubFromBytes(zipSync(entries));
+    expect(pkg.publication.metadata.title.translations.und).toBe("Encoded");
     pkg.close();
   });
 });
@@ -545,6 +559,48 @@ describe("ReadiumEngine search and lifecycle", () => {
     await engine.destroy();
     const hitsAfterDestroy = await engine.search("quick");
     expect(hitsAfterDestroy).toEqual([]);
+    document.body.removeChild(container);
+  });
+
+  it("retries a failed search index instead of caching the rejection", async () => {
+    if (!globalThis.ResizeObserver) {
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+    }
+    const epubBytes = makeEpub("RetrySearch", [
+      { id: "c1", title: "Chapter 1", body: "The quick brown fox jumps." },
+    ]);
+    const engine = createReadiumEngine({
+      epubBytes,
+      prefs: DEFAULT_READING_PREFS,
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await engine.open(container);
+
+    const pub = (engine as unknown as { pub: { readingOrder: unknown } }).pub;
+    const realReadingOrder = pub.readingOrder;
+    let failedOnce = false;
+    Object.defineProperty(pub, "readingOrder", {
+      configurable: true,
+      get() {
+        if (!failedOnce) {
+          failedOnce = true;
+          throw new Error("transient index failure");
+        }
+        return realReadingOrder;
+      },
+    });
+
+    await expect(engine.search("quick")).rejects.toThrow("transient index failure");
+    const hits = await engine.search("quick");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].chapterTitle).toBe("OEBPS/c1.xhtml");
+
+    await engine.destroy();
     document.body.removeChild(container);
   });
 });

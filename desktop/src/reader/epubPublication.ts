@@ -518,9 +518,11 @@ export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
   const container = parseXml(strFromU8(containerBytes), "META-INF/container.xml");
   const rootfile = firstByLocalName(container, "rootfile");
   const opfHref = rootfile?.getAttribute("full-path") ?? "";
-  if (!opfHref || !zip[opfHref]) throw new Error("EPUB container has no rootfile");
+  if (!opfHref) throw new Error("EPUB container has no rootfile");
   const opfPath = normalizePath(safeDecode(opfHref));
-  const opfBytes = zip[opfHref] ?? zip[opfPath];
+  // Some producers percent-encode the container path; try the literal entry
+  // first, then the decoded one before giving up.
+  const opfBytes = zip[opfHref] ?? zip[opfPath] ?? zipEntry(zip, opfPath);
   if (!opfBytes) throw new Error(`EPUB package not found: ${opfPath}`);
   const opfDir = dirname(opfPath);
   const opf = parseXml(strFromU8(opfBytes), opfPath);

@@ -42,8 +42,13 @@ pub fn run() {
             let _ = std::fs::create_dir_all(app_dir.join("user"));
             appdir::set_app_dir(app_dir);
 
-            // Open-with / command-line paths for this first launch.
-            open_files::remember(open_files::parse_args(std::env::args()));
+            // Open-with / command-line paths for this first launch. `args_os`
+            // keeps a non-Unicode filename from panicking the process; the
+            // lossy string is only used for the filter and the frontend's
+            // display path (the dialog/import path arrives separately).
+            open_files::remember(open_files::parse_args(
+                std::env::args_os().map(|arg| arg.to_string_lossy().into_owned()),
+            ));
 
             // Taskbar jump list (09 §3): Open Folio / Import file…
             jumplist::install();

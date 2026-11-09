@@ -286,7 +286,13 @@ export class ReadiumEngine implements ReaderEngine {
       }
       this.searchIndex = idx;
       return idx;
-    })();
+    })().catch((error: unknown) => {
+      // A transient failure (bad zip entry, allocation error) must not poison
+      // every later search for the life of this book: drop the cached
+      // rejection so the next query retries the build.
+      this.searchIndexPromise = null;
+      throw error;
+    });
 
     return this.searchIndexPromise;
   }

@@ -384,9 +384,20 @@ async function extractToStaging(
   archive: ParsedArchive,
   limits: ArchiveLimits
 ): Promise<void> {
+  let expanded = 0;
   for (const e of archive.entries) {
     if (e.kind !== "library") continue;
     const data = readEntryData(bytes, e.entry, limits);
+    // Trust the expanded bytes, not just the central directory: an archive can
+    // under-declare per-entry sizes, so a cumulative check here is what keeps
+    // staging from exceeding the restore budget.
+    expanded += data.length;
+    if (expanded > limits.maxTotalBytes) {
+      throw new BackupError(
+        "too-large",
+        "The backup expands to more data than Folio can restore safely."
+      );
+    }
     await fs.writeBytesAtomic(`${staging}/${e.path}`, data);
   }
 }

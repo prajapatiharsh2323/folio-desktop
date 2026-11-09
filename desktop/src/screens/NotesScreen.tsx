@@ -8,6 +8,7 @@ import { useRouteStore } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
 import type { Annotation } from "../model/types";
 import { nowIso } from "../model/ids";
+import { pushToast } from "../shell/toasts";
 
 const SWATCH_CSS: Record<string, string> = {
   yellow: "var(--folio-swatch-yellow)",
@@ -35,6 +36,7 @@ export function NotesScreen() {
   const [editing, setEditing] = useState<Annotation | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [deleting, setDeleting] = useState<Annotation | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -78,22 +80,44 @@ export function NotesScreen() {
   };
 
   const handleEditSave = async () => {
-    if (!editing) return;
-    const lm = getLibraryManager();
-    await lm.annotations.update(editing.id, {
-      note: editDraft.trim() || null,
-      updatedAt: nowIso(),
-    });
-    setEditing(null);
-    await refresh();
+    if (!editing || busy) return;
+    setBusy(true);
+    try {
+      const lm = getLibraryManager();
+      await lm.annotations.update(editing.id, {
+        note: editDraft.trim() || null,
+        updatedAt: nowIso(),
+      });
+      setEditing(null);
+      await refresh();
+    } catch (e) {
+      // Keep the dialog open with the user's draft so a transient write
+      // failure can be retried instead of silently discarding the edit.
+      pushToast({
+        tone: "error",
+        text: e instanceof Error ? e.message : "The note could not be saved.",
+      });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleDelete = async () => {
-    if (!deleting) return;
-    const lm = getLibraryManager();
-    await lm.annotations.remove(deleting.id);
-    setDeleting(null);
-    await refresh();
+    if (!deleting || busy) return;
+    setBusy(true);
+    try {
+      const lm = getLibraryManager();
+      await lm.annotations.remove(deleting.id);
+      setDeleting(null);
+      await refresh();
+    } catch (e) {
+      pushToast({
+        tone: "error",
+        text: e instanceof Error ? e.message : "The note could not be deleted.",
+      });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const count = filtered.length;
@@ -195,6 +219,7 @@ export function NotesScreen() {
                       type="button"
                       className="folio-iconbtn"
                       aria-label="Edit note"
+                      disabled={busy}
                       onClick={() => {
                         setEditing(a);
                         setEditDraft(a.note ?? "");
@@ -206,6 +231,7 @@ export function NotesScreen() {
                       type="button"
                       className="folio-iconbtn"
                       aria-label="Delete"
+                      disabled={busy}
                       onClick={() => setDeleting(a)}
                     >
                       <FolioIcons.Trash size="sm" />
@@ -224,11 +250,15 @@ export function NotesScreen() {
         title="Edit note"
         actions={
           <>
-            <FolioButton variant="secondary" onClick={() => setEditing(null)}>
+            <FolioButton
+              variant="secondary"
+              onClick={() => setEditing(null)}
+              disabled={busy}
+            >
               Cancel
             </FolioButton>
-            <FolioButton variant="primary" onClick={() => void handleEditSave()}>
-              Save
+            <FolioButton variant="primary" onClick={() => void handleEditSave()} disabled={busy}>
+              {busy ? "Saving…" : "Save"}
             </FolioButton>
           </>
         }
@@ -248,11 +278,15 @@ export function NotesScreen() {
         title="Delete this note?"
         actions={
           <>
-            <FolioButton variant="secondary" onClick={() => setDeleting(null)}>
+            <FolioButton
+              variant="secondary"
+              onClick={() => setDeleting(null)}
+              disabled={busy}
+            >
               Cancel
             </FolioButton>
-            <FolioButton variant="danger" onClick={() => void handleDelete()}>
-              Delete
+            <FolioButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
+              {busy ? "Deleting…" : "Delete"}
             </FolioButton>
           </>
         }
