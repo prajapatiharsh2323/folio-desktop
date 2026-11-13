@@ -16,7 +16,8 @@ ESLint 9 flat config + Prettier added (`eslint.config.js`, `.prettierrc.json`,
 `.prettierignore`, `pnpm lint` / `pnpm format` / `pnpm format:check`); lint
 passes with **0 errors / 0 warnings**, Prettier formatted (121 files; hex
 pinned files excluded). Gates: `tsc -b` clean, **Vitest 331 / 331 (45 files)**,
-`vite build` green, `prettier --check` clean. All work **uncommitted**.
+`vite build` green, `prettier --check` clean. **Committed as `203f237` and pushed to
+`origin/main` (2026-11-13, user-authorized).**
 Windows runtime verification (grant flows, full Tauri `cargo test`, installer,
 focus-mode/keyboard visual parity) remains blocked.
 
@@ -105,8 +106,9 @@ focus-mode/keyboard visual parity) remains blocked.
    in-book search with text-anchored locators and Next/Prev; MiniSearch
    upgrade (real `minisearch` package or cached DFs/precomputed TFs/prefix
    binary search, Web Worker, library indexing with progress).
-2. Committing: everything is still uncommitted — ask for explicit
-   authorization first (git-safety rule).
+2. Committing: Phase 1 + Step 2.0 committed as `203f237` and pushed to
+   `origin/main` (2026-11-13, user-authorized). Continue committing per phase
+   milestone with explicit authorization.
 3. Windows-only proof still pending after Phases 1–2.0: real dialog/drop
    grant flows, full `cargo test --all-targets` for the Tauri crate,
    installer, focus-mode + keyboard visual parity after the refactor.

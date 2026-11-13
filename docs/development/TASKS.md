@@ -61,8 +61,9 @@ active or known work; move narrative detail to session/audit records.
   appdir/guard/sandbox); `cargo check --all-targets --target
   x86_64-pc-windows-gnu` clean; `cargo fmt --all -- --check` clean on both
   crates. Rust/Tauri runtime and installer are not run on this host. All work
-  uncommitted; Windows verification (sandbox grant flows via real dialogs/
-  drops, full Tauri `cargo test`) still pending.
+  committed as `203f237` and pushed to `origin/main` (2026-11-13,
+  user-authorized); Windows verification (sandbox grant flows via real
+  dialogs/drops, full Tauri `cargo test`) still pending.
 
 - **Windows 11 26100 (2026-11-09, automated half of `MANUAL-TASKS.md` §8 for**
   **`S-20261108-01`):** `pnpm install` up to date (pnpm 11.9.0, Node 24.18.0);
