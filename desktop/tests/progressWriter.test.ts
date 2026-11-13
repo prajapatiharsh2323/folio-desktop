@@ -8,7 +8,7 @@ function setup() {
     async (snapshot) => {
       writes.push(snapshot);
     },
-    () => now
+    () => now,
   );
   return {
     writer,

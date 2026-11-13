@@ -44,7 +44,7 @@ describe("contrast audit (fixtures/tokens.json)", () => {
         if (!tok[fg] || !tok[bg]) continue;
         const ratio = contrastRatio(tok[fg], tok[bg]);
         expect(ratio, `${fg} on ${bg} (${theme}) = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(
-          AA_NORMAL
+          AA_NORMAL,
         );
       }
     }
@@ -58,17 +58,70 @@ describe("contrast audit (fixtures/tokens.json)", () => {
     }
     // And secondary is the substitute that passes.
     for (const bg of ["--folio-canvas", "--folio-surface", "--folio-surface-subtle"]) {
-      expect(
-        contrastRatio(light["--folio-text-secondary"], light[bg])
-      ).toBeGreaterThanOrEqual(AA_NORMAL);
+      expect(contrastRatio(light["--folio-text-secondary"], light[bg])).toBeGreaterThanOrEqual(
+        AA_NORMAL,
+      );
     }
   });
 
   it("dark muted sits just under AA on raised surfaces (documented)", () => {
     // Dark muted otherwise passes; this marginal case is recorded in the
     // audit report and does not gate the fix for the light-theme labels.
-    expect(
-      contrastRatio(dark["--folio-text-muted"], dark["--folio-surface-raised"])
-    ).toBeLessThan(AA_NORMAL);
+    expect(contrastRatio(dark["--folio-text-muted"], dark["--folio-surface-raised"])).toBeLessThan(
+      AA_NORMAL,
+    );
+  });
+
+  it("button and snackbar tone pairs meet AA on both themes (P0-1)", () => {
+    // Primary + solid-danger buttons: text on accent/danger backgrounds.
+    for (const [fg, bg] of [
+      ["--folio-on-accent", "--folio-accent"],
+      ["--folio-on-accent", "--folio-accent-pressed"],
+      ["--folio-on-accent", "--folio-danger"],
+    ] as const) {
+      for (const [tok, theme] of [
+        [light, "light"],
+        [dark, "dark"],
+      ] as const) {
+        if (!tok[fg] || !tok[bg]) continue;
+        const ratio = contrastRatio(tok[fg], tok[bg]);
+        expect(ratio, `${fg} on ${bg} (${theme}) = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(
+          AA_NORMAL,
+        );
+      }
+    }
+    // Danger outline hover: danger text on danger-container.
+    for (const [tok, theme] of [
+      [light, "light"],
+      [dark, "dark"],
+    ] as const) {
+      if (!tok["--folio-danger-container"]) continue;
+      const ratio = contrastRatio(tok["--folio-danger"], tok["--folio-danger-container"]);
+      expect(
+        ratio,
+        `danger on danger-container (${theme}) = ${ratio.toFixed(2)}`,
+      ).toBeGreaterThanOrEqual(AA_NORMAL);
+    }
+  });
+
+  it("form-control borders meet 3:1 against adjacent surfaces (WCAG 1.4.11)", () => {
+    const AA_GRAPHICAL = 3.0;
+    for (const [tok, theme, surfaces] of [
+      [light, "light", ["--folio-canvas", "--folio-surface", "--folio-surface-subtle"]],
+      [
+        dark,
+        "dark",
+        ["--folio-canvas", "--folio-surface", "--folio-surface-subtle", "--folio-surface-raised"],
+      ],
+    ] as const) {
+      expect(tok["--folio-border-control"], `${theme} has a control border token`).toBeDefined();
+      for (const bg of surfaces) {
+        const ratio = contrastRatio(tok["--folio-border-control"], tok[bg]);
+        expect(
+          ratio,
+          `border-control on ${bg} (${theme}) = ${ratio.toFixed(2)}`,
+        ).toBeGreaterThanOrEqual(AA_GRAPHICAL);
+      }
+    }
   });
 });

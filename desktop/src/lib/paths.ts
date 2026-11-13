@@ -1,7 +1,7 @@
 export function normalizePath(p: string): string {
   if (!p) throw new Error("empty path");
   // convert backslashes
-  let s = p.replace(/\\/g, "/");
+  const s = p.replace(/\\/g, "/");
   if (!s.startsWith("/")) throw new Error("path must be absolute");
   // collapse and reject traversal
   const parts = s.split("/");

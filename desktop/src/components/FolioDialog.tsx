@@ -17,6 +17,10 @@ interface FolioDialogProps {
  * scrim, ESC/backdrop close, focus-trapped, actions row. */
 export function FolioDialog({ open, onClose, title, actions, children }: FolioDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  // Keep the latest callback in a ref so the open/close effect depends only
+  // on `open` (inline arrow props would otherwise reset focus every render).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +37,7 @@ export function FolioDialog({ open, onClose, title, actions, children }: FolioDi
       if (!isTopModal(token)) return;
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       trapTabKey(dialog, e);
@@ -44,13 +48,14 @@ export function FolioDialog({ open, onClose, title, actions, children }: FolioDi
       popModal(token);
       prevActive?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   return (
     <>
       <div className="folio-overlay" onClick={onClose} aria-hidden="true" />
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- focus-trap container: keydown only handles Tab trapping, all inner controls are focusable */}
       <div
         ref={dialogRef}
         className="folio-dialog"

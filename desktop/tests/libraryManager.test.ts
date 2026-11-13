@@ -52,7 +52,7 @@ function makeMeta(overrides: Partial<DocMeta> = {}): DocMeta {
 
 async function addSampleDoc(
   lm: LibraryManager,
-  overrides: Partial<DocMeta> = {}
+  overrides: Partial<DocMeta> = {},
 ): Promise<DocMeta> {
   const meta = makeMeta(overrides);
   await lm.addDoc({
@@ -77,9 +77,7 @@ describe("LibraryManager sticky rules (05 §4)", () => {
     const last = writes[writes.length - 1];
     expect(last).toContain("manifest.json");
     // meta.json must precede the manifest
-    expect(writes.findIndex((w) => w.includes("meta.json"))).toBeLessThan(
-      writes.length - 1
-    );
+    expect(writes.findIndex((w) => w.includes("meta.json"))).toBeLessThan(writes.length - 1);
   });
 
   it("manifest gains the doc with sha256 + size entries", async () => {

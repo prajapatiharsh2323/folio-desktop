@@ -6,7 +6,7 @@
 export async function flushAndClose(
   flush: () => Promise<unknown> | undefined,
   release: () => Promise<unknown> | undefined,
-  close: () => void
+  close: () => void,
 ): Promise<{ flushFailed: boolean; releaseFailed: boolean }> {
   let flushFailed = false;
   let releaseFailed = false;

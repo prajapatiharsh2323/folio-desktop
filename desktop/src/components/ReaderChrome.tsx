@@ -259,7 +259,7 @@ export function ReaderChrome({
                         onShareQuote();
                       }}
                     >
-                      <FolioIcons.Info size="sm" />
+                      <FolioIcons.Share size="sm" />
                       <span className="folio-reader-menu__label">Share as image</span>
                     </button>
                   )}
@@ -273,7 +273,7 @@ export function ReaderChrome({
                       onToggleChrome();
                     }}
                   >
-                    <FolioIcons.Toc size="sm" />
+                    <FolioIcons.EyeOff size="sm" />
                     <span className="folio-reader-menu__label">Hide controls</span>
                     <kbd className="folio-reader-menu__hint" aria-hidden="true">
                       m

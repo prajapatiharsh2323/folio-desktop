@@ -8,7 +8,7 @@ import { sha256Hex } from "../lib/sha256";
 export class DocMetaRepo {
   constructor(
     private fs: FileStore,
-    private root: string
+    private root: string,
   ) {}
 
   async read(slug: string): Promise<DocMeta | null> {

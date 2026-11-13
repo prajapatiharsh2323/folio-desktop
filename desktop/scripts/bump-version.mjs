@@ -34,28 +34,20 @@ const changed = [
   // package.json owns the value Vite injects as __APP_VERSION__.
   rewrite("package.json", /("version":\s*")[^"]+(")/, `$1${version}$2`),
   // Tauri uses this for the installer and the window's reported version.
-  rewrite(
-    "src-tauri/tauri.conf.json",
-    /("version":\s*")[^"]+(")/,
-    `$1${version}$2`
-  ),
+  rewrite("src-tauri/tauri.conf.json", /("version":\s*")[^"]+(")/, `$1${version}$2`),
   // Rust crate version (Cargo + the single lock entry for this package).
   rewrite(
     "src-tauri/Cargo.toml",
     /(\[package\][\s\S]*?\r?\nversion\s*=\s*")[^"]+(")/,
-    `$1${version}$2`
+    `$1${version}$2`,
   ),
   rewrite(
     "src-tauri/Cargo.lock",
     /(\[\[package\]\]\r?\nname = "folio-desktop"\r?\nversion = ")[^"]+(")/,
-    `$1${version}$2`
+    `$1${version}$2`,
   ),
   // Backup archives tag their writer version; tests pin this to package.json.
-  rewrite(
-    "src/backup/backupSchema.ts",
-    /(export const APP_VERSION = ")[^"]+(")/,
-    `$1${version}$2`
-  ),
+  rewrite("src/backup/backupSchema.ts", /(export const APP_VERSION = ")[^"]+(")/, `$1${version}$2`),
 ];
 
 console.log(`Folio ${version}`);

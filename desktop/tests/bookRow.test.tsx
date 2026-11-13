@@ -32,11 +32,7 @@ describe("FolioBookRow semantics", () => {
 
   it("keeps the optional action as a sibling, never nested inside the open button", () => {
     render(
-      <FolioBookRow
-        data={{ id: "d1", title: "A Book" }}
-        onOpen={() => {}}
-        onMore={() => {}}
-      />
+      <FolioBookRow data={{ id: "d1", title: "A Book" }} onOpen={() => {}} onMore={() => {}} />,
     );
     expect(container.querySelectorAll("button")).toHaveLength(2);
     expect(container.querySelector("button button")).toBeNull();

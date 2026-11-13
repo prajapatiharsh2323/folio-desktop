@@ -7,7 +7,7 @@ export function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
   const result = chain.then(fn, fn);
   chain = result.then(
     () => undefined,
-    () => undefined
+    () => undefined,
   );
   return result;
 }

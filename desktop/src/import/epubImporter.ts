@@ -27,10 +27,9 @@ export function parseEpub(bytes: Uint8Array): EpubParseResult {
   const zip = unzipSync(bytes);
   const container = new DOMParser().parseFromString(
     strFromU8(zip["META-INF/container.xml"]),
-    "application/xml"
+    "application/xml",
   );
-  const opfPath =
-    container.querySelector("rootfile")?.getAttribute("full-path") ?? "";
+  const opfPath = container.querySelector("rootfile")?.getAttribute("full-path") ?? "";
   if (!opfPath || !zip[opfPath]) throw new Error("container.xml → rootfile missing");
 
   const opfDir = opfPath.includes("/") ? opfPath.slice(0, opfPath.lastIndexOf("/") + 1) : "";
@@ -93,7 +92,7 @@ export function parseEpub(bytes: Uint8Array): EpubParseResult {
 
   // spine order
   const spineIds = Array.from(opf.querySelectorAll("spine > itemref")).map((el) =>
-    el.getAttribute("idref")
+    el.getAttribute("idref"),
   );
 
   const chapters: EpubChapterText[] = [];

@@ -39,7 +39,7 @@ function decodeEntities(s: string): string {
  *  A DOM parse would be more faithful but also far more expensive for a 3 MB
  *  book; positions only need a stable character count. */
 export function textLengthOfHtml(bytes: Uint8Array): number {
-  let html = "";
+  let html: string;
   try {
     html = strFromU8(bytes);
   } catch {
@@ -50,7 +50,7 @@ export function textLengthOfHtml(bytes: Uint8Array): number {
       .replace(/<\?[\s\S]*?\?>/g, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")
       .replace(/<(script|style|head)\b[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
+      .replace(/<[^>]+>/g, " "),
   );
   return text.replace(/\s+/g, " ").trim().length;
 }
@@ -71,7 +71,7 @@ export interface PositionedLink {
  */
 export function generatePositions(
   publication: Publication,
-  zip: Record<string, Uint8Array>
+  zip: Record<string, Uint8Array>,
 ): Locator[] {
   const resources: PositionedLink[] = publication.readingOrder.items.map((link) => {
     const bytes = zip[link.href] ?? zip[decodeHref(link.href)];
@@ -95,7 +95,7 @@ export function generatePositions(
             progression,
             totalProgression: total > 0 ? index / total : 0,
           }),
-        })
+        }),
       );
       index += 1;
     }
@@ -115,10 +115,7 @@ function decodeHref(href: string): string {
  * Publication-wide progression (0..1) for a locator, using the position list
  * instead of the quantized `totalProgression` stamped on each position.
  */
-export function progressionForLocator(
-  locator: Locator,
-  positions: Locator[]
-): number | null {
+export function progressionForLocator(locator: Locator, positions: Locator[]): number | null {
   if (positions.length === 0) {
     return locator.locations.totalProgression ?? locator.locations.progression ?? null;
   }
@@ -138,10 +135,7 @@ export function progressionForLocator(
 }
 
 /** Locator for a 0..1 publication progression (scrubber / resume fallback). */
-export function locatorForProgression(
-  percent: number,
-  positions: Locator[]
-): Locator | null {
+export function locatorForProgression(percent: number, positions: Locator[]): Locator | null {
   if (positions.length === 0) return null;
   const p = Math.min(1, Math.max(0, percent));
   const idx = Math.min(positions.length - 1, Math.round(p * (positions.length - 1)));

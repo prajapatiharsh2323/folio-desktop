@@ -17,12 +17,42 @@ export interface SanitizeResult {
 }
 
 const ALLOWED_TAGS = new Set([
-  "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
-  "ul", "ol", "li", "blockquote", "pre", "code",
-  "em", "strong", "b", "i", "u", "s", "sup", "sub",
-  "a", "img", "figure", "figcaption",
-  "table", "thead", "tbody", "tr", "th", "td",
-  "article", "section", "aside",
+  "p",
+  "br",
+  "hr",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "ul",
+  "ol",
+  "li",
+  "blockquote",
+  "pre",
+  "code",
+  "em",
+  "strong",
+  "b",
+  "i",
+  "u",
+  "s",
+  "sup",
+  "sub",
+  "a",
+  "img",
+  "figure",
+  "figcaption",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "th",
+  "td",
+  "article",
+  "section",
+  "aside",
 ]);
 
 const KEEP_CONTAINERS = new Set(["html", "head", "body"]);
@@ -62,13 +92,27 @@ async function dataUriToImage(dataUri: string): Promise<ExtractedImage | null> {
 }
 
 /** Sanitize an HTML document string into Folio article HTML. */
-export async function sanitizeHtml(
-  input: string
-): Promise<SanitizeResult> {
+export async function sanitizeHtml(input: string): Promise<SanitizeResult> {
   const doc = new DOMParser().parseFromString(input, "text/html");
 
   // remove elements wholesale (with content)
-  for (const sel of ["script", "style", "noscript", "iframe", "object", "embed", "form", "input", "button", "select", "textarea", "link", "meta", "nav", "footer"]) {
+  for (const sel of [
+    "script",
+    "style",
+    "noscript",
+    "iframe",
+    "object",
+    "embed",
+    "form",
+    "input",
+    "button",
+    "select",
+    "textarea",
+    "link",
+    "meta",
+    "nav",
+    "footer",
+  ]) {
     doc.querySelectorAll(sel).forEach((el) => el.remove());
   }
 
@@ -137,7 +181,10 @@ export async function sanitizeHtml(
 export function textFromHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   doc.querySelectorAll("script,style").forEach((el) => el.remove());
-  return (doc.body?.textContent ?? "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  return (doc.body?.textContent ?? "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** Split article paragraphs into 3–5 chapters (02 §6 EpubBuilder nav). */

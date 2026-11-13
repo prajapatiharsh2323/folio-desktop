@@ -40,7 +40,7 @@ describe("ReadingSessionDialog", () => {
         sessionDurationMs={15 * 60 * 1000} // 15 min
         totalReadingTimeMs={60 * 60 * 1000} // 1 hr
         totalChapters={84}
-      />
+      />,
     );
 
     expect(document.body.textContent).toContain("Moby Dick");
@@ -51,7 +51,7 @@ describe("ReadingSessionDialog", () => {
     expect(document.body.textContent).toContain("84 chapters");
 
     const doneBtn = Array.from(document.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("Done")
+      b.textContent?.includes("Done"),
     ) as HTMLButtonElement;
     act(() => {
       doneBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -116,7 +116,7 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
         onScrubStart={() => {}}
         onScrubChange={() => {}}
         onScrubEnd={() => {}}
-      />
+      />,
     );
 
     const exitBtn = document.querySelector(".folio-reader-focus-exit__btn") as HTMLButtonElement;
@@ -167,10 +167,12 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
         onScrubStart={() => {}}
         onScrubChange={() => {}}
         onScrubEnd={() => {}}
-      />
+      />,
     );
 
-    const menuItems = Array.from(document.querySelectorAll("[role='menuitem']")) as HTMLButtonElement[];
+    const menuItems = Array.from(
+      document.querySelectorAll("[role='menuitem']"),
+    ) as HTMLButtonElement[];
     const focusItem = menuItems.find((b) => b.textContent?.includes("Focus mode"));
     const sessionItem = menuItems.find((b) => b.textContent?.includes("Reading session"));
     const shortcutsItem = menuItems.find((b) => b.textContent?.includes("Keyboard shortcuts"));
@@ -195,4 +197,3 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
     expect(shortcutsClicked).toBe(true);
   });
 });
-

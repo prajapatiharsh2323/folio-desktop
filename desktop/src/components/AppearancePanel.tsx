@@ -50,20 +50,13 @@ interface AppearancePanelProps {
  * Provides quick appearance controls (font size steppers, theme swatches,
  * width presets), live typography preview, and fine-grained advanced controls.
  */
-export function AppearancePanel({
-  open,
-  prefs,
-  onClose,
-  onChange,
-  onReset,
-}: AppearancePanelProps) {
+export function AppearancePanel({ open, prefs, onClose, onChange, onReset }: AppearancePanelProps) {
   const patch = (part: Partial<ReadingPrefs>) => onChange({ ...prefs, ...part });
 
   const activeFont =
     prefs.fontFamily === "publisher"
       ? { ...TYPEFACE_OPTIONS[0], css: SERIF_CSS }
-      : (TYPEFACE_OPTIONS.find((f) => f.value === prefs.fontFamily) ??
-        TYPEFACE_OPTIONS[0]);
+      : (TYPEFACE_OPTIONS.find((f) => f.value === prefs.fontFamily) ?? TYPEFACE_OPTIONS[0]);
   const previewColors = useMemo(() => {
     if (prefs.theme === "system") {
       const isDark =
@@ -80,7 +73,7 @@ export function AppearancePanel({
     prefs.maxWidth === 0
       ? "0"
       : (WIDTH_PRESETS.find(
-          (p) => p.value > 0 && Math.abs(prefs.maxWidth - p.value) <= 40
+          (p) => p.value > 0 && Math.abs(prefs.maxWidth - p.value) <= 40,
         )?.value.toString() ?? "");
 
   return (
@@ -89,9 +82,13 @@ export function AppearancePanel({
         {/* Quick Appearance Area */}
         <div className="folio-appearance__quick-card">
           <div className="folio-appearance__quick-title">Quick Adjustments</div>
-          
+
           <div className="folio-appearance__quick-row">
-            <div className="folio-appearance__quick-stepper" role="group" aria-label="Quick font size">
+            <div
+              className="folio-appearance__quick-stepper"
+              role="group"
+              aria-label="Quick font size"
+            >
               <button
                 type="button"
                 className="folio-appearance__quick-btn"
@@ -192,7 +189,8 @@ export function AppearancePanel({
             }}
             aria-hidden="true"
           >
-            The quick brown fox jumps over the lazy dog. Comfortable typography and clean margins deliver an immersive, distraction-free reading experience.
+            The quick brown fox jumps over the lazy dog. Comfortable typography and clean margins
+            deliver an immersive, distraction-free reading experience.
           </div>
         </section>
 
@@ -222,9 +220,7 @@ export function AppearancePanel({
                     className={`folio-theme-swatch__page${
                       system ? " folio-theme-swatch__page--split" : ""
                     }`}
-                    style={
-                      system ? undefined : { background: colors.bg, color: colors.text }
-                    }
+                    style={system ? undefined : { background: colors.bg, color: colors.text }}
                     aria-hidden="true"
                   >
                     Aa
@@ -304,7 +300,9 @@ export function AppearancePanel({
               value={prefs.lineHeight}
               aria-label="Line spacing"
               aria-valuetext={`${prefs.lineHeight.toFixed(1)} times`}
-              onChange={(e) => patch({ lineHeight: clampLineHeight(Number(e.currentTarget.value)) })}
+              onChange={(e) =>
+                patch({ lineHeight: clampLineHeight(Number(e.currentTarget.value)) })
+              }
             />
             <span className="folio-control-value">{prefs.lineHeight.toFixed(1)}</span>
           </div>
@@ -381,9 +379,7 @@ export function AppearancePanel({
               value={prefs.maxWidth > 0 ? prefs.maxWidth : 1040}
               disabled={prefs.maxWidth === 0}
               aria-label="Reading width"
-              aria-valuetext={
-                prefs.maxWidth > 0 ? `${prefs.maxWidth} pixels` : "full width"
-              }
+              aria-valuetext={prefs.maxWidth > 0 ? `${prefs.maxWidth} pixels` : "full width"}
               onChange={(e) => patch({ maxWidth: clampMaxWidth(Number(e.currentTarget.value)) })}
             />
             <span className="folio-control-value">
@@ -459,7 +455,9 @@ export function AppearancePanel({
               value={prefs.brightness}
               aria-label="Brightness"
               aria-valuetext={`${prefs.brightness} percent`}
-              onChange={(e) => patch({ brightness: clampBrightness(Number(e.currentTarget.value)) })}
+              onChange={(e) =>
+                patch({ brightness: clampBrightness(Number(e.currentTarget.value)) })
+              }
             />
             <span className="folio-control-value">{prefs.brightness}%</span>
           </div>

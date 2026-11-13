@@ -77,12 +77,9 @@ describe("import queue", () => {
     };
     importFileMock.mockImplementation(async (_lm, name: string) => statuses[name]);
 
-    await useLibraryUi.getState().importPicked([
-      file("a.epub"),
-      file("b.epub"),
-      file("c.epub"),
-      file("bad.epub"),
-    ]);
+    await useLibraryUi
+      .getState()
+      .importPicked([file("a.epub"), file("b.epub"), file("c.epub"), file("bad.epub")]);
 
     const toast = useToasts.getState().toast;
     expect(toast?.tone).toBe("error");

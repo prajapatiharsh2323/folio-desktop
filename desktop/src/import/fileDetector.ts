@@ -13,7 +13,7 @@ export type SourceFormatDetect = "epub" | "html" | "txt";
 export class ImportError extends Error {
   constructor(
     public code: "too-large" | "pdf" | "drm" | "not-epub" | "unreadable" | "unknown",
-    message: string
+    message: string,
   ) {
     super(message);
     this.name = "ImportError";
@@ -34,7 +34,12 @@ const FONT_OBFUSCATION_ALGOS = new Set([
 ]);
 
 function startsWithEpubZip(bytes: Uint8Array): boolean {
-  return bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && (bytes[2] === 3 || bytes[2] === 5 || bytes[2] === 7);
+  return (
+    bytes.length > 4 &&
+    bytes[0] === 0x50 &&
+    bytes[1] === 0x4b &&
+    (bytes[2] === 3 || bytes[2] === 5 || bytes[2] === 7)
+  );
 }
 
 function looksLikeHtml(text: string): boolean {
@@ -58,14 +63,21 @@ export function assertImportable(fileName: string, bytes: Uint8Array): SourceFor
   if (bytes.length > MAX_IMPORT_BYTES) throw new ImportError("too-large", COPY.tooLarge);
 
   // PDF refusal comes FIRST by magic (regardless of extension)
-  if (bytes.length > 5 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
+  if (
+    bytes.length > 5 &&
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46
+  ) {
     throw new ImportError("pdf", COPY.pdf);
   }
 
   const format = detectFormat(fileName, bytes);
 
   if (format === "epub") {
-    if (!startsWithEpubZip(bytes)) throw new ImportError("unreadable", COPY.drm ? COPY.drm : "Unreadable file");
+    if (!startsWithEpubZip(bytes))
+      throw new ImportError("unreadable", COPY.drm ? COPY.drm : "Unreadable file");
     let zip: Record<string, Uint8Array>;
     try {
       zip = unzipSync(bytes);

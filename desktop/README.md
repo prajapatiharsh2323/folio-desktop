@@ -186,12 +186,9 @@ pnpm tauri:build      # NSIS / installer
 5. Sign in; Folio creates a private **Folio Library** folder. The refresh token
    is stored by Windows Credential Manager; Disconnect removes it.
 
-
 ## Layout
 
-
-
-- `src/`  — frontend (React, Zustand route stub, FileStore, path helpers).
+- `src/` — frontend (React, Zustand route stub, FileStore, path helpers).
 - `src-tauri/` — thin Rust core: `fs_*`, `zip_*`, `sha256_file`,
   `open_external_url`, `open_app_dir`, `library_path`, `prevent_display_sleep`,
   dictionary pack bridge, Google OAuth loopback flow, single-instance launch

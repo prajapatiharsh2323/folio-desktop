@@ -76,7 +76,7 @@ export function buildSyntheticEpub(targetBytes: number, chapters = 24): Uint8Arr
   const manifest = chapterTexts
     .map(
       (_, i) =>
-        `<item id="c${i + 1}" href="Text/ch${i + 1}.xhtml" media-type="application/xhtml+xml"/>`
+        `<item id="c${i + 1}" href="Text/ch${i + 1}.xhtml" media-type="application/xhtml+xml"/>`,
     )
     .join("");
   const spine = chapterTexts.map((_, i) => `<itemref idref="c${i + 1}"/>`).join("");

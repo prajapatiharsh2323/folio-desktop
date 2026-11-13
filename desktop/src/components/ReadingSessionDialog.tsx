@@ -72,9 +72,7 @@ export function ReadingSessionDialog({
               <FolioIcons.Clock size="sm" />
             </span>
             <span className="folio-session-info__label">This session</span>
-            <span className="folio-session-info__value">
-              {formatDuration(sessionDurationMs)}
-            </span>
+            <span className="folio-session-info__value">{formatDuration(sessionDurationMs)}</span>
           </div>
 
           <div className="folio-session-info__card">
@@ -90,9 +88,7 @@ export function ReadingSessionDialog({
               <FolioIcons.Sort size="sm" />
             </span>
             <span className="folio-session-info__label">Estimated remaining</span>
-            <span className="folio-session-info__value">
-              {timeLeft ?? "Calibrating pace…"}
-            </span>
+            <span className="folio-session-info__value">{timeLeft ?? "Calibrating pace…"}</span>
           </div>
 
           <div className="folio-session-info__card">
@@ -115,4 +111,3 @@ export function ReadingSessionDialog({
     </FolioDialog>
   );
 }
-

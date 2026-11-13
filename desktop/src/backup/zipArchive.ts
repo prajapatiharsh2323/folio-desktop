@@ -30,9 +30,7 @@ function u16(b: Uint8Array, at: number): number {
 
 function u32(b: Uint8Array, at: number): number {
   if (at + 4 > b.length) throw new BackupError("corrupt", "The backup ZIP is truncated.");
-  return (
-    (b[at] | (b[at + 1] << 8) | (b[at + 2] << 16) | (b[at + 3] << 24)) >>> 0
-  );
+  return (b[at] | (b[at + 1] << 8) | (b[at + 2] << 16) | (b[at + 3] << 24)) >>> 0;
 }
 
 function findEocd(bytes: Uint8Array): number {
@@ -50,15 +48,9 @@ function findEocd(bytes: Uint8Array): number {
 }
 
 /** Parse and validate the archive directory without expanding any entry. */
-export function readCentralDirectory(
-  bytes: Uint8Array,
-  limits: ArchiveLimits
-): ZipEntry[] {
+export function readCentralDirectory(bytes: Uint8Array, limits: ArchiveLimits): ZipEntry[] {
   if (bytes.length > limits.maxCompressedBytes) {
-    throw new BackupError(
-      "too-large",
-      "This backup file is too large to restore safely."
-    );
+    throw new BackupError("too-large", "This backup file is too large to restore safely.");
   }
   const eocd = findEocd(bytes);
   const disk = u16(bytes, eocd + 4);
@@ -75,13 +67,13 @@ export function readCentralDirectory(
   if (total === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) {
     throw new BackupError(
       "zlib64",
-      "This backup uses ZIP64, which this version of Folio cannot restore. Re-export it from a smaller library."
+      "This backup uses ZIP64, which this version of Folio cannot restore. Re-export it from a smaller library.",
     );
   }
   if (total > limits.maxEntries) {
     throw new BackupError(
       "too-many-entries",
-      `This backup contains ${total} entries, which is more than Folio can restore safely.`
+      `This backup contains ${total} entries, which is more than Folio can restore safely.`,
     );
   }
   if (cdOffset + cdSize > bytes.length) {
@@ -111,35 +103,36 @@ export function readCentralDirectory(
     const nameBytes = bytes.subarray(nameStart, nameEnd);
     const name = flags & 0x800 ? strFromU8(nameBytes) : strFromU8(nameBytes, true);
 
-    if (compressedSize === 0xffffffff || uncompressedSize === 0xffffffff || localOffset === 0xffffffff) {
+    if (
+      compressedSize === 0xffffffff ||
+      uncompressedSize === 0xffffffff ||
+      localOffset === 0xffffffff
+    ) {
       throw new BackupError(
         "zlib64",
-        "This backup uses ZIP64, which this version of Folio cannot restore."
+        "This backup uses ZIP64, which this version of Folio cannot restore.",
       );
     }
     if (flags & 0x1) {
       throw new BackupError("corrupt", "Encrypted ZIP archives are not supported.");
     }
     if (compression !== 0 && compression !== 8) {
-      throw new BackupError(
-        "corrupt",
-        `Unsupported ZIP compression method ${compression}.`
-      );
+      throw new BackupError("corrupt", `Unsupported ZIP compression method ${compression}.`);
     }
     if (!name.endsWith("/")) {
       if (uncompressedSize > limits.maxEntryBytes) {
         throw new BackupError(
           "too-large",
           `A file inside the backup expands to ${Math.round(
-            uncompressedSize / (1024 * 1024)
-          )} MB, which exceeds the restore limit.`
+            uncompressedSize / (1024 * 1024),
+          )} MB, which exceeds the restore limit.`,
         );
       }
       declaredTotal += uncompressedSize;
       if (declaredTotal > limits.maxTotalBytes) {
         throw new BackupError(
           "too-large",
-          "The backup expands to more data than Folio can restore safely."
+          "The backup expands to more data than Folio can restore safely.",
         );
       }
     }
@@ -164,7 +157,7 @@ export function readCentralDirectory(
 export function readEntryData(
   bytes: Uint8Array,
   entry: ZipEntry,
-  limits: ArchiveLimits
+  limits: ArchiveLimits,
 ): Uint8Array {
   if (u32(bytes, entry.localOffset) !== LOCAL_SIG) {
     throw new BackupError("corrupt", "The backup ZIP entry is corrupted.");
@@ -190,7 +183,7 @@ export function readEntryData(
   if (out.length > limits.maxEntryBytes) {
     throw new BackupError(
       "too-large",
-      "A file inside the backup is larger than Folio can restore safely."
+      "A file inside the backup is larger than Folio can restore safely.",
     );
   }
   if (entry.uncompressedSize > 0 && out.length !== entry.uncompressedSize) {

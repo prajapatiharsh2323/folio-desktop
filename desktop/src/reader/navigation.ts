@@ -96,7 +96,7 @@ export class ReaderNavigationCoordinator {
 
   constructor(
     private readonly engine: ReaderEngine,
-    private readonly hooks: ReaderNavigationHooks
+    private readonly hooks: ReaderNavigationHooks,
   ) {}
 
   /** Is any move running or queued? */
@@ -146,7 +146,7 @@ export class ReaderNavigationCoordinator {
    */
   goToAnnotation(
     target: AnnotationTarget,
-    origin: NavigationOrigin = "annotation"
+    origin: NavigationOrigin = "annotation",
   ): Promise<NavigationOutcome> {
     const location = target.location ?? "";
     if (!location) {
@@ -171,11 +171,17 @@ export class ReaderNavigationCoordinator {
     });
   }
 
-  private enqueuePageTurn(origin: NavigationOrigin, move: () => Promise<boolean>): Promise<NavigationOutcome> {
+  private enqueuePageTurn(
+    origin: NavigationOrigin,
+    move: () => Promise<boolean>,
+  ): Promise<NavigationOutcome> {
     return this.enqueue({ origin, absolute: false, move });
   }
 
-  private enqueueAbsolute(origin: NavigationOrigin, move: () => Promise<boolean>): Promise<NavigationOutcome> {
+  private enqueueAbsolute(
+    origin: NavigationOrigin,
+    move: () => Promise<boolean>,
+  ): Promise<NavigationOutcome> {
     return this.enqueue({ origin, absolute: true, move });
   }
 
@@ -296,7 +302,7 @@ export class ReaderNavigationCoordinator {
 /** Factory used by ReaderScreen per engine instance. */
 export function createNavigationCoordinator(
   engine: ReaderEngine,
-  hooks: ReaderNavigationHooks
+  hooks: ReaderNavigationHooks,
 ): ReaderNavigationCoordinator {
   return new ReaderNavigationCoordinator(engine, hooks);
 }

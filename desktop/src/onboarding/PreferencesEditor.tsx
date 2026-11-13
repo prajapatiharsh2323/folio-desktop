@@ -8,10 +8,7 @@ import {
   READER_THEME_COLORS,
 } from "../model/defaults";
 import type { ReadingPrefs, ReadingTheme } from "../model/types";
-import {
-  READING_THEME_OPTIONS,
-  TYPEFACE_OPTIONS,
-} from "../components/readingPrefsOptions";
+import { READING_THEME_OPTIONS, TYPEFACE_OPTIONS } from "../components/readingPrefsOptions";
 import type { ThemeSetting } from "../theme/theme";
 
 const APP_THEME_OPTIONS: { value: ThemeSetting; label: string }[] = [
@@ -50,8 +47,7 @@ export function PreferencesEditor({
   const previewFont = prefs.fontFamily === "publisher" ? SERIF_CSS : undefined;
   const activeFont = useMemo(() => {
     const option =
-      TYPEFACE_OPTIONS.find((font) => font.value === prefs.fontFamily) ??
-      TYPEFACE_OPTIONS[0];
+      TYPEFACE_OPTIONS.find((font) => font.value === prefs.fontFamily) ?? TYPEFACE_OPTIONS[0];
     return prefs.fontFamily === "publisher" ? { ...option, css: SERIF_CSS } : option;
   }, [prefs.fontFamily]);
 
@@ -106,11 +102,7 @@ export function PreferencesEditor({
                   className={`folio-theme-swatch__page${
                     system ? " folio-theme-swatch__page--split" : ""
                   }`}
-                  style={
-                    system
-                      ? undefined
-                      : { background: colors.bg, color: colors.text }
-                  }
+                  style={system ? undefined : { background: colors.bg, color: colors.text }}
                   aria-hidden="true"
                 >
                   Aa
@@ -163,9 +155,7 @@ export function PreferencesEditor({
             value={prefs.fontSize}
             aria-label="Text size"
             aria-valuetext={`${prefs.fontSize} pixels`}
-            onChange={(e) =>
-              patch({ fontSize: clampFontSize(Number(e.currentTarget.value)) })
-            }
+            onChange={(e) => patch({ fontSize: clampFontSize(Number(e.currentTarget.value)) })}
           />
           <button
             type="button"
@@ -190,8 +180,8 @@ export function PreferencesEditor({
         }}
         aria-hidden="true"
       >
-        The quick brown fox jumps over the lazy dog. Comfortable typography and
-        clean margins make long reading sessions feel effortless.
+        The quick brown fox jumps over the lazy dog. Comfortable typography and clean margins make
+        long reading sessions feel effortless.
       </div>
     </div>
   );

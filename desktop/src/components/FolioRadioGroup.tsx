@@ -84,6 +84,7 @@ export function FolioRadioGroup<T extends string>({
   };
 
   return (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- roving tabindex: each radio button inside carries its own tabIndex (0/-1)
     <div role="radiogroup" aria-label={label} className={className} onKeyDown={onKeyDown}>
       {options.map((option) => {
         const isSelected = option.value === value;

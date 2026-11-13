@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { FolioButton } from "../components/FolioButton";
 import { FolioIcons } from "../components/FolioIcons";
 import { trapTabKey } from "../components/focusTrap";
@@ -60,10 +60,7 @@ function cardStyleFor(rect: DOMRect | null): CSSProperties | undefined {
     left = rect.left - width - CARD_GAP;
   }
   if (left < 16) left = Math.max(16, (window.innerWidth - width) / 2);
-  const top = Math.max(
-    16,
-    Math.min(rect.top - 8, window.innerHeight - 280)
-  );
+  const top = Math.max(16, Math.min(rect.top - 8, window.innerHeight - 280));
   return { position: "fixed", left, top, width };
 }
 
@@ -113,9 +110,7 @@ export function Tour() {
     let raf = 0;
     let timer = 0;
     const measure = () => {
-      const target = document.querySelector<HTMLElement>(
-        `[data-tour="${step.anchor}"]`
-      );
+      const target = document.querySelector<HTMLElement>(`[data-tour="${step.anchor}"]`);
       setRect(target ? target.getBoundingClientRect() : null);
     };
     measure();
@@ -136,14 +131,14 @@ export function Tour() {
 
   // Escape and a backdrop click are accidental far more often than deliberate:
   // close the tour for this session only and say where it can be replayed.
-  const dismiss = () => {
+  const dismiss = useCallback(() => {
     dismissTour();
     setRoute(originRef.current);
     pushToast({
       tone: "info",
       text: "Tour closed. You can replay it any time from Settings.",
     });
-  };
+  }, [dismissTour, setRoute]);
 
   useEffect(() => {
     const token = pushModal();
@@ -159,9 +154,7 @@ export function Tour() {
       document.removeEventListener("keydown", onKey);
       popModal(token);
     };
-    // dismiss uses only stable store actions and a ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dismiss]);
 
   const next = () => {
     if (last) finish();
@@ -189,6 +182,7 @@ export function Tour() {
           aria-hidden="true"
         />
       )}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- focus-trap container: keydown only handles Tab trapping, all inner controls are focusable */}
       <div
         ref={cardRef}
         className={`folio-tour__card${rect ? " folio-tour__card--anchored" : ""}`}
@@ -203,22 +197,14 @@ export function Tour() {
         <div className="folio-tour__step" aria-live="polite">
           Step {index + 1} of {STEPS.length}
         </div>
-        <h2
-          id="folio-tour-title"
-          className="folio-tour__title"
-          ref={titleRef}
-          tabIndex={-1}
-        >
+        <h2 id="folio-tour-title" className="folio-tour__title" ref={titleRef} tabIndex={-1}>
           {step.title}
         </h2>
         <p className="folio-tour__body">{step.body}</p>
 
         <div className="folio-tour__dots" aria-hidden="true">
           {STEPS.map((s, i) => (
-            <span
-              key={s.title}
-              className={`folio-tour__dot${i === index ? " is-active" : ""}`}
-            />
+            <span key={s.title} className={`folio-tour__dot${i === index ? " is-active" : ""}`} />
           ))}
         </div>
 

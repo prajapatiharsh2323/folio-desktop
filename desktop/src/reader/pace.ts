@@ -56,7 +56,10 @@ export class ReadingPaceStats {
 
   /** Current persisted state. */
   state(): PaceState {
-    return { sessionsMs: Math.round(this.sessionsMs), percentRead: Math.round(this.percentRead * 10) / 10 };
+    return {
+      sessionsMs: Math.round(this.sessionsMs),
+      percentRead: Math.round(this.percentRead * 10) / 10,
+    };
   }
 
   /** Time-to-finish minutes (04 §9): sessionsMs/1000/60 × ((100−p)/percentRead). */

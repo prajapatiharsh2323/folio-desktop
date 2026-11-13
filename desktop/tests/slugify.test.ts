@@ -22,9 +22,9 @@ describe("slugify", () => {
   it("resolves collisions with -2, -3 (mobile parity)", () => {
     const existing = new Set(["moby-dick"]);
     expect(resolveSlugConflict("moby-dick", existing)).toBe("moby-dick-2");
-    expect(
-      resolveSlugConflict("moby-dick", new Set(["moby-dick", "moby-dick-2"]))
-    ).toBe("moby-dick-3");
+    expect(resolveSlugConflict("moby-dick", new Set(["moby-dick", "moby-dick-2"]))).toBe(
+      "moby-dick-3",
+    );
     expect(resolveSlugConflict("fresh", existing)).toBe("fresh");
   });
 });

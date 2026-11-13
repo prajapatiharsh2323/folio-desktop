@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
-import { Shell } from "../src/shell/Shell";import { useRouteStore } from "../src/store/routeStore";
+import { Shell } from "../src/shell/Shell";
+import { useRouteStore } from "../src/store/routeStore";
 
 // React 18 act() environment flag (silences testing-env warning)
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,7 +32,7 @@ describe("shell", () => {
 
   it("renders the four nav destinations", () => {
     const labels = Array.from(document.querySelectorAll(".folio-sidebar__item span")).map(
-      (el) => el.textContent
+      (el) => el.textContent,
     );
     expect(labels).toEqual(["Library", "Collections", "Notes", "Settings"]);
   });
@@ -54,7 +55,9 @@ describe("shell", () => {
 
   it("navigates to Collections on click", () => {
     const items = Array.from(document.querySelectorAll(".folio-sidebar__item"));
-    const collections = items.find((el) => el.querySelector("span")?.textContent === "Collections")!;
+    const collections = items.find(
+      (el) => el.querySelector("span")?.textContent === "Collections",
+    )!;
     act(() => {
       collections.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -77,10 +80,9 @@ describe("reader origin tracking (04 §5 navigation)", () => {
   });
 
   it("returns to the origin route on closeReader", () => {
-    useRouteStore.getState().openReader(
-      { docId: "d1" },
-      { route: "collections", collectionId: "c1" }
-    );
+    useRouteStore
+      .getState()
+      .openReader({ docId: "d1" }, { route: "collections", collectionId: "c1" });
     useRouteStore.getState().closeReader();
     const state = useRouteStore.getState();
     expect(state.route).toBe("collections");
@@ -96,10 +98,9 @@ describe("reader origin tracking (04 §5 navigation)", () => {
   });
 
   it("clears the origin on sidebar navigation", () => {
-    useRouteStore.getState().openReader(
-      { docId: "d1" },
-      { route: "collections", collectionId: "c1" }
-    );
+    useRouteStore
+      .getState()
+      .openReader({ docId: "d1" }, { route: "collections", collectionId: "c1" });
     useRouteStore.getState().closeReader();
     expect(useRouteStore.getState().readerOrigin).not.toBeNull();
     useRouteStore.getState().setRoute("settings");
@@ -107,10 +108,7 @@ describe("reader origin tracking (04 §5 navigation)", () => {
   });
 
   it("re-opening from inside the reader keeps the previous origin", () => {
-    useRouteStore.getState().openReader(
-      { docId: "d1" },
-      { route: "notes" }
-    );
+    useRouteStore.getState().openReader({ docId: "d1" }, { route: "notes" });
     useRouteStore.getState().openReader({ docId: "d2" });
     expect(useRouteStore.getState().readerOrigin?.route).toBe("notes");
   });

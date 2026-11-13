@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  getLibraryFs,
-  LIBRARY_ROOT,
-  useLibraryUi,
-} from "../src/store/libraryUi";
+import { getLibraryFs, LIBRARY_ROOT, useLibraryUi } from "../src/store/libraryUi";
 
 let created = 0;
 let revoked = 0;
@@ -38,10 +34,7 @@ function seed(slug: string, title: string, cover: Uint8Array) {
   };
   return Promise.all([
     fs.writeTextAtomic(`${LIBRARY_ROOT}/manifest.json`, JSON.stringify(manifest)),
-    fs.writeTextAtomic(
-      `${LIBRARY_ROOT}/docs/${slug}/meta.json`,
-      JSON.stringify(meta)
-    ),
+    fs.writeTextAtomic(`${LIBRARY_ROOT}/docs/${slug}/meta.json`, JSON.stringify(meta)),
     fs.writeBytesAtomic(`${LIBRARY_ROOT}/docs/${slug}/cover.jpg`, cover),
   ]);
 }
@@ -92,7 +85,7 @@ describe("cover cache", () => {
     // Different length guarantees a different stat key even within one tick.
     await getLibraryFs().writeBytesAtomic(
       `${LIBRARY_ROOT}/docs/${slug}/cover.jpg`,
-      new Uint8Array([9, 9, 9, 9])
+      new Uint8Array([9, 9, 9, 9]),
     );
     await useLibraryUi.getState().refresh();
 

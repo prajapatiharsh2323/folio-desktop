@@ -39,16 +39,13 @@ export function isCfi(location: string | null | undefined): boolean {
 }
 
 /** Merge an override anchor into its locator so one navigation carries both. */
-export function anchoredLocator(
-  location: string,
-  anchor: ResumeOverride["anchor"]
-): string {
+export function anchoredLocator(location: string, anchor: ResumeOverride["anchor"]): string {
   return anchor?.quote ? withAnchor(location, anchor as LocatorAnchor) : location;
 }
 
 export function resumePlan(
   saved: SavedProgress | null,
-  override?: ResumeOverride | null
+  override?: ResumeOverride | null,
 ): ResumePlan {
   // 1 — explicit override (04 §8 step 1)
   if (

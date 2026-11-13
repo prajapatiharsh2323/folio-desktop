@@ -35,7 +35,11 @@ describe("FolioButton (size variants & accessibility)", () => {
   });
 
   it("renders compact size='sm' button with folio-btn--sm", () => {
-    render(<FolioButton size="sm" variant="secondary">Compact Action</FolioButton>);
+    render(
+      <FolioButton size="sm" variant="secondary">
+        Compact Action
+      </FolioButton>,
+    );
     const btn = document.querySelector("button") as HTMLButtonElement;
     expect(btn).not.toBeNull();
     expect(btn.className).toContain("folio-btn");
@@ -60,4 +64,3 @@ describe("Custom scrollbar styles", () => {
     expect(baseCss).toContain("::-webkit-scrollbar-thumb");
   });
 });
-

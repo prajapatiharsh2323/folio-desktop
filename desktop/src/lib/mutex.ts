@@ -24,7 +24,10 @@ export class PathMutex {
     const gate = new Promise<void>((res) => {
       release = res;
     });
-    m.chain = prev.then(() => gate, () => gate);
+    m.chain = prev.then(
+      () => gate,
+      () => gate,
+    );
     try {
       await prev;
       return await fn();

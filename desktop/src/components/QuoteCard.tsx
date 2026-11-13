@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { FolioButton } from "./FolioButton";
 import { FolioDialog } from "./FolioDialog";
+import { handleError } from "../lib/errorLog";
+import { pickImageDestPath } from "../lib/fileSource";
 
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -93,10 +94,7 @@ export function QuoteCard({ open, onClose, quote, title, author }: QuoteCardProp
       const blob = await toBlob();
       const bytes = new Uint8Array(await blob.arrayBuffer());
       if (isTauri()) {
-        const path = await saveDialog({
-          defaultPath: "quote.png",
-          filters: [{ name: "PNG", extensions: ["png"] }],
-        });
+        const path = await pickImageDestPath("quote.png");
         if (!path) return;
         await invoke("fs_write_atomic", { path, data: Array.from(bytes) });
         setStatus("Saved");
@@ -110,6 +108,7 @@ export function QuoteCard({ open, onClose, quote, title, author }: QuoteCardProp
         setStatus("Downloaded");
       }
     } catch (e) {
+      handleError(e, { context: "reader.quotecard.save" });
       setStatus(e instanceof Error ? e.message : "Save failed");
     }
   };
@@ -120,6 +119,7 @@ export function QuoteCard({ open, onClose, quote, title, author }: QuoteCardProp
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       setStatus("Copied");
     } catch (e) {
+      handleError(e, { context: "reader.quotecard.copy" });
       setStatus(e instanceof Error ? e.message : "Copy failed");
     }
   };

@@ -19,27 +19,24 @@ const TE = new TextEncoder();
 
 function makeEpub(
   title: string,
-  chapters: { id: string; title: string; body: string }[]
+  chapters: { id: string; title: string; body: string }[],
 ): Uint8Array {
   const items = chapters
-    .map(
-      (c) =>
-        `<item id="${c.id}" href="${c.id}.xhtml" media-type="application/xhtml+xml"/>`
-    )
+    .map((c) => `<item id="${c.id}" href="${c.id}.xhtml" media-type="application/xhtml+xml"/>`)
     .join("");
   const spine = chapters.map((c) => `<itemref idref="${c.id}"/>`).join("");
   const zip: Zippable = {
     mimetype: [strToU8("application/epub+zip"), { level: 0 }],
     "META-INF/container.xml": strToU8(
-      `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`
+      `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`,
     ),
     "OEBPS/content.opf": strToU8(
-      `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>${title}</dc:title><dc:language>en</dc:language></metadata><manifest>${items}</manifest><spine>${spine}</spine></package>`
+      `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>${title}</dc:title><dc:language>en</dc:language></metadata><manifest>${items}</manifest><spine>${spine}</spine></package>`,
     ),
   };
   for (const c of chapters) {
     zip[`OEBPS/${c.id}.xhtml`] = strToU8(
-      `<html><head><title>${c.title}</title></head><body><h1>${c.title}</h1><p>${c.body}</p></body></html>`
+      `<html><head><title>${c.title}</title></head><body><h1>${c.title}</h1><p>${c.body}</p></body></html>`,
     );
   }
   return zipSync(zip);
@@ -56,13 +53,16 @@ interface SeedOptions {
 
 async function seedDoc(
   lm: LibraryManager,
-  options: SeedOptions = {}
+  options: SeedOptions = {},
 ): Promise<{ meta: DocMeta; epub: Uint8Array }> {
   const title = options.title ?? "Moby";
-  const epub = makeEpub(title, options.chapters ?? [
-    { id: "ch1", title: "Loomings", body: "Call me Ishmael. Some years ago." },
-    { id: "ch2", title: "The Spouter", body: "I stuffed a shirt into my trousers." },
-  ]);
+  const epub = makeEpub(
+    title,
+    options.chapters ?? [
+      { id: "ch1", title: "Loomings", body: "Call me Ishmael. Some years ago." },
+      { id: "ch2", title: "The Spouter", body: "I stuffed a shirt into my trousers." },
+    ],
+  );
   const parsed = parseEpub(epub);
   const meta: DocMeta = {
     schema: 1,
@@ -107,7 +107,7 @@ async function ensureCollection(
   lm: LibraryManager,
   id: string,
   name: string,
-  docId: string
+  docId: string,
 ): Promise<void> {
   const list = await lm.collections.list();
   if (!list.some((c) => c.id === id)) {
@@ -142,7 +142,7 @@ function annotation(overrides: Partial<Annotation>): Annotation {
 
 function replaceMeta(
   bytes: Uint8Array,
-  mutate: (meta: Record<string, unknown>) => void
+  mutate: (meta: Record<string, unknown>) => void,
 ): Uint8Array {
   const files = unzipSync(bytes);
   const meta = JSON.parse(strFromU8(files["backup.json"])) as Record<string, unknown>;
@@ -178,7 +178,7 @@ describe("backup export", () => {
     const { meta } = await seedDoc(lm);
     await fs.writeBytesAtomic(
       `/lib/index/text/${meta.id}.json`,
-      TE.encode(JSON.stringify({ schema: 1, chapters: [] }))
+      TE.encode(JSON.stringify({ schema: 1, chapters: [] })),
     );
     await fs.writeBytesAtomic("/lib/backup.json", TE.encode("{}"));
 
@@ -205,7 +205,7 @@ describe("backup validation", () => {
         root: ROOT,
         bytes: new Uint8Array([1, 2, 3, 4]),
         mode: "replace",
-      })
+      }),
     ).rejects.toMatchObject({ code: "not-zip" });
     expect(await fs.readBytes("/lib/manifest.json")).toEqual(before);
   });
@@ -219,7 +219,7 @@ describe("backup validation", () => {
       "backup.json": strToU8("{}"),
     });
     await expect(
-      restoreBackup({ fs, root: ROOT, bytes: evil, mode: "replace" })
+      restoreBackup({ fs, root: ROOT, bytes: evil, mode: "replace" }),
     ).rejects.toMatchObject({ code: "unsafe-path" });
     expect(await fs.readBytes("/lib/manifest.json")).toEqual(before);
   });
@@ -273,11 +273,11 @@ describe("backup validation", () => {
     await seedDoc(lm);
     const bytes = await createBackup(fs, ROOT);
     await expect(
-      inspectBackup(bytes, { ...BACKUP_LIMITS, maxTotalBytes: 8 })
+      inspectBackup(bytes, { ...BACKUP_LIMITS, maxTotalBytes: 8 }),
     ).rejects.toBeInstanceOf(BackupError);
-    await expect(
-      inspectBackup(bytes, { ...BACKUP_LIMITS, maxEntries: 1 })
-    ).rejects.toMatchObject({ code: "too-many-entries" });
+    await expect(inspectBackup(bytes, { ...BACKUP_LIMITS, maxEntries: 1 })).rejects.toMatchObject({
+      code: "too-many-entries",
+    });
   });
 
   it("reads legacy schema-1 archives", async () => {
@@ -290,7 +290,7 @@ describe("backup validation", () => {
         app: "folio",
         createdAt: v2.createdAt,
         manifestSha256: v2.manifestSha256,
-      })
+      }),
     );
     const summary = await inspectBackup(zipSync(files));
     expect(summary.schema).toBe(1);
@@ -335,9 +335,7 @@ describe("replace restore", () => {
     expect((await restored.collections.list())[0].docIds).toEqual([meta.id]);
     expect(await target.exists("/lib/backup.json")).toBe(false);
     expect(await target.exists(`/lib/index/text/${meta.id}.json`)).toBe(true);
-    const index = JSON.parse(
-      await target.readText(`/lib/index/text/${meta.id}.json`)
-    );
+    const index = JSON.parse(await target.readText(`/lib/index/text/${meta.id}.json`));
     expect(index.chapters[0].text).toContain("Ishmael");
   });
 
@@ -364,11 +362,11 @@ describe("replace restore", () => {
     }
     await failing.writeBytesAtomic(
       "/lib/docs/moby/meta.json",
-      await fs.readBytes("/lib/docs/moby/meta.json")
+      await fs.readBytes("/lib/docs/moby/meta.json"),
     );
 
     await expect(
-      restoreBackup({ fs: failing, root: ROOT, bytes, mode: "replace" })
+      restoreBackup({ fs: failing, root: ROOT, bytes, mode: "replace" }),
     ).rejects.toMatchObject({ code: "staging" });
 
     expect(await failing.exists("/lib/manifest.json")).toBe(true);
@@ -387,7 +385,7 @@ describe("replace restore", () => {
     const damaged = zipSync(files);
 
     await expect(
-      restoreBackup({ fs, root: ROOT, bytes: damaged, mode: "replace" })
+      restoreBackup({ fs, root: ROOT, bytes: damaged, mode: "replace" }),
     ).rejects.toBeInstanceOf(BackupError);
     expect(await fs.readBytes("/lib/manifest.json")).toEqual(manifestBefore);
     expect(await fs.exists(`/lib/docs/${meta.slug}/reading/book.epub`)).toBe(true);
@@ -411,10 +409,10 @@ describe("merge restore", () => {
         docId: source.meta.id,
         note: "newer source note",
         updatedAt: "2026-02-01T00:00:00.000Z",
-      })
+      }),
     );
     await lm.annotations.add(
-      annotation({ id: "src-only", docId: source.meta.id, note: "source only" })
+      annotation({ id: "src-only", docId: source.meta.id, note: "source only" }),
     );
     await lm.progress.put({
       docId: source.meta.id,
@@ -448,10 +446,10 @@ describe("merge restore", () => {
         docId: localBook.meta.id,
         note: "older local note",
         updatedAt: "2026-01-01T00:00:00.000Z",
-      })
+      }),
     );
     await target.annotations.add(
-      annotation({ id: "local-only", docId: localBook.meta.id, note: "local only" })
+      annotation({ id: "local-only", docId: localBook.meta.id, note: "local only" }),
     );
     await target.progress.put({
       docId: localBook.meta.id,
@@ -474,7 +472,7 @@ describe("merge restore", () => {
     expect(result.addedDocs).toBe(1);
     const manifest = await target.load();
     expect(manifest?.docs.map((d) => d.id).sort()).toEqual(
-      [localBook.meta.id, otherBook.meta.id, extra.meta.id].sort()
+      [localBook.meta.id, otherBook.meta.id, extra.meta.id].sort(),
     );
 
     const annotations = await target.annotations.list();
@@ -486,9 +484,7 @@ describe("merge restore", () => {
     expect((await target.progress.get(localBook.meta.id))?.percent).toBe(60);
 
     const collections = await target.collections.list();
-    expect(collections[0].docIds.sort()).toEqual(
-      [localBook.meta.id, otherBook.meta.id].sort()
-    );
+    expect(collections[0].docIds.sort()).toEqual([localBook.meta.id, otherBook.meta.id].sort());
     expect((await target.meta.read("shared-book"))?.collectionIds).toContain("c1");
   });
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FolioPanel } from "./FolioPanel";
 import { FolioIcons } from "./FolioIcons";
+import { handleError } from "../lib/errorLog";
 
 interface SearchHit {
   chapterTitle: string;
@@ -56,7 +57,8 @@ export function InBookSearchPanel({
       } else {
         onClose();
       }
-    } catch {
+    } catch (e) {
+      handleError(e, { context: "reader.search.navigate" });
       setErrorMessage("Couldn't reach that search location.");
     } finally {
       setResolvingLocator(null);
@@ -81,6 +83,7 @@ export function InBookSearchPanel({
               onQueryChange(e.target.value);
             }}
             autoFocus
+            data-autofocus
             aria-label="Search text in book"
           />
           {hasQuery && (
@@ -99,14 +102,15 @@ export function InBookSearchPanel({
         <div className="folio-inbook-search-panel__status" aria-live="polite">
           {isSearching ? (
             <div className="folio-inbook-search-panel__loading">
-              <span className="folio-reader-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+              <span
+                className="folio-reader-spinner"
+                style={{ width: 14, height: 14, borderWidth: 2 }}
+              />
               <span>Searching in book…</span>
             </div>
           ) : hasQuery ? (
             <span className="folio-inbook-search-panel__count">
-              {results.length === 1
-                ? "1 match found"
-                : `${results.length} matches found`}
+              {results.length === 1 ? "1 match found" : `${results.length} matches found`}
             </span>
           ) : (
             <span className="folio-inbook-search-panel__hint">
@@ -174,4 +178,3 @@ export function InBookSearchPanel({
     </FolioPanel>
   );
 }
-

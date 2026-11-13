@@ -26,7 +26,7 @@ export class ProgressWriter {
 
   constructor(
     private persist: (p: ProgressSnapshot) => Promise<void>,
-    private now: () => number = () => Date.now()
+    private now: () => number = () => Date.now(),
   ) {}
 
   /** True once any progress snapshot has been persisted. */
@@ -60,9 +60,11 @@ export class ProgressWriter {
     if (this.lastWritten === null) return true;
     const delta = Math.abs(next.percent - this.lastWritten.percent);
     if (delta >= GATE_PERCENT) return true;
-    if (now - this.lastWriteTs >= GATE_MS && next.location !== this.lastWritten.location) return true;
+    if (now - this.lastWriteTs >= GATE_MS && next.location !== this.lastWritten.location)
+      return true;
     // periodic write while turning (locators arriving)
-    if (now - this.lastWriteTs >= TURN_PERIODIC_MS && this.lastLocatorTs > this.lastWriteTs) return true;
+    if (now - this.lastWriteTs >= TURN_PERIODIC_MS && this.lastLocatorTs > this.lastWriteTs)
+      return true;
     return false;
   }
 

@@ -1,5 +1,120 @@
 # Current Session Checkpoint
 
+**Session:** `S-20261113-01` — Production-readiness Phase 1 + Phase 2 Step 2.0
+(P0 blockers, quick wins, and the E2 reader refactor from the 2026-11-12
+report; plan at `~/.opencode/plan/folio-production-readiness.md`)
+**Updated:** 2026-11-13
+**Status:** Phase 1 complete; **Phase 2 Step 2.0 (E2 reader refactor) complete**
+— `ReaderScreen.tsx` split from 1,557 → ~870 lines into `src/screens/reader/`
+hooks (`useReaderEngine`, `useReaderChrome`, `useAnnotations`, `useReaderKeyboard`,
+`useInBookSearch` + `decorations.ts`, `keyGuards.ts`, `resumeTargets.ts`,
+`launchExternal.ts`); stale `isFocusMode` closure fixed via `isFocusModeRef`;
+all 16 `exhaustive-deps` warnings fixed by adding stable deps (refs/setters,
+`docId` guards — never the `doc` object, whose identity changes on every
+progress write); **zero `eslint-disable` remain for exhaustive-deps**.
+ESLint 9 flat config + Prettier added (`eslint.config.js`, `.prettierrc.json`,
+`.prettierignore`, `pnpm lint` / `pnpm format` / `pnpm format:check`); lint
+passes with **0 errors / 0 warnings**, Prettier formatted (121 files; hex
+pinned files excluded). Gates: `tsc -b` clean, **Vitest 331 / 331 (45 files)**,
+`vite build` green, `prettier --check` clean. All work **uncommitted**.
+Windows runtime verification (grant flows, full Tauri `cargo test`, installer,
+focus-mode/keyboard visual parity) remains blocked.
+
+## Phase 2 · Step 2.0 (E2) — completed this pass
+
+1. **Hook extraction** (behaviour-preserving; engine/chrome hook order and
+   coordinator/modal-stack/mutex patterns kept): `useInBookSearch.ts`,
+   `useReaderChrome.ts`, `useAnnotations.ts`, `useReaderKeyboard.ts` (full 07 §1
+   matrix incl. Escape ladder), `useReaderEngine.ts`; helpers moved to
+   `decorations.ts`, `keyGuards.ts`, `resumeTargets.ts`, `launchExternal.ts`.
+   `engineRef`/`navRef` created in the screen and passed in; `chromeVisible`
+   state lifted to the screen.
+2. **ESLint/Prettier adoption:** flat config with `react-hooks` v7
+   `recommended-latest` (compiler-purity rules `refs`, `set-state-in-effect`,
+   `purity` off at config level with justification comments), `jsx-a11y`
+   (`no-autofocus` off for modal fields), `typescript-eslint` recommended,
+   `eslint-config-prettier`. Every remaining `exhaustive-deps` warning fixed in
+   source; remaining a11y findings carry justified line-disables (reader-surface
+   click canvas, dialog focus-trap containers, radiogroup roving tabindex,
+   miniSearch Devanagari tokenize regex).
+3. **Prettier format pass** (printWidth 100): 121 files reformatted; excluded
+   `tests/fixtures/**` (byte-exact) and `src/styles/tokens.css` (pinned).
+   **Incident + recovery:** the format pass lowercased hex values in
+   `tokens.css`; an over-broad `git checkout` then discarded the uncommitted
+   z-index/contrast token work. Recovered in full from (a) fixture
+   `tests/fixtures/tokens.json` (values) and (b) the 13:58 `dist/` bundle
+   (property order incl. `--folio-z-boot` and dark `--folio-scrim`); tokens
+   test pins 109 light / 19 dark keys green again. `tokens.css` is now in
+   `.prettierignore` so this cannot recur.
+
+## Phase 1 — completed earlier in this session
+
+1. **P0-4 handled failures:** `handleError(error, {context, userMessage?,
+   details?})` + `describeError()` in `errorLog.ts`; swept user-facing catches
+   in ReaderScreen (annotations/highlight/clipboard/bookmark/TOC callbacks —
+   dialogs stay open with drafts on failure), NotesScreen, CollectionsScreen,
+   LibraryScreen, SettingsScreen, libraryUi.ts, TocPanel, InBookSearchPanel,
+   QuoteCard, fullscreen.ts. Expected control flow (e.g. "no index yet") stays
+   silent; genuine failures log via `log_error`.
+2. **P0-1 contrast:** dark tokens added (`--folio-on-accent #14201A`,
+   `--folio-danger-container #3A2220`,
+   `--folio-on-danger-container #F3C9C4`) + additive `--folio-border-control`
+   (light `#8A897C`, dark `#748074`); wired into searchbar input, filter
+   select, note textarea, in-book search field; contrast tests extended
+   (button/snackbar AA pairs, 3:1 control borders). Kept decision
+   A-UI-20261031-03 (muted stays decorative; functional labels use
+   `--folio-text-secondary`). Fixture updated in the same change.
+3. **P0-2 focus stealing:** FolioPanel/FolioDialog hold `onClose` in a ref and
+   key the open/close effect on `[open]` only; `data-autofocus` on the in-book
+   search input and both note textareas; `tests/focusStability.test.tsx`
+   (5 tests) pins the regression.
+4. **P0-3 error boundaries:** `shell/ErrorBoundary.tsx` (root + reader
+   variants: reload / log folder / copy diagnostics / back-to-library); wired
+   in `App.tsx` (root) and around ReaderScreen in `Shell.tsx`;
+   `tests/errorBoundary.test.tsx` (5 tests).
+5. **P0-5 path sandbox:** security core split into dependency-free
+   `src-tauri/foliocore/` (appdir, guard, sandbox) so tests run on Linux;
+   main crate re-exports. `guard_sandboxed()` = normalize → canonicalize
+   (deepest existing ancestor; symlink/junction aliases collapse) → inside
+   app dir or session-granted. Exact-path grants made only Rust-side:
+   `pick_*` dialog commands (`commands/pick.rs`), DragDrop Drop handler
+   (emits `folio://drop-granted` **after** granting), open-with launch args.
+   Frontend rewired: `fileSource.ts` (`onDroppedFiles` listener, pick helpers),
+   LibraryScreen/OnboardingFlow (webview event only drives over/leave
+   visuals; files come from the granted event), SettingsScreen export/restore
+   and QuoteCard save use the Rust pick commands (plugin-dialog JS API
+   removed; `dialog:default` dropped from capabilities). fs/hash/zip commands
+   use the guard; zip read has bomb caps (20k entries, 4 GiB total,
+   2 GiB/entry, bounded read loop) + `rejects_paths_outside_the_sandbox` test
+   proving `fs_delete` cannot remove outside paths. `zip` crate trimmed to
+   deflate-only.
+6. **Quick wins:** R7 icons (Copy/Share/EyeOff/Pencil added to FolioIcons;
+   Copy button no longer shows a magnifier, Share no longer Info, Hide-controls
+   no longer Toc, Edit-note no longer Notes); L6 toolbar "N of M documents"
+   while filtered; E3 `core:window:allow-set-fullscreen`/`allow-set-title`
+   permissions + setFullscreen rejection handling (logged, state reported);
+   X3 z-index scale (`--folio-z-*`, 19 tokens, values unchanged) replacing
+   every raw `z-index` in components.css/reader.css.
+
+## Exact next action
+
+1. Phase 2 **Step 2.1 (R1+R2+R3 search quality)** per the plan
+   (`~/.opencode/plan/folio-production-readiness.md` lines ~125–167): shared
+   `htmlToText()` utility (entity decode, block→space, skip script/style/head)
+   with fixture coverage (`&amp;`, `&nbsp;`, `&#8217;`); per-occurrence
+   in-book search with text-anchored locators and Next/Prev; MiniSearch
+   upgrade (real `minisearch` package or cached DFs/precomputed TFs/prefix
+   binary search, Web Worker, library indexing with progress).
+2. Committing: everything is still uncommitted — ask for explicit
+   authorization first (git-safety rule).
+3. Windows-only proof still pending after Phases 1–2.0: real dialog/drop
+   grant flows, full `cargo test --all-targets` for the Tauri crate,
+   installer, focus-mode + keyboard visual parity after the refactor.
+
+---
+
+## Previous checkpoint — `S-20261109-01`
+
 **Session:** `S-20261109-01` — Release finalization (Parts A–E)
 **Updated:** 2026-11-09
 **Status:** Parts A–D implemented and committed locally; Part E acceptance

@@ -47,7 +47,10 @@ function walk(dir: string, out: string[] = []): string[] {
 const desktopRoot = join(__dirname, "..");
 const sourceFiles = walk(join(desktopRoot, "src"))
   .concat(walk(join(desktopRoot, "src-tauri", "src")))
-  .concat([join(desktopRoot, "src-tauri", "Cargo.toml"), join(desktopRoot, "src-tauri", "tauri.conf.json")]);
+  .concat([
+    join(desktopRoot, "src-tauri", "Cargo.toml"),
+    join(desktopRoot, "src-tauri", "tauri.conf.json"),
+  ]);
 
 describe("dictionary removal (D-20261031-05)", () => {
   it("no dictionary markers remain in app source", () => {

@@ -6,8 +6,8 @@
   min-height: 0;
   width: 100%;
   overflow: hidden;
-  background: var(--reader-bg, #FAFAF7);
-  color: var(--reader-text, #1C1B19);
+  background: var(--reader-bg, #fafaf7);
+  color: var(--reader-text, #1c1b19);
 }
 
 .folio-reader__canvas {
@@ -40,7 +40,7 @@
   inset: 0;
   background: #000;
   pointer-events: none;
-  z-index: 15;
+  z-index: var(--folio-z-reader-scrim);
 }
 
 /* ---- Chrome (03 §5.3) — surface per resolved reading theme ----------------
@@ -50,7 +50,7 @@
 .folio-reader-chrome {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: var(--folio-z-reader-chrome);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -81,8 +81,12 @@
   height: 56px;
   padding: 0 var(--folio-space-3);
   pointer-events: auto;
-  background: color-mix(in srgb, var(--reader-chrome-surface, rgba(255, 254, 251, 0.92)) 92%, transparent);
-  color: var(--reader-chrome-text, #1C1B19);
+  background: color-mix(
+    in srgb,
+    var(--reader-chrome-surface, rgba(255, 254, 251, 0.92)) 92%,
+    transparent
+  );
+  color: var(--reader-chrome-text, #1c1b19);
   border-bottom: var(--folio-divider) solid color-mix(in srgb, currentColor 10%, transparent);
   backdrop-filter: blur(14px);
 }
@@ -108,7 +112,9 @@
   background: transparent;
   color: inherit;
   cursor: pointer;
-  transition: background var(--folio-motion-hover) ease, color var(--folio-motion-hover) ease;
+  transition:
+    background var(--folio-motion-hover) ease,
+    color var(--folio-motion-hover) ease;
 }
 
 .folio-reader-icon:hover:not(:disabled) {
@@ -182,12 +188,12 @@
   right: 0;
   min-width: 240px;
   padding: var(--folio-space-2) 0;
-  background: var(--folio-surface, #FFFEFB);
-  color: var(--folio-text-primary, #22251F);
+  background: var(--folio-surface, #fffefb);
+  color: var(--folio-text-primary, #22251f);
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-card);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
-  z-index: 45;
+  z-index: var(--folio-z-reader-menu);
 }
 
 .folio-reader-menu__item {
@@ -208,7 +214,7 @@
 }
 
 .folio-reader-menu__item:hover:not(:disabled) {
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
 }
 
 .folio-reader-menu__item:focus-visible {
@@ -248,8 +254,12 @@
   pointer-events: auto;
   border-radius: var(--folio-radius-panel);
   border: var(--folio-divider) solid color-mix(in srgb, currentColor 10%, transparent);
-  background: color-mix(in srgb, var(--reader-chrome-surface, rgba(255, 254, 251, 0.92)) 94%, transparent);
-  color: var(--reader-chrome-text, #1C1B19);
+  background: color-mix(
+    in srgb,
+    var(--reader-chrome-surface, rgba(255, 254, 251, 0.92)) 94%,
+    transparent
+  );
+  color: var(--reader-chrome-text, #1c1b19);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
   backdrop-filter: blur(14px);
 }
@@ -391,9 +401,9 @@
   right: 0;
   bottom: 0;
   height: 3px;
-  z-index: 19;
+  z-index: var(--folio-z-reader-hairline);
   pointer-events: none;
-  background: color-mix(in srgb, var(--reader-text, #1C1B19) 10%, transparent);
+  background: color-mix(in srgb, var(--reader-text, #1c1b19) 10%, transparent);
   opacity: 1;
   transition: opacity var(--folio-motion-hover) ease;
 }
@@ -415,7 +425,7 @@
   bottom: var(--folio-space-4);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 35;
+  z-index: var(--folio-z-reader-focus-exit);
   pointer-events: auto;
   opacity: 0.85;
   transition: opacity var(--folio-motion-hover) ease;
@@ -432,8 +442,8 @@
   padding: 6px 14px;
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-pill);
-  background: var(--folio-surface-raised, #FFFFFF);
-  color: var(--folio-text-primary, #22251F);
+  background: var(--folio-surface-raised, #ffffff);
+  color: var(--folio-text-primary, #22251f);
   font-size: var(--folio-type-label-size);
   font-weight: 500;
   cursor: pointer;
@@ -441,7 +451,7 @@
 }
 
 .folio-reader-focus-exit__btn:hover {
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
 }
 
 .folio-reader-focus-exit__kbd {
@@ -456,11 +466,11 @@
 .folio-reader-splash {
   position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: var(--folio-z-reader-splash);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--reader-bg, #FAFAF7);
+  background: var(--reader-bg, #fafaf7);
   transition: opacity 300ms ease;
 }
 
@@ -487,7 +497,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: var(--folio-tint-sage-grey, #D8DDD0);
+  background: var(--folio-tint-sage-grey, #d8ddd0);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
 }
 
@@ -500,7 +510,7 @@
 .folio-reader-splash__initials {
   font-family: var(--folio-font-display);
   font-size: var(--folio-type-title-l-size);
-  color: var(--folio-tint-ink, #3A4038);
+  color: var(--folio-tint-ink, #3a4038);
 }
 
 .folio-reader-splash__title {
@@ -545,7 +555,7 @@
 
 /* ---- Panels reuse Folio sheets (app theme, never reader theme) ------------ */
 .folio-reader .folio-panel {
-  z-index: 50;
+  z-index: var(--folio-z-reader-panel);
 }
 
 /* ---- Reading Workspace (TOC, Bookmarks, Notes) --------------------------- */
@@ -560,7 +570,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 2px;
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
   padding: 3px;
   border-radius: var(--folio-radius-control);
 }
@@ -575,7 +585,7 @@
   border: none;
   border-radius: calc(var(--folio-radius-control) - 2px);
   background: transparent;
-  color: var(--folio-text-secondary, #676A61);
+  color: var(--folio-text-secondary, #676a61);
   font-size: var(--folio-type-label-size);
   font-weight: 500;
   cursor: pointer;
@@ -583,12 +593,12 @@
 }
 
 .folio-workspace-tab:hover {
-  color: var(--folio-text-primary, #22251F);
+  color: var(--folio-text-primary, #22251f);
 }
 
 .folio-workspace-tab.is-active {
-  background: var(--folio-surface-raised, #FFFFFF);
-  color: var(--folio-text-primary, #22251F);
+  background: var(--folio-surface-raised, #ffffff);
+  color: var(--folio-text-primary, #22251f);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   font-weight: 600;
 }
@@ -606,7 +616,7 @@
   height: 18px;
   padding: 0 5px;
   border-radius: var(--folio-radius-pill);
-  background: var(--folio-accent-container, #E2EAE1);
+  background: var(--folio-accent-container, #e2eae1);
   color: var(--folio-accent, #355847);
   font-size: var(--folio-type-micro-size);
   font-weight: 600;
@@ -622,8 +632,8 @@
 }
 
 .folio-workspace__notice--error {
-  background: var(--folio-danger-container, #F6E4E1);
-  color: var(--folio-on-danger-container, #5C241E);
+  background: var(--folio-danger-container, #f6e4e1);
+  color: var(--folio-on-danger-container, #5c241e);
 }
 
 .folio-workspace__notice-close {
@@ -651,7 +661,7 @@
   min-height: 40px;
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-field);
-  background: var(--folio-surface, #FFFEFB);
+  background: var(--folio-surface, #fffefb);
   color: var(--folio-text-secondary);
 }
 
@@ -750,11 +760,11 @@
 }
 
 .folio-toc__item:hover:not(:disabled) {
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
 }
 
 .folio-toc__item.is-current {
-  background: var(--folio-accent-container, #E2EAE1);
+  background: var(--folio-accent-container, #e2eae1);
   color: var(--folio-accent, #355847);
   font-weight: 600;
 }
@@ -791,7 +801,7 @@
 .folio-workspace-card {
   display: flex;
   align-items: stretch;
-  background: var(--folio-surface, #FFFEFB);
+  background: var(--folio-surface, #fffefb);
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-card);
   overflow: hidden;
@@ -875,7 +885,7 @@
 .folio-workspace-card__note-text {
   font-size: var(--folio-type-body-size);
   color: var(--folio-text-primary);
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
   padding: 6px var(--folio-space-2);
   border-radius: var(--folio-radius-control);
 }
@@ -898,7 +908,7 @@
 }
 
 .folio-workspace-card__action:hover {
-  color: var(--folio-danger, #A44C43);
+  color: var(--folio-danger, #a44c43);
 }
 
 .folio-workspace-card__actions {
@@ -951,7 +961,7 @@
   flex-direction: column;
   gap: var(--folio-space-2);
   padding: var(--folio-space-3);
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
   border-radius: var(--folio-radius-card);
   border: var(--folio-divider) solid var(--folio-border);
 }
@@ -975,7 +985,7 @@
 .folio-appearance__quick-stepper {
   display: inline-flex;
   align-items: center;
-  background: var(--folio-surface-raised, #FFFFFF);
+  background: var(--folio-surface-raised, #ffffff);
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-pill);
   padding: 2px;
@@ -1078,9 +1088,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--folio-space-2);
-  border: 1px solid var(--folio-border, #E1E0D6);
+  border: 1px solid var(--folio-border, #e1e0d6);
   border-radius: var(--folio-radius-card);
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
   padding: var(--folio-space-2);
   cursor: pointer;
   font: inherit;
@@ -1089,7 +1099,7 @@
 
 .folio-theme-swatch.is-selected {
   border-color: var(--folio-accent, #355847);
-  box-shadow: 0 0 0 2px var(--folio-accent-container, #E2EAE1);
+  box-shadow: 0 0 0 2px var(--folio-accent-container, #e2eae1);
 }
 
 .folio-theme-swatch__page {
@@ -1104,11 +1114,7 @@
 
 /* "System" has no single colour: show it as a diagonal light/dark split. */
 .folio-theme-swatch__page--split {
-  background: linear-gradient(
-    115deg,
-    #fbfaf5 0 49.5%,
-    #1b1e1a 50.5% 100%
-  );
+  background: linear-gradient(115deg, #fbfaf5 0 49.5%, #1b1e1a 50.5% 100%);
   color: #7c7f76;
 }
 
@@ -1116,7 +1122,7 @@
   font-size: var(--folio-type-micro-size);
   line-height: var(--folio-type-micro-line);
   font-weight: var(--folio-type-micro-weight);
-  color: var(--folio-text-secondary, #676A61);
+  color: var(--folio-text-secondary, #676a61);
   text-align: center;
 }
 
@@ -1168,7 +1174,7 @@
   font-size: var(--folio-type-label-size);
   line-height: var(--folio-type-label-line);
   font-weight: var(--folio-type-label-weight);
-  color: var(--folio-text-secondary, #676A61);
+  color: var(--folio-text-secondary, #676a61);
 }
 
 .folio-toggle-row {
@@ -1186,11 +1192,13 @@
   width: 52px;
   height: 32px;
   border-radius: var(--folio-radius-pill);
-  background: var(--folio-surface-subtle, #F1F0E9);
-  border: 1.5px solid var(--folio-border, #E1E0D6);
+  background: var(--folio-surface-subtle, #f1f0e9);
+  border: 1.5px solid var(--folio-border, #e1e0d6);
   position: relative;
   cursor: pointer;
-  transition: background var(--folio-motion-panel) var(--folio-motion-panel-ease), border-color var(--folio-motion-panel) var(--folio-motion-panel-ease);
+  transition:
+    background var(--folio-motion-panel) var(--folio-motion-panel-ease),
+    border-color var(--folio-motion-panel) var(--folio-motion-panel-ease);
 }
 
 .folio-switch.is-on {
@@ -1226,21 +1234,21 @@
   font-size: var(--folio-type-label-size);
   line-height: var(--folio-type-label-line);
   font-weight: var(--folio-type-label-weight);
-  color: var(--folio-text-secondary, #676A61);
+  color: var(--folio-text-secondary, #676a61);
 }
 
 .folio-helper--muted {
-  color: var(--folio-text-muted, #87897F);
+  color: var(--folio-text-muted, #87897f);
 }
 
 /* ---- Reduced right-click menu over the canvas (07 §3) --------------------- */
 .folio-reader-ctxmenu {
   position: fixed;
-  z-index: 65;
+  z-index: var(--folio-z-ctxmenu);
   min-width: 220px;
   padding: var(--folio-space-2) 0;
-  background: var(--folio-surface, #FFFEFB);
-  color: var(--folio-text-primary, #22251F);
+  background: var(--folio-surface, #fffefb);
+  color: var(--folio-text-primary, #22251f);
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-card);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
@@ -1250,7 +1258,7 @@
 .folio-reader-empty {
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: var(--folio-z-reader-empty);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1259,19 +1267,19 @@
 
 .folio-reader-empty p {
   font-size: var(--folio-type-body-size);
-  color: var(--folio-text-secondary, #676A61);
+  color: var(--folio-text-secondary, #676a61);
 }
 
 /* ---- Selection toolbar (04 §7) -------------------------------------------- */
 .folio-selection-toolbar {
   position: fixed;
-  z-index: 60;
+  z-index: var(--folio-z-selection-toolbar);
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
   border-radius: var(--folio-radius-pill);
-  background: var(--folio-surface-raised, #FFFFFF);
+  background: var(--folio-surface-raised, #ffffff);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   border: var(--folio-divider) solid var(--folio-border);
 }
@@ -1294,19 +1302,19 @@
   border: none;
   border-radius: var(--folio-radius-pill);
   background: transparent;
-  color: var(--folio-text-primary, #22251F);
+  color: var(--folio-text-primary, #22251f);
   cursor: pointer;
 }
 
 .folio-selection-btn:hover {
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
 }
 
 .folio-note-quote {
   margin: 0 0 var(--folio-space-3);
   padding: var(--folio-space-3);
   border-left: 3px solid var(--folio-accent, #355847);
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
   font-style: italic;
   max-height: 120px;
   overflow: auto;
@@ -1316,10 +1324,10 @@
   width: 100%;
   min-height: 96px;
   padding: var(--folio-space-3);
-  border: var(--folio-divider) solid var(--folio-border);
+  border: var(--folio-divider) solid var(--folio-border-control);
   border-radius: var(--folio-radius-field);
-  background: var(--folio-surface, #FFFEFB);
-  color: var(--folio-text-primary, #22251F);
+  background: var(--folio-surface, #fffefb);
+  color: var(--folio-text-primary, #22251f);
   font: inherit;
   resize: vertical;
   box-sizing: border-box;
@@ -1339,9 +1347,9 @@
   gap: var(--folio-space-2);
   padding: 0 var(--folio-space-3);
   min-height: 44px;
-  border: var(--folio-divider) solid var(--folio-border);
+  border: var(--folio-divider) solid var(--folio-border-control);
   border-radius: var(--folio-radius-field);
-  background: var(--folio-surface, #FFFEFB);
+  background: var(--folio-surface, #fffefb);
   color: var(--folio-text-secondary);
 }
 
@@ -1412,7 +1420,7 @@
   padding: var(--folio-space-3);
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-card);
-  background: var(--folio-surface, #FFFEFB);
+  background: var(--folio-surface, #fffefb);
   text-align: left;
   cursor: pointer;
   color: inherit;
@@ -1421,7 +1429,7 @@
 
 .folio-inbook-search-panel__card:hover {
   border-color: color-mix(in srgb, var(--folio-accent, #355847) 40%, var(--folio-border));
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
 }
 
 .folio-inbook-search-panel__card:focus-visible {
@@ -1449,7 +1457,7 @@
 }
 
 .folio-inbook-search-panel__snippet mark {
-  background: var(--folio-accent-container, #E2EAE1);
+  background: var(--folio-accent-container, #e2eae1);
   color: var(--folio-accent, #355847);
   border-radius: 2px;
   padding: 0 2px;
@@ -1488,7 +1496,7 @@
 .folio-session-info__progress-bar {
   height: 6px;
   border-radius: var(--folio-radius-pill);
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
   overflow: hidden;
 }
 
@@ -1512,7 +1520,7 @@
   padding: var(--folio-space-3);
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-card);
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
 }
 
 .folio-session-info__icon {
@@ -1580,7 +1588,7 @@
 }
 
 .folio-shortcuts-guide__row:hover {
-  background: var(--folio-surface-subtle, #F1F0E9);
+  background: var(--folio-surface-subtle, #f1f0e9);
 }
 
 .folio-shortcuts-guide__desc {
@@ -1598,7 +1606,7 @@
   padding: 2px 7px;
   border: var(--folio-divider) solid var(--folio-border);
   border-radius: var(--folio-radius-control);
-  background: var(--folio-surface-raised, #FFFFFF);
+  background: var(--folio-surface-raised, #ffffff);
   font-family: var(--folio-font-sans, inherit);
   font-size: var(--folio-type-micro-size);
   font-weight: 500;

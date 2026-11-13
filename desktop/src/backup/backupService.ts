@@ -15,13 +15,7 @@ import type { FileStore } from "../lib/fileStore";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { sha256Hex } from "../lib/sha256";
 import { newUuid, nowIso } from "../model/ids";
-import type {
-  Annotation,
-  Collection,
-  DocMeta,
-  Manifest,
-  Progress,
-} from "../model/types";
+import type { Annotation, Collection, DocMeta, Manifest, Progress } from "../model/types";
 import { LibraryManager } from "../store/libraryManager";
 import { readJsonAsync, writeJsonAtomic } from "../store/jsonio";
 import {
@@ -36,11 +30,7 @@ import {
   type ArchiveLimits,
   type BackupMetaV2,
 } from "./backupSchema";
-import {
-  assertNoDuplicatePaths,
-  normalizeEntry,
-  type ArchiveEntryKind,
-} from "./backupPaths";
+import { assertNoDuplicatePaths, normalizeEntry, type ArchiveEntryKind } from "./backupPaths";
 import { readCentralDirectory, readEntryData, type ZipEntry } from "./zipArchive";
 import { reindexDocs, type ReindexFailure } from "./reindex";
 
@@ -56,12 +46,7 @@ export interface BackupSummary {
 }
 
 export type RestorePhase =
-  | "reading"
-  | "extracting"
-  | "validating"
-  | "applying"
-  | "indexing"
-  | "done";
+  "reading" | "extracting" | "validating" | "applying" | "indexing" | "done";
 
 export interface SkippedDoc {
   title: string;
@@ -177,10 +162,7 @@ async function readOptionalJson(fs: FileStore, path: string): Promise<unknown> {
   try {
     return JSON.parse(text);
   } catch {
-    throw new BackupError(
-      "invalid-library",
-      `The backup's ${basename(path)} is not valid JSON.`
-    );
+    throw new BackupError("invalid-library", `The backup's ${basename(path)} is not valid JSON.`);
   }
 }
 
@@ -213,7 +195,7 @@ function newest(a: { updatedAt?: unknown }, b: { updatedAt?: unknown }): boolean
 export async function createBackup(
   fs: FileStore,
   root: string,
-  limits: ArchiveLimits = BACKUP_LIMITS
+  limits: ArchiveLimits = BACKUP_LIMITS,
 ): Promise<Uint8Array> {
   const files: Record<string, Uint8Array> = {};
   let total = 0;
@@ -237,7 +219,7 @@ export async function createBackup(
       if (total > limits.maxTotalBytes) {
         throw new BackupError(
           "too-large",
-          "This library is too large for a single backup archive."
+          "This library is too large for a single backup archive.",
         );
       }
       files[childRel] = bytes;
@@ -249,7 +231,7 @@ export async function createBackup(
   if (!manifestBytes) {
     throw new BackupError(
       "missing-manifest",
-      "Your library has no manifest, so it cannot be backed up. Repair the library first."
+      "Your library has no manifest, so it cannot be backed up. Repair the library first.",
     );
   }
   const manifest = parseManifestBytes(manifestBytes);
@@ -277,10 +259,7 @@ export async function createBackup(
 // Preflight
 // ---------------------------------------------------------------------------
 
-async function readArchive(
-  bytes: Uint8Array,
-  limits: ArchiveLimits
-): Promise<ParsedArchive> {
+async function readArchive(bytes: Uint8Array, limits: ArchiveLimits): Promise<ParsedArchive> {
   const zipEntries = readCentralDirectory(bytes, limits);
   const entries: NormalizedZipEntry[] = [];
   for (const entry of zipEntries) {
@@ -294,7 +273,7 @@ async function readArchive(
   if (!metaEntry) {
     throw new BackupError(
       "invalid-metadata",
-      "This ZIP is not a Folio backup (backup.json is missing)."
+      "This ZIP is not a Folio backup (backup.json is missing).",
     );
   }
   const metaBytes = readEntryData(bytes, metaEntry.entry, limits);
@@ -317,22 +296,25 @@ async function readArchive(
     if (actual !== meta.manifestSha256) {
       throw new BackupError(
         "hash-mismatch",
-        "This backup is damaged: its manifest does not match the recorded checksum."
+        "This backup is damaged: its manifest does not match the recorded checksum.",
       );
     }
   }
 
   const libraryEntries = entries.filter((e) => e.kind === "library");
-  const declaredBytes = libraryEntries.reduce(
-    (sum, e) => sum + e.entry.uncompressedSize,
-    0
-  );
+  const declaredBytes = libraryEntries.reduce((sum, e) => sum + e.entry.uncompressedSize, 0);
   if (meta.schema === 2) {
     if (meta.docCount !== manifest.docs.length) {
-      throw new BackupError("invalid-metadata", "This backup's document count does not match its manifest.");
+      throw new BackupError(
+        "invalid-metadata",
+        "This backup's document count does not match its manifest.",
+      );
     }
     if (meta.fileCount !== libraryEntries.length) {
-      throw new BackupError("invalid-metadata", "This backup's file count does not match its contents.");
+      throw new BackupError(
+        "invalid-metadata",
+        "This backup's file count does not match its contents.",
+      );
     }
     if (meta.uncompressedBytes !== declaredBytes) {
       throw new BackupError("invalid-metadata", "This backup's size does not match its contents.");
@@ -367,7 +349,7 @@ async function readArchive(
 /** Validate an archive without touching the live library. */
 export async function inspectBackup(
   bytes: Uint8Array,
-  limits: ArchiveLimits = BACKUP_LIMITS
+  limits: ArchiveLimits = BACKUP_LIMITS,
 ): Promise<BackupSummary> {
   const archive = await readArchive(bytes, limits);
   return archive.summary;
@@ -382,7 +364,7 @@ async function extractToStaging(
   bytes: Uint8Array,
   staging: string,
   archive: ParsedArchive,
-  limits: ArchiveLimits
+  limits: ArchiveLimits,
 ): Promise<void> {
   let expanded = 0;
   for (const e of archive.entries) {
@@ -395,17 +377,14 @@ async function extractToStaging(
     if (expanded > limits.maxTotalBytes) {
       throw new BackupError(
         "too-large",
-        "The backup expands to more data than Folio can restore safely."
+        "The backup expands to more data than Folio can restore safely.",
       );
     }
     await fs.writeBytesAtomic(`${staging}/${e.path}`, data);
   }
 }
 
-async function validateStaging(
-  fs: FileStore,
-  root: string
-): Promise<string[]> {
+async function validateStaging(fs: FileStore, root: string): Promise<string[]> {
   const warnings: string[] = [];
   const manifest = await readJsonAsync<Manifest>(fs, L.manifest(root));
   if (!manifest) {
@@ -418,13 +397,13 @@ async function validateStaging(
     if (!meta) {
       throw new BackupError(
         "invalid-library",
-        `The backup is missing metadata for “${doc.title}”.`
+        `The backup is missing metadata for “${doc.title}”.`,
       );
     }
     if (meta.schema !== 1 || meta.id !== doc.id) {
       throw new BackupError(
         "invalid-library",
-        `The backup's metadata for “${doc.title}” does not match its manifest.`
+        `The backup's metadata for “${doc.title}” does not match its manifest.`,
       );
     }
     if (meta.slug !== doc.slug) {
@@ -447,22 +426,16 @@ async function validateStaging(
       if (!stat || stat.isDir) {
         throw new BackupError(
           "missing-file",
-          `The backup is missing a file for “${doc.title}”: ${file.path}`
+          `The backup is missing a file for “${doc.title}”: ${file.path}`,
         );
       }
       if (typeof file.size === "number" && stat.size !== file.size) {
-        throw new BackupError(
-          "invalid-library",
-          `A file for “${doc.title}” has the wrong size.`
-        );
+        throw new BackupError("invalid-library", `A file for “${doc.title}” has the wrong size.`);
       }
       if (file.sha256) {
         const actual = await sha256Hex(await fs.readBytes(abs));
         if (actual !== file.sha256) {
-          throw new BackupError(
-            "hash-mismatch",
-            `A file for “${doc.title}” failed its checksum.`
-          );
+          throw new BackupError("hash-mismatch", `A file for “${doc.title}” failed its checksum.`);
         }
       }
     }
@@ -476,20 +449,14 @@ async function validateStaging(
 }
 
 async function validateUserFiles(fs: FileStore, root: string): Promise<void> {
-  const annotations = asArray(
-    await readOptionalJson(fs, L.annotations(root)),
-    "annotations.json"
-  );
+  const annotations = asArray(await readOptionalJson(fs, L.annotations(root)), "annotations.json");
   for (const a of annotations) {
     const rec = requireRecord(a, "annotation");
     requireString(rec.id, "an annotation id");
     requireString(rec.docId, "an annotation document id");
   }
 
-  const progress = asRecordMap(
-    await readOptionalJson(fs, L.progress(root)),
-    "progress.json"
-  );
+  const progress = asRecordMap(await readOptionalJson(fs, L.progress(root)), "progress.json");
   for (const [id, p] of Object.entries(progress)) {
     const rec = requireRecord(p, "progress entry");
     requireString(rec.docId ?? id, "a progress document id");
@@ -498,10 +465,7 @@ async function validateUserFiles(fs: FileStore, root: string): Promise<void> {
     }
   }
 
-  const collections = asArray(
-    await readOptionalJson(fs, L.collections(root)),
-    "collections.json"
-  );
+  const collections = asArray(await readOptionalJson(fs, L.collections(root)), "collections.json");
   for (const c of collections) {
     const rec = requireRecord(c, "collection");
     requireString(rec.id, "a collection id");
@@ -529,7 +493,7 @@ async function replaceLibrary(
   fs: FileStore,
   root: string,
   staging: string,
-  warnings: string[]
+  warnings: string[],
 ): Promise<string[]> {
   const rollback = `${root}.rollback-${Date.now()}`;
   const hadRoot = await treeExists(fs, root);
@@ -544,7 +508,7 @@ async function replaceLibrary(
     throw new BackupError(
       "staging",
       `The restored library could not be moved into place. ${readable(e)}`,
-      rollback
+      rollback,
     );
   }
 
@@ -561,7 +525,7 @@ async function replaceLibrary(
     throw new BackupError(
       "rollback",
       `The restored library failed verification and the previous library was restored. ${readable(e)}`,
-      rollback
+      rollback,
     );
   }
 
@@ -570,7 +534,7 @@ async function replaceLibrary(
       await fs.delete(rollback);
     } catch (e) {
       warnings.push(
-        `The previous library copy could not be removed; it remains at ${rollback} (${readable(e)}).`
+        `The previous library copy could not be removed; it remains at ${rollback} (${readable(e)}).`,
       );
     }
   }
@@ -584,7 +548,7 @@ async function replaceLibrary(
 async function readDocFolder(
   fs: FileStore,
   dir: string,
-  rel = ""
+  rel = "",
 ): Promise<Record<string, Uint8Array>> {
   const out: Record<string, Uint8Array> = {};
   for (const e of await fs.list(dir)) {
@@ -611,16 +575,16 @@ interface UserDataSnapshot {
 
 async function readUserData(fs: FileStore, root: string): Promise<UserDataSnapshot> {
   return {
-    annotations: asArray(await readOptionalJson(fs, L.annotations(root)), "annotations.json") as Annotation[],
+    annotations: asArray(
+      await readOptionalJson(fs, L.annotations(root)),
+      "annotations.json",
+    ) as Annotation[],
     progress: asRecordMap(await readOptionalJson(fs, L.progress(root)), "progress.json"),
     collections: asArray(
       await readOptionalJson(fs, L.collections(root)),
-      "collections.json"
+      "collections.json",
     ) as Collection[],
-    docSettings: asRecordMap(
-      await readOptionalJson(fs, L.docSettings(root)),
-      "doc-settings.json"
-    ),
+    docSettings: asRecordMap(await readOptionalJson(fs, L.docSettings(root)), "doc-settings.json"),
     settings: await readOptionalJson(fs, L.settings(root)),
   };
 }
@@ -630,7 +594,7 @@ async function mergeLibrary(
   root: string,
   staging: string,
   archive: ParsedArchive,
-  warnings: string[]
+  warnings: string[],
 ): Promise<Omit<RestoreResult, "mode" | "reindexed" | "reindexFailures"> & { addedIds: string[] }> {
   const lm = new LibraryManager(fs, root);
   const live = await readJsonAsync<Manifest>(fs, L.manifest(root));
@@ -651,10 +615,7 @@ async function mergeLibrary(
   let conflicts = 0;
 
   for (const stagedDoc of archive.manifest.docs) {
-    const meta = await readJsonAsync<DocMeta>(
-      fs,
-      L.docMeta(staging, stagedDoc.slug)
-    );
+    const meta = await readJsonAsync<DocMeta>(fs, L.docMeta(staging, stagedDoc.slug));
     if (!meta) {
       skippedDocs.push({ title: stagedDoc.title, reason: "metadata is missing" });
       continue;
@@ -690,15 +651,7 @@ async function mergeLibrary(
     }
   }
 
-  const counts = await mergeUserData(
-    fs,
-    lm,
-    root,
-    liveUser,
-    stagedUser,
-    idMap,
-    knownDocIds
-  );
+  const counts = await mergeUserData(fs, lm, root, liveUser, stagedUser, idMap, knownDocIds);
 
   if (liveUser.settings === undefined && stagedUser.settings !== undefined) {
     await writeJsonAtomic(fs, L.settings(root), stagedUser.settings);
@@ -731,7 +684,7 @@ async function mergeUserData(
   live: UserDataSnapshot,
   staged: UserDataSnapshot,
   idMap: Map<string, string>,
-  knownDocIds: Set<string>
+  knownDocIds: Set<string>,
 ): Promise<MergeCounts> {
   let annotationsChanged = 0;
   const annotations = new Map((live.annotations ?? []).map((a) => [a.id, a]));
@@ -771,13 +724,11 @@ async function mergeUserData(
 
   let collectionsChanged = 0;
   const collections = new Map(
-    (live.collections ?? []).map((c) => [c.id, { ...c, docIds: [...c.docIds] }])
+    (live.collections ?? []).map((c) => [c.id, { ...c, docIds: [...c.docIds] }]),
   );
   for (const c of staged.collections ?? []) {
     const docIds = [
-      ...new Set(
-        c.docIds.map((id) => idMap.get(id) ?? id).filter((id) => knownDocIds.has(id))
-      ),
+      ...new Set(c.docIds.map((id) => idMap.get(id) ?? id).filter((id) => knownDocIds.has(id))),
     ];
     const current = collections.get(c.id);
     if (!current) {
@@ -822,7 +773,7 @@ async function reconcileCollectionMembership(
   fs: FileStore,
   lm: LibraryManager,
   collections: Collection[],
-  warnings: string[]
+  warnings: string[],
 ): Promise<void> {
   const desired = new Map<string, Set<string>>();
   for (const c of collections) {
@@ -891,7 +842,7 @@ export async function restoreBackup(options: RestoreOptions): Promise<RestoreRes
     if (free > 0 && free < archive.summary.uncompressedBytes) {
       throw new BackupError(
         "too-large",
-        "There is not enough free space to stage this backup. Free some space and try again."
+        "There is not enough free space to stage this backup. Free some space and try again.",
       );
     }
   }
@@ -947,7 +898,7 @@ export async function restoreBackup(options: RestoreOptions): Promise<RestoreRes
     const reindex = await reindexDocs(fs, root, docIds);
     if (reindex.failed.length > 0) {
       warnings.push(
-        `${reindex.failed.length} document${reindex.failed.length === 1 ? "" : "s"} could not be indexed for search.`
+        `${reindex.failed.length} document${reindex.failed.length === 1 ? "" : "s"} could not be indexed for search.`,
       );
     }
     phase("done");
@@ -974,10 +925,7 @@ export async function restoreBackup(options: RestoreOptions): Promise<RestoreRes
  * trusted when its manifest parses; otherwise it is moved aside (never deleted)
  * and the rollback is restored. Abandoned staging trees are always dropped.
  */
-export async function recoverInterruptedRestore(
-  fs: FileStore,
-  root: string
-): Promise<boolean> {
+export async function recoverInterruptedRestore(fs: FileStore, root: string): Promise<boolean> {
   const workspace = workspaceOf(root);
   const base = basename(root);
   let entries;
@@ -1003,9 +951,7 @@ export async function recoverInterruptedRestore(
     if (rootPresent) {
       // Preserve the unusable tree instead of deleting it; a human can still
       // salvage files from `library.corrupt-<ts>`.
-      await fs
-        .move(root, `${root}.corrupt-${Date.now()}`)
-        .catch(() => fs.delete(root));
+      await fs.move(root, `${root}.corrupt-${Date.now()}`).catch(() => fs.delete(root));
     }
     await fs.move(rollbacks[0], root);
     for (const extra of rollbacks.slice(1)) await fs.delete(extra).catch(() => {});

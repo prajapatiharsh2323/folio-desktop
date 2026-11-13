@@ -4,6 +4,7 @@ import { FolioIcons } from "./FolioIcons";
 import type { TocEntry } from "../reader/ReaderEngine";
 import type { Annotation, Chapter } from "../model/types";
 import { hrefOf } from "../reader/locatorCodec";
+import { handleError } from "../lib/errorLog";
 
 export type WorkspaceTab = "contents" | "bookmarks" | "notes";
 
@@ -45,7 +46,7 @@ function decoded(href: string): string {
  */
 export function tocHrefMatches(
   a: string | null | undefined,
-  b: string | null | undefined
+  b: string | null | undefined,
 ): boolean {
   if (!a || !b) return false;
   const x = decoded(withoutFragment(a));
@@ -169,7 +170,7 @@ export function TocPanel({
 
   const hasExactMatch = useMemo(
     () => Boolean(currentHref && entries.some((e) => e.href === currentHref)),
-    [entries, currentHref]
+    [entries, currentHref],
   );
 
   const handleSelectChapter = async (href: string) => {
@@ -189,7 +190,8 @@ export function TocPanel({
       } else {
         onClose();
       }
-    } catch {
+    } catch (e) {
+      handleError(e, { context: "reader.toc.navigate" });
       setErrorMessage("Couldn't reach that section.");
     } finally {
       setResolvingTarget(null);
@@ -217,21 +219,19 @@ export function TocPanel({
       } else {
         onClose();
       }
-    } catch {
+    } catch (e) {
+      handleError(e, { context: "reader.toc.annotation" });
       setErrorMessage("Couldn't reach that reading location.");
     } finally {
       setResolvingTarget(null);
     }
   };
 
-  const bookmarks = useMemo(
-    () => annotations.filter((a) => a.kind === "bookmark"),
-    [annotations]
-  );
+  const bookmarks = useMemo(() => annotations.filter((a) => a.kind === "bookmark"), [annotations]);
 
   const notesAndHighlights = useMemo(
     () => annotations.filter((a) => a.kind === "highlight" || a.kind === "note"),
-    [annotations]
+    [annotations],
   );
 
   const resolveChapterTitle = (location: string | null | undefined, chapterId?: string | null) => {
@@ -253,7 +253,11 @@ export function TocPanel({
     <FolioPanel open={open} onClose={onClose} title="Reading Workspace" width={400}>
       <div className="folio-workspace">
         {/* Workspace Tab Bar */}
-        <div className="folio-workspace-tabs" role="tablist" aria-label="Reading workspace sections">
+        <div
+          className="folio-workspace-tabs"
+          role="tablist"
+          aria-label="Reading workspace sections"
+        >
           <button
             type="button"
             role="tab"
@@ -387,7 +391,9 @@ export function TocPanel({
                             <button
                               type="button"
                               className={`folio-toc__expander${isCollapsed ? " is-collapsed" : ""}`}
-                              aria-label={isCollapsed ? `Expand ${entry.title}` : `Collapse ${entry.title}`}
+                              aria-label={
+                                isCollapsed ? `Expand ${entry.title}` : `Collapse ${entry.title}`
+                              }
                               onClick={(e) => toggleCollapse(originalIndex, e)}
                             >
                               <FolioIcons.ChevronDown size="sm" />
@@ -406,7 +412,10 @@ export function TocPanel({
                             <span className="folio-toc__item-title">{entry.title}</span>
                             {isResolving && (
                               <span className="folio-toc__item-status" aria-hidden="true">
-                                <span className="folio-reader-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                                <span
+                                  className="folio-reader-spinner"
+                                  style={{ width: 14, height: 14, borderWidth: 2 }}
+                                />
                               </span>
                             )}
                           </button>
@@ -433,7 +442,8 @@ export function TocPanel({
                 <FolioIcons.Bookmark size="md" />
                 <p className="folio-workspace__empty-title">No bookmarks yet</p>
                 <p className="folio-workspace__empty-desc">
-                  Press <kbd>Ctrl+B</kbd> or click the bookmark button in the top toolbar to save your reading position.
+                  Press <kbd>Ctrl+B</kbd> or click the bookmark button in the top toolbar to save
+                  your reading position.
                 </p>
               </div>
             ) : (
@@ -460,9 +470,7 @@ export function TocPanel({
                           </span>
                           <span className="folio-workspace-card__title">{chapterTitle}</span>
                         </div>
-                        <div className="folio-workspace-card__meta">
-                          {formatDate(bm.createdAt)}
-                        </div>
+                        <div className="folio-workspace-card__meta">{formatDate(bm.createdAt)}</div>
                       </button>
                       {onRemoveBookmark && (
                         <button
@@ -504,11 +512,15 @@ export function TocPanel({
                 {notesAndHighlights.map((item) => {
                   const chapterTitle = resolveChapterTitle(item.location, item.chapterId);
                   const isResolving = resolvingTarget === (item.location ?? "loc");
-                  const colorCss = HIGHLIGHT_COLORS[item.color ?? "yellow"] ?? HIGHLIGHT_COLORS.yellow;
+                  const colorCss =
+                    HIGHLIGHT_COLORS[item.color ?? "yellow"] ?? HIGHLIGHT_COLORS.yellow;
                   const isNote = item.kind === "note" || Boolean(item.note);
 
                   return (
-                    <li key={item.id} className="folio-workspace-card folio-workspace-card--annotation">
+                    <li
+                      key={item.id}
+                      className="folio-workspace-card folio-workspace-card--annotation"
+                    >
                       <button
                         type="button"
                         className={`folio-workspace-card__main${isResolving ? " is-resolving" : ""}`}
@@ -517,7 +529,11 @@ export function TocPanel({
                           void handleSelectAnnotationItem({
                             location: item.location ?? null,
                             anchor: item.quote
-                              ? { quote: item.quote, prefix: item.prefix ?? "", suffix: item.suffix ?? "" }
+                              ? {
+                                  quote: item.quote,
+                                  prefix: item.prefix ?? "",
+                                  suffix: item.suffix ?? "",
+                                }
                               : null,
                           })
                         }
@@ -541,9 +557,7 @@ export function TocPanel({
                         )}
 
                         {item.note && (
-                          <div className="folio-workspace-card__note-text">
-                            {item.note}
-                          </div>
+                          <div className="folio-workspace-card__note-text">{item.note}</div>
                         )}
 
                         <div className="folio-workspace-card__meta">
@@ -560,7 +574,7 @@ export function TocPanel({
                             title="Edit note"
                             onClick={() => onEditNote(item)}
                           >
-                            <FolioIcons.Notes size="sm" />
+                            <FolioIcons.Pencil size="sm" />
                           </button>
                         )}
                         {onDeleteAnnotation && (

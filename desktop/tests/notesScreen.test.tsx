@@ -46,7 +46,7 @@ let root: Root | null = null;
 
 function button(label: string): HTMLButtonElement {
   const found = Array.from(container!.querySelectorAll<HTMLButtonElement>("button")).find(
-    (b) => b.getAttribute("aria-label") === label || b.textContent?.trim() === label
+    (b) => b.getAttribute("aria-label") === label || b.textContent?.trim() === label,
   );
   if (!found) throw new Error(`button ${label} not found`);
   return found;
@@ -55,7 +55,7 @@ function button(label: string): HTMLButtonElement {
 function dialogButton(label: string): HTMLButtonElement {
   const dialog = container!.querySelector(".folio-dialog");
   const found = Array.from(dialog?.querySelectorAll<HTMLButtonElement>("button") ?? []).find(
-    (b) => b.getAttribute("aria-label") === label || b.textContent?.trim() === label
+    (b) => b.getAttribute("aria-label") === label || b.textContent?.trim() === label,
   );
   if (!found) throw new Error(`dialog button ${label} not found`);
   return found;

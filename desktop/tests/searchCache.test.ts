@@ -19,13 +19,13 @@ describe("search index signature", () => {
         { id: "1", title: "One" },
         { id: "2", title: "Two" },
         { id: "3", title: "Three" },
-      ])
+      ]),
     ).not.toBe(base);
     expect(
       searchSignature([
         { id: "1", title: "One" },
         { id: "2", title: "Deux" },
-      ])
+      ]),
     ).not.toBe(base);
   });
 });

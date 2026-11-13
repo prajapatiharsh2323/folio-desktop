@@ -7,12 +7,7 @@ import type { FileStore } from "../lib/fileStore";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { ManifestRepo } from "./repos";
 import { DocMetaRepo } from "./docMetaRepo";
-import {
-  AnnotationsRepo,
-  CollectionsRepo,
-  PrefsRepo,
-  ProgressRepo,
-} from "./repos";
+import { AnnotationsRepo, CollectionsRepo, PrefsRepo, ProgressRepo } from "./repos";
 import type { Collection, DocMeta, Manifest, ManifestDoc, ManifestFile } from "../model/types";
 import { newUuid, nowIso, resolveSlugConflict, slugify } from "../model/ids";
 import { runExclusive } from "../lib/writeLock";
@@ -35,7 +30,7 @@ export class LibraryManager {
 
   constructor(
     private fs: FileStore,
-    readonly root: string
+    readonly root: string,
   ) {
     this.manifest = new ManifestRepo(fs, root);
     this.meta = new DocMetaRepo(fs, root);
@@ -174,11 +169,11 @@ export class LibraryManager {
   /** Dual-write counterpart: mutate a collection's membership (add/remove doc). */
   async mutateCollectionDocs(
     collectionId: string,
-    op: { add?: string[]; remove?: string[] }
+    op: { add?: string[]; remove?: string[] },
   ): Promise<Collection> {
     return runExclusive(async () => {
       const collections = await this.collections.list();
-      let c = collections.find((x) => x.id === collectionId);
+      const c = collections.find((x) => x.id === collectionId);
       if (!c) {
         throw new Error(`collection not found: ${collectionId}`);
       }
@@ -331,7 +326,7 @@ export class LibraryManager {
   private async applyDocSide(
     slug: string | undefined,
     _docId: string,
-    mutate: (ids: string[]) => void
+    mutate: (ids: string[]) => void,
   ): Promise<void> {
     if (!slug) return;
     const meta = await this.meta.read(slug);

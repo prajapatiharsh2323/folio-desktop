@@ -35,7 +35,7 @@ export const FolioIcons = {
     <>
       <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15.5H6.5A2.5 2.5 0 0 0 4 21z" />
       <path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20" />
-    </>
+    </>,
   ),
   /** Collections / stacked books */
   Collections: make(
@@ -44,7 +44,7 @@ export const FolioIcons = {
       <path d="M7 4h10a2 2 0 0 1 2 2v10" />
       <rect x="3" y="8" width="14" height="12" rx="2" />
       <path d="M3 16l4-4 3 3 3-3 4 4" />
-    </>
+    </>,
   ),
   /** Notes / annotation */
   Notes: make(
@@ -53,7 +53,7 @@ export const FolioIcons = {
       <path d="M5 4h14v13l-4 4H5z" />
       <path d="M15 21v-4h4" />
       <path d="M8.5 9h7M8.5 12.5h4.5" />
-    </>
+    </>,
   ),
   /** Settings / sliders */
   Settings: make(
@@ -63,20 +63,20 @@ export const FolioIcons = {
       <circle cx="16" cy="7" r="2" />
       <circle cx="10" cy="12" r="2" />
       <circle cx="18" cy="17" r="2" />
-    </>
+    </>,
   ),
   Search: make(
     "Search",
     <>
       <circle cx="11" cy="11" r="6.5" />
       <path d="M16 16l5 5" />
-    </>
+    </>,
   ),
   Sort: make(
     "Sort",
     <>
       <path d="M4 6h16M6 12h12M9 18h6" />
-    </>
+    </>,
   ),
   /** ⋯ overflow */
   More: make(
@@ -85,7 +85,7 @@ export const FolioIcons = {
       <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
       <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
       <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
-    </>
+    </>,
   ),
   Plus: make("Plus", <path d="M12 5v14M5 12h14" />),
   /** ◀ back */
@@ -96,7 +96,7 @@ export const FolioIcons = {
     <>
       <path d="M3.5 18L8 6l4.5 12M5.2 13.5h5.6" />
       <path d="M20.5 18v-3.2m0 0a2.6 2.6 0 1 0-5.2 0m5.2 0v3.2m-5.2 0a2.6 2.6 0 1 1 5.2 0" />
-    </>
+    </>,
   ),
   Bookmark: make("Bookmark", <path d="M7 4h10v16l-5-3.5L7 20z" />),
   /** TOC / list */
@@ -107,7 +107,7 @@ export const FolioIcons = {
       <circle cx="4.5" cy="6" r="0.9" fill="currentColor" stroke="none" />
       <circle cx="4.5" cy="12" r="0.9" fill="currentColor" stroke="none" />
       <circle cx="4.5" cy="18" r="0.9" fill="currentColor" stroke="none" />
-    </>
+    </>,
   ),
   Close: make("Close", <path d="M6 6l12 12M18 6L6 18" />),
   ChevronDown: make("ChevronDown", <path d="M6.5 9.5L12 15l5.5-5.5" />),
@@ -119,14 +119,14 @@ export const FolioIcons = {
     <>
       <path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" />
       <path d="M10 11v5M14 11v5" />
-    </>
+    </>,
   ),
   Tag: make(
     "Tag",
     <>
       <path d="M4 5h7l9 9-7 7-9-9z" />
       <circle cx="8.5" cy="9.5" r="1.3" />
-    </>
+    </>,
   ),
   /** Import / download-to-tray */
   Import: make(
@@ -134,7 +134,7 @@ export const FolioIcons = {
     <>
       <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" />
       <path d="M5 19h14" />
-    </>
+    </>,
   ),
   /** Folder (collections detail) */
   Folder: make("Folder", <path d="M4 6h6l2 2.5h8V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />),
@@ -145,7 +145,7 @@ export const FolioIcons = {
       <path d="M13 4H5v16h10v-6" />
       <path d="M5 4h14v7" />
       <path d="M18 13v6M15 16h6" />
-    </>
+    </>,
   ),
   /** Palette (appearance) */
   Palette: make(
@@ -155,12 +155,12 @@ export const FolioIcons = {
       <circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none" />
       <circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none" />
       <circle cx="16.5" cy="10.5" r="1" fill="currentColor" stroke="none" />
-    </>
+    </>,
   ),
   /** Cloud (sync) */
   Cloud: make(
     "Cloud",
-    <path d="M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 8.3 4.2 4.2 0 0 1 17.8 18z" />
+    <path d="M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 8.3 4.2 4.2 0 0 1 17.8 18z" />,
   ),
   /** Info / about */
   Info: make(
@@ -169,7 +169,7 @@ export const FolioIcons = {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v6" />
       <circle cx="12" cy="7.5" r="0.9" fill="currentColor" stroke="none" />
-    </>
+    </>,
   ),
   /** Keyboard shortcuts */
   Keyboard: make(
@@ -177,7 +177,7 @@ export const FolioIcons = {
     <>
       <rect x="2" y="4" width="20" height="16" rx="2" />
       <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
-    </>
+    </>,
   ),
   /** Focus mode */
   Focus: make(
@@ -185,7 +185,7 @@ export const FolioIcons = {
     <>
       <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
       <circle cx="12" cy="12" r="3" />
-    </>
+    </>,
   ),
   /** Clock / reading session */
   Clock: make(
@@ -193,6 +193,40 @@ export const FolioIcons = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3 3" />
-    </>
+    </>,
+  ),
+  /** Copy / duplicate to clipboard */
+  Copy: make(
+    "Copy",
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+    </>,
+  ),
+  /** Share / quote card as image */
+  Share: make(
+    "Share",
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="M21 16.5l-5-4.5-6 5.5" />
+    </>,
+  ),
+  /** EyeOff / hide chrome */
+  EyeOff: make(
+    "EyeOff",
+    <>
+      <path d="M3 3l18 18" />
+      <path d="M10.5 5.2A9.8 9.8 0 0 1 12 5c5 0 9 4.5 9 7 0 1.1-.9 2.6-2.4 4M6.6 6.7C4.2 8.3 3 10.6 3 12c0 2.5 4 7 9 7 1.6 0 3.1-.4 4.4-1.1" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    </>,
+  ),
+  /** Pencil / edit note */
+  Pencil: make(
+    "Pencil",
+    <>
+      <path d="M4 20h4l11-11a2.4 2.4 0 0 0-4-4L4 16z" />
+      <path d="M13.5 6.5l4 4" />
+    </>,
   ),
 } as const;

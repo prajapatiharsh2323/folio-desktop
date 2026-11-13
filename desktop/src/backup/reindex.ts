@@ -24,7 +24,7 @@ export interface ReindexResult {
 export async function reindexDocs(
   fs: FileStore,
   root: string,
-  docIds: string[]
+  docIds: string[],
 ): Promise<ReindexResult> {
   const result: ReindexResult = { indexed: 0, failed: [] };
   const unique = [...new Set(docIds)];
@@ -66,7 +66,7 @@ export async function reindexDocs(
       const index = { schema: 1 as const, chapters };
       await fs.writeBytesAtomic(
         L.indexText(root, docId),
-        new TextEncoder().encode(JSON.stringify(index))
+        new TextEncoder().encode(JSON.stringify(index)),
       );
       result.indexed++;
     } catch (e) {

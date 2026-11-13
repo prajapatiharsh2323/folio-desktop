@@ -15,7 +15,9 @@
   font-weight: var(--folio-type-body-strong-weight);
   cursor: pointer;
   white-space: nowrap;
-  transition: background var(--folio-motion-hover) ease, color var(--folio-motion-hover) ease,
+  transition:
+    background var(--folio-motion-hover) ease,
+    color var(--folio-motion-hover) ease,
     border-color var(--folio-motion-hover) ease;
 }
 
@@ -94,7 +96,9 @@
   font-weight: var(--folio-type-label-weight);
   cursor: pointer;
   white-space: nowrap;
-  transition: background var(--folio-motion-hover) ease, color var(--folio-motion-hover) ease,
+  transition:
+    background var(--folio-motion-hover) ease,
+    color var(--folio-motion-hover) ease,
     transform var(--folio-motion-hover) ease;
 }
 
@@ -333,12 +337,16 @@
   inset: 0;
   background: var(--folio-scrim);
   animation: folio-overlay-in var(--folio-motion-panel) var(--folio-motion-panel-ease);
-  z-index: 40;
+  z-index: var(--folio-z-overlay);
 }
 
 @keyframes folio-overlay-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .folio-panel {
@@ -353,14 +361,20 @@
   padding: var(--folio-space-6);
   display: flex;
   flex-direction: column;
-  z-index: 41;
+  z-index: var(--folio-z-overlay-surface);
   animation: folio-panel-in var(--folio-motion-panel) var(--folio-motion-panel-ease);
   outline: none;
 }
 
 @keyframes folio-panel-in {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .folio-panel__header {
@@ -399,15 +413,21 @@
   max-height: calc(100vh - 128px);
   display: flex;
   flex-direction: column;
-  z-index: 41;
-  box-shadow: 0 16px 48px rgba(20,23,19,.18);
+  z-index: var(--folio-z-overlay-surface);
+  box-shadow: 0 16px 48px rgba(20, 23, 19, 0.18);
   animation: folio-dialog-in var(--folio-motion-panel) var(--folio-motion-panel-ease);
   outline: none;
 }
 
 @keyframes folio-dialog-in {
-  from { transform: translate(-50%, calc(-50% + 16px)); opacity: 0; }
-  to { transform: translate(-50%, -50%); opacity: 1; }
+  from {
+    transform: translate(-50%, calc(-50% + 16px));
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
 }
 
 .folio-dialog__title {
@@ -476,6 +496,48 @@
   border-radius: var(--folio-radius-card);
 }
 
+/* ---- Render-error recovery (error boundary) ---- */
+.folio-errorboundary {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--folio-space-4);
+  padding: var(--folio-space-7);
+  text-align: center;
+  background: var(--folio-canvas);
+  color: var(--folio-text-primary);
+}
+
+.folio-errorboundary__title {
+  margin: 0;
+  font-size: var(--folio-type-title-l-size);
+  line-height: var(--folio-type-title-l-line);
+  font-weight: var(--folio-type-title-l-weight);
+}
+
+.folio-errorboundary__text {
+  margin: 0;
+  max-width: 480px;
+  color: var(--folio-text-secondary);
+}
+
+.folio-errorboundary__actions {
+  display: flex;
+  gap: var(--folio-space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.folio-errorboundary__detail {
+  margin: 0;
+  max-width: 560px;
+  overflow-wrap: anywhere;
+  font-size: var(--folio-type-label-size);
+  color: var(--folio-text-secondary);
+}
+
 /* ---- Snackbar (import progress/result) ---- */
 .folio-snackbar {
   position: fixed;
@@ -492,9 +554,9 @@
   font-size: var(--folio-type-label-size);
   line-height: var(--folio-type-label-line);
   font-weight: var(--folio-type-label-weight);
-  box-shadow: 0 8px 24px rgba(20,23,19,.25);
+  box-shadow: 0 8px 24px rgba(20, 23, 19, 0.25);
   animation: folio-snackbar-in var(--folio-motion-panel) var(--folio-motion-panel-ease);
-  z-index: 90;
+  z-index: var(--folio-z-dialog);
   max-width: min(560px, calc(100vw - 96px));
 }
 
@@ -543,8 +605,14 @@
 }
 
 @keyframes folio-snackbar-in {
-  from { transform: translate(-50%, 12px); opacity: 0; }
-  to { transform: translate(-50%, 0); opacity: 1; }
+  from {
+    transform: translate(-50%, 12px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -697,7 +765,7 @@
   width: 100%;
   height: var(--folio-control-height);
   padding: 0 var(--folio-space-4);
-  border: var(--folio-divider) solid var(--folio-border);
+  border: var(--folio-divider) solid var(--folio-border-control);
   border-radius: var(--folio-radius-field);
   background: var(--folio-surface-subtle);
   color: var(--folio-text-primary);
@@ -768,7 +836,10 @@
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  transition: background var(--folio-motion-hover) ease, transform var(--folio-motion-hover) ease, box-shadow var(--folio-motion-hover) ease;
+  transition:
+    background var(--folio-motion-hover) ease,
+    transform var(--folio-motion-hover) ease,
+    box-shadow var(--folio-motion-hover) ease;
 }
 
 .folio-collection-card:hover {
@@ -892,12 +963,17 @@
 .folio-collection-hero__scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.3) 60%, rgba(0, 0, 0, 0.1) 100%);
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.75) 0%,
+    rgba(0, 0, 0, 0.3) 60%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
 }
 
 .folio-collection-hero__content {
   position: relative;
-  z-index: 1;
+  z-index: var(--folio-z-content-raised);
   display: flex;
   flex-direction: column;
   gap: var(--folio-space-1);
@@ -962,7 +1038,6 @@
   color: var(--folio-text-secondary);
 }
 
-
 .folio-picker-list {
   display: flex;
   flex-direction: column;
@@ -983,7 +1058,7 @@
 .folio-filter-select {
   height: var(--folio-chip-height);
   padding: 0 var(--folio-space-3);
-  border: var(--folio-divider) solid var(--folio-border);
+  border: var(--folio-divider) solid var(--folio-border-control);
   border-radius: var(--folio-radius-pill);
   background: var(--folio-surface-subtle);
   color: var(--folio-text-primary);
@@ -1006,7 +1081,7 @@
   border: 0;
   padding: 0;
   background: none;
-  color: var(--folio-accent, #355E3B);
+  color: var(--folio-accent, #355e3b);
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
@@ -1016,7 +1091,7 @@
 .folio-boot {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--folio-z-boot);
   display: grid;
   place-items: center;
   background: var(--folio-canvas);
@@ -1035,7 +1110,7 @@
 .folio-setup {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: var(--folio-z-panel);
   overflow-y: auto;
   display: flex;
   justify-content: center;
@@ -1294,7 +1369,7 @@
 .folio-tour {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: var(--folio-z-tour);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1305,7 +1380,7 @@
   position: absolute;
   inset: 0;
   background: var(--folio-scrim);
-  z-index: 0;
+  z-index: var(--folio-z-content);
 }
 
 /* With a spotlight the scrim comes from the spotlight's outer shadow, so the
@@ -1316,7 +1391,7 @@
 
 .folio-tour__spotlight {
   position: fixed;
-  z-index: 1;
+  z-index: var(--folio-z-content-raised);
   border-radius: var(--folio-radius-control);
   outline: 2px solid var(--folio-accent);
   outline-offset: 2px;
@@ -1331,7 +1406,7 @@
 
 .folio-tour__card {
   position: relative;
-  z-index: 2;
+  z-index: var(--folio-z-content-top);
   width: min(480px, 100%);
   max-height: calc(100vh - 32px);
   overflow-y: auto;

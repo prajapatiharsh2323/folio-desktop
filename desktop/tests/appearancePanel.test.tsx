@@ -36,11 +36,15 @@ describe("AppearancePanel", () => {
           nextPrefs = p;
         }}
         onReset={() => {}}
-      />
+      />,
     );
 
-    const decreaseBtn = document.querySelector("[aria-label='Decrease text size']") as HTMLButtonElement;
-    const increaseBtn = document.querySelector("[aria-label='Increase text size']") as HTMLButtonElement;
+    const decreaseBtn = document.querySelector(
+      "[aria-label='Decrease text size']",
+    ) as HTMLButtonElement;
+    const increaseBtn = document.querySelector(
+      "[aria-label='Increase text size']",
+    ) as HTMLButtonElement;
     expect(decreaseBtn).not.toBeNull();
     expect(increaseBtn).not.toBeNull();
 
@@ -67,10 +71,12 @@ describe("AppearancePanel", () => {
           nextPrefs = p;
         }}
         onReset={() => {}}
-      />
+      />,
     );
 
-    const presetChips = Array.from(document.querySelectorAll(".folio-appearance__preset-chip")) as HTMLButtonElement[];
+    const presetChips = Array.from(
+      document.querySelectorAll(".folio-appearance__preset-chip"),
+    ) as HTMLButtonElement[];
     expect(presetChips.length).toBe(4);
     expect(presetChips[0].textContent).toContain("Compact");
     expect(presetChips[1].textContent).toContain("Standard");
@@ -94,7 +100,7 @@ describe("AppearancePanel", () => {
         onClose={() => {}}
         onChange={() => {}}
         onReset={() => {}}
-      />
+      />,
     );
 
     const preview = document.querySelector(".folio-typography-preview") as HTMLElement;
@@ -115,11 +121,11 @@ describe("AppearancePanel", () => {
         onReset={() => {
           resetCalled = true;
         }}
-      />
+      />,
     );
 
     const resetBtn = Array.from(document.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("Reset to defaults")
+      b.textContent?.includes("Reset to defaults"),
     ) as HTMLButtonElement;
     expect(resetBtn).not.toBeNull();
 
@@ -140,12 +146,12 @@ describe("AppearancePanel", () => {
           nextPrefs = p;
         }}
         onReset={() => {}}
-      />
+      />,
     );
 
     // Check quick alignment chip
     const justifyQuickBtn = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === "Justify"
+      (b) => b.textContent?.trim() === "Justify",
     ) as HTMLButtonElement;
     expect(justifyQuickBtn).not.toBeNull();
 
@@ -156,7 +162,9 @@ describe("AppearancePanel", () => {
     expect((nextPrefs as ReadingPrefs | null)?.justify).toBe(true);
 
     // Check alignment switch in section
-    const justifySwitch = document.querySelector("[aria-label='Justify text']") as HTMLButtonElement;
+    const justifySwitch = document.querySelector(
+      "[aria-label='Justify text']",
+    ) as HTMLButtonElement;
     expect(justifySwitch).not.toBeNull();
 
     act(() => {

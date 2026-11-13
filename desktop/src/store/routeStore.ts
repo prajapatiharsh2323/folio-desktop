@@ -46,9 +46,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       // inside the reader (programmatic re-open of the same book).
       const state = get();
       const fallbackRoute: Route =
-        state.route === "reader"
-          ? (state.readerOrigin?.route ?? "library")
-          : state.route;
+        state.route === "reader" ? (state.readerOrigin?.route ?? "library") : state.route;
       const readerOrigin: ReaderOrigin =
         origin ??
         (fallbackRoute === "collections"

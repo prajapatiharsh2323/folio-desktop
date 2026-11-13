@@ -21,22 +21,16 @@ function versionOf(path: string, pattern: RegExp): string {
 describe("release version", () => {
   const pkg = versionOf("package.json", /"version":\s*"([^"]+)"/);
   const sources: [string, string][] = [
-    [
-      "src-tauri/tauri.conf.json",
-      versionOf("src-tauri/tauri.conf.json", /"version":\s*"([^"]+)"/),
-    ],
+    ["src-tauri/tauri.conf.json", versionOf("src-tauri/tauri.conf.json", /"version":\s*"([^"]+)"/)],
     [
       "src-tauri/Cargo.toml",
-      versionOf(
-        "src-tauri/Cargo.toml",
-        /\[package\][\s\S]*?\nversion\s*=\s*"([^"]+)"/
-      ),
+      versionOf("src-tauri/Cargo.toml", /\[package\][\s\S]*?\nversion\s*=\s*"([^"]+)"/),
     ],
     [
       "src-tauri/Cargo.lock",
       versionOf(
         "src-tauri/Cargo.lock",
-        /\[\[package\]\]\nname = "folio-desktop"\nversion = "([^"]+)"/
+        /\[\[package\]\]\nname = "folio-desktop"\nversion = "([^"]+)"/,
       ),
     ],
     [

@@ -64,7 +64,7 @@ export function ReaderDock({
       scrubbing.current = false;
       onScrubEnd(next);
     },
-    [onScrubEnd]
+    [onScrubEnd],
   );
 
   return (

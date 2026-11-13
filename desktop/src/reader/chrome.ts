@@ -17,14 +17,7 @@ export const PILLAR_HOVER_MS = 3000;
 
 /** Reasons the chrome must stay on screen. Set semantics: one hold per reason. */
 export type ChromeHold =
-  | "menu"
-  | "panel"
-  | "dialog"
-  | "search"
-  | "selection"
-  | "scrub"
-  | "focus"
-  | "pointer";
+  "menu" | "panel" | "dialog" | "search" | "selection" | "scrub" | "focus" | "pointer";
 
 export type ChromeVisibility = "visible" | "hidden";
 

@@ -8,6 +8,7 @@ import { importFile, type DuplicateResolution, type ImportResult } from "../impo
 import { tintIndexFromHash } from "../import/cover";
 import { getBookCoverPreset } from "../lib/coverPresets";
 import { pushToast } from "../shell/toasts";
+import { handleError } from "../lib/errorLog";
 import type { Progress } from "../model/types";
 
 export interface LibraryRow {
@@ -81,7 +82,7 @@ function revokeCoverUrl(url: string): void {
 async function loadCoverUrl(slug: string, coverPath: string): Promise<string | null> {
   const path = `${LIBRARY_ROOT}/docs/${slug}/${coverPath.replace(/^\/+/, "")}`;
   const cached = coverCache.get(slug);
-  let key = "unknown";
+  let key: string;
   try {
     const stat = await getLibraryFs().stat(path);
     key = stat ? `${stat.size}:${stat.mtimeMs}` : "missing";
@@ -95,13 +96,12 @@ async function loadCoverUrl(slug: string, coverPath: string): Promise<string | n
     if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
       return null;
     }
-    const url = URL.createObjectURL(
-      new Blob([bytes as BlobPart], { type: coverMime(coverPath) })
-    );
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: coverMime(coverPath) }));
     if (cached) revokeCoverUrl(cached.url);
     coverCache.set(slug, { key, url });
     return url;
-  } catch {
+  } catch (e) {
+    handleError(e, { context: "library.cover.read" });
     // A transient read failure should not blank a cover that is already shown.
     return cached?.url ?? null;
   }
@@ -130,7 +130,7 @@ function rowFrom(
   doc: { id: string; slug: string; title: string; contentHash: string },
   meta: { author?: string | null; kind: "book" | "article" } | null,
   progress: Progress | null,
-  coverUrl?: string | null
+  coverUrl?: string | null,
 ): LibraryRow {
   return {
     id: doc.id,
@@ -182,16 +182,13 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
       });
       const recovery = await lm.detectRecovery();
       // Swap rows first, then release covers that are no longer referenced.
-      const stale = [...coverCache.entries()].filter(
-        ([slug]) => !usedCoverSlugs.has(slug)
-      );
+      const stale = [...coverCache.entries()].filter(([slug]) => !usedCoverSlugs.has(slug));
       coverUrls = nextCoverUrls;
       set({
         rows,
         loading: false,
         error: null,
-        recovery:
-          recovery.damaged.length > 0 || recovery.interrupted.length > 0 ? recovery : null,
+        recovery: recovery.damaged.length > 0 || recovery.interrupted.length > 0 ? recovery : null,
       });
       for (const [slug, entry] of stale) {
         coverCache.delete(slug);
@@ -203,6 +200,7 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
     } catch (e) {
       // A failed refresh never owns the URLs it created: keep the previous
       // batch alive and release only the fresh ones.
+      handleError(e, { context: "library.refresh" });
       for (const url of nextCoverUrls) {
         if (coverUrls.includes(url)) continue;
         revokeCoverUrl(url);
@@ -252,25 +250,23 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
 // keeps duplicate prompts and manifest writes from interleaving.
 let importQueue: Promise<void> = Promise.resolve();
 
-function enqueueImport(
-  files: { name: string; bytes: Uint8Array }[]
-): Promise<ImportOutcome> {
+function enqueueImport(files: { name: string; bytes: Uint8Array }[]): Promise<ImportOutcome> {
   if (files.length === 0) {
     return Promise.resolve({ added: 0, skipped: 0, failures: [], title: null });
   }
   const run = importQueue.then(
     () => runImportBatch(files),
-    () => runImportBatch(files)
+    () => runImportBatch(files),
   );
   importQueue = run.then(
     () => undefined,
-    () => undefined
+    () => undefined,
   );
   return run;
 }
 
 async function runImportBatch(
-  files: { name: string; bytes: Uint8Array }[]
+  files: { name: string; bytes: Uint8Array }[],
 ): Promise<ImportOutcome> {
   const lm = libraryManager();
   const multi = files.length > 1;
@@ -296,7 +292,7 @@ async function runImportBatch(
           (title) =>
             new Promise<DuplicateResolution>((resolve) => {
               useLibraryUi.setState({ duplicate: { title, resolve } });
-            })
+            }),
         );
         if (result.status === "imported") {
           imported += 1;
@@ -311,6 +307,7 @@ async function runImportBatch(
           failures.push(`${file.name}: ${result.error ?? "Import failed"}`);
         }
       } catch (e) {
+        handleError(e, { context: "library.import" });
         failures.push(`${file.name}: ${e instanceof Error ? e.message : "Import failed"}`);
       }
     }

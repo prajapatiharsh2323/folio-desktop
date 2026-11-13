@@ -41,6 +41,16 @@ pub fn app_dir() -> Option<PathBuf> {
     APP_DIR.read().ok().and_then(|slot| slot.clone())
 }
 
+/// Tests mutate the process-wide app dir; this lock serializes them. Public
+/// so dependent crates' tests can share it.
+static TEST_APP_DIR_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+pub fn lock_app_dir_for_tests() -> std::sync::MutexGuard<'static, ()> {
+    TEST_APP_DIR_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Translate the virtual app dir prefix into the real app dir.
 ///
 /// Paths that do not start with the virtual root (native dialog picks, UNC

@@ -1,11 +1,14 @@
-mod appdir;
 mod commands;
-mod guard;
 mod jumplist;
 mod open_files;
 mod window_state;
 
-use commands::{fs, hash, logging, power, shell, zip};
+// Platform-neutral security core (tests run on any host via `cargo test
+// -p foliocore`); re-exported so `crate::appdir`/`crate::guard`/`crate::sandbox`
+// keep resolving inside the Tauri crate.
+pub use foliocore::{appdir, guard, sandbox};
+
+use commands::{fs, hash, logging, pick, power, shell, zip};
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {
@@ -35,6 +38,10 @@ pub fn run() {
             logging::log_path,
             logging::open_log_dir,
             power::prevent_display_sleep,
+            pick::pick_import_files,
+            pick::pick_backup_source,
+            pick::pick_backup_dest,
+            pick::pick_image_dest,
             open_files::take_pending_launch
         ])
         .setup(|app| {
@@ -77,6 +84,20 @@ pub fn run() {
                     }
                     WindowEvent::CloseRequested { .. } => {
                         let _ = window_state::save_now(&w);
+                    }
+                    WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) => {
+                        // Dropped files are a user action: grant them for this
+                        // session, then hand the granted paths to the frontend
+                        // so the read always happens after the grant.
+                        for p in paths {
+                            crate::sandbox::grant(p);
+                        }
+                        let granted: Vec<String> = paths
+                            .iter()
+                            .map(|p| p.to_string_lossy().to_string())
+                            .collect();
+                        use tauri::Emitter;
+                        let _ = w.emit("folio://drop-granted", granted);
                     }
                     _ => {}
                 });

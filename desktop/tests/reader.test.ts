@@ -3,19 +3,33 @@ import { DEFAULT_READING_PREFS } from "../src/model/defaults";
 import { describe, it, expect } from "vitest";
 import { strToU8, unzipSync, zipSync } from "fflate";
 import { openEpubFromBytes } from "../src/reader/epubPublication";
-import { generatePositions, progressionForLocator, locatorForProgression, POSITION_LENGTH } from "../src/reader/positions";
+import {
+  generatePositions,
+  progressionForLocator,
+  locatorForProgression,
+  POSITION_LENGTH,
+} from "../src/reader/positions";
 import { resumePlan, isCfi } from "../src/reader/resume";
 import { ReadingPaceStats, formatTimeLeft } from "../src/reader/pace";
 import { ProgressWriter } from "../src/reader/progress";
-import { ChromeStateMachine, intentForReaderClick, readerEdgeZoneWidth } from "../src/reader/chrome";
-import { resolveReaderTheme, typefaceStack, scrimAlpha, toNavigatorPreferences } from "../src/reader/readerThemes";
+import {
+  ChromeStateMachine,
+  intentForReaderClick,
+  readerEdgeZoneWidth,
+} from "../src/reader/chrome";
+import {
+  resolveReaderTheme,
+  typefaceStack,
+  scrimAlpha,
+  toNavigatorPreferences,
+} from "../src/reader/readerThemes";
 
 function makeEpub(
   title = "T",
   chapters: { id: string; title: string; body: string }[] = [
     { id: "c1", title: "One", body: "Hello world chapter one." },
     { id: "c2", title: "Two", body: "Second chapter text." },
-  ]
+  ],
 ): Uint8Array {
   const opf = `<?xml version="1.0"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
@@ -46,14 +60,14 @@ function makeEpub(
     "META-INF/container.xml": strToU8(
       `<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
         <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
-      </container>`
+      </container>`,
     ),
     "OEBPS/content.opf": strToU8(opf),
     "OEBPS/nav.xhtml": strToU8(nav),
   };
   for (const c of chapters) {
     entries[`OEBPS/${c.id}.xhtml`] = strToU8(
-      `<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>${c.title}</h1><p>${c.body}</p></body></html>`
+      `<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>${c.title}</h1><p>${c.body}</p></body></html>`,
     );
   }
   return zipSync(entries);
@@ -61,9 +75,7 @@ function makeEpub(
 
 describe("epubPublication", () => {
   it("parses metadata, spine and TOC", () => {
-    const pkg = openEpubFromBytes(makeEpub("Moby", [
-      { id: "a", title: "A", body: "alpha" },
-    ]));
+    const pkg = openEpubFromBytes(makeEpub("Moby", [{ id: "a", title: "A", body: "alpha" }]));
     expect(pkg.publication.metadata.title.translations.und).toBe("Moby");
     expect(pkg.publication.readingOrder.items.length).toBe(1);
     expect(pkg.publication.toc?.items.length).toBe(1);
@@ -89,13 +101,11 @@ describe("epubPublication", () => {
   });
 
   it("opens a package whose container full-path is percent-encoded", () => {
-    const entries = unzipSync(makeEpub("Encoded", [
-      { id: "a", title: "A", body: "alpha" },
-    ]));
+    const entries = unzipSync(makeEpub("Encoded", [{ id: "a", title: "A", body: "alpha" }]));
     entries["META-INF/container.xml"] = strToU8(
       `<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
         <rootfiles><rootfile full-path="OEBPS/content%2Eopf" media-type="application/oebps-package+xml"/></rootfiles>
-      </container>`
+      </container>`,
     );
     const pkg = openEpubFromBytes(zipSync(entries));
     expect(pkg.publication.metadata.title.translations.und).toBe("Encoded");
@@ -120,7 +130,7 @@ describe("positions", () => {
     const pkg = openEpubFromBytes(makeEpub("T"));
     expect(locatorForProgression(0, pkg.positions)?.href).toBe(pkg.positions[0].href);
     expect(locatorForProgression(2, pkg.positions)?.href).toBe(
-      pkg.positions[pkg.positions.length - 1].href
+      pkg.positions[pkg.positions.length - 1].href,
     );
     pkg.close();
   });
@@ -142,7 +152,7 @@ describe("resumePlan", () => {
   it("override location wins", () => {
     const plan = resumePlan(
       { location: "old.xhtml", percent: 50 },
-      { location: "new.xhtml", percent: 90 }
+      { location: "new.xhtml", percent: 90 },
     );
     expect(plan.kind).toBe("override-locator");
     if (plan.kind === "override-locator") expect(plan.locator).toBe("new.xhtml");
@@ -159,10 +169,7 @@ describe("resumePlan", () => {
   });
 
   it("saved href + progression resumes exactly, not by coarse percent", () => {
-    const plan = resumePlan(
-      { location: "ch.xhtml?p=0.428612&q=the%20whale", percent: 60 },
-      null
-    );
+    const plan = resumePlan({ location: "ch.xhtml?p=0.428612&q=the%20whale", percent: 60 }, null);
     expect(plan.kind).toBe("saved-locator");
     if (plan.kind === "saved-locator") {
       expect(plan.locator).toBe("ch.xhtml?p=0.428612&q=the%20whale");
@@ -271,9 +278,12 @@ describe("ProgressWriter", () => {
   it("gates on <0.4% change within 500 ms", async () => {
     let written = 0;
     let now = 1000;
-    const writer = new ProgressWriter(async () => {
-      written += 1;
-    }, () => now);
+    const writer = new ProgressWriter(
+      async () => {
+        written += 1;
+      },
+      () => now,
+    );
     await writer.onLocator({ location: "a", percent: 10 });
     now = 1100;
     const ok = await writer.onLocator({ location: "a", percent: 10.1 });
@@ -284,9 +294,12 @@ describe("ProgressWriter", () => {
   it("writes when location changes after 500 ms", async () => {
     let written = 0;
     let now = 1000;
-    const writer = new ProgressWriter(async () => {
-      written += 1;
-    }, () => now);
+    const writer = new ProgressWriter(
+      async () => {
+        written += 1;
+      },
+      () => now,
+    );
     await writer.onLocator({ location: "a", percent: 10 });
     now = 1600;
     const ok = await writer.onLocator({ location: "b", percent: 10.1 });
@@ -297,9 +310,12 @@ describe("ProgressWriter", () => {
   it("flush writes the pending snapshot", async () => {
     let written = 0;
     let now = 1000;
-    const writer = new ProgressWriter(async () => {
-      written += 1;
-    }, () => now);
+    const writer = new ProgressWriter(
+      async () => {
+        written += 1;
+      },
+      () => now,
+    );
     await writer.onLocator({ location: "a", percent: 10 });
     now = 1050;
     await writer.onLocator({ location: "a", percent: 10.1 });
@@ -311,9 +327,12 @@ describe("ProgressWriter", () => {
   it("scrub writes are suppressed for 60 s after restore", async () => {
     let written = 0;
     let now = 1000;
-    const writer = new ProgressWriter(async () => {
-      written += 1;
-    }, () => now);
+    const writer = new ProgressWriter(
+      async () => {
+        written += 1;
+      },
+      () => now,
+    );
     await writer.writeRestored({ location: "a", percent: 10 });
     const before = written;
     now = 1500;
@@ -325,9 +344,12 @@ describe("ProgressWriter", () => {
   it("locator writes are not suppressed after restore", async () => {
     let written = 0;
     let now = 1000;
-    const writer = new ProgressWriter(async () => {
-      written += 1;
-    }, () => now);
+    const writer = new ProgressWriter(
+      async () => {
+        written += 1;
+      },
+      () => now,
+    );
     await writer.writeRestored({ location: "a", percent: 10 });
     const before = written;
     now = 1500;
@@ -339,7 +361,7 @@ describe("ProgressWriter", () => {
 
 describe("ChromeStateMachine", () => {
   it("starts visible", () => {
-    let now = 0;
+    const now = 0;
     const chrome = new ChromeStateMachine(() => now);
     expect(chrome.visible).toBe(true);
   });
@@ -361,7 +383,7 @@ describe("ChromeStateMachine", () => {
   });
 
   it("toggle flips visibility", () => {
-    let now = 0;
+    const now = 0;
     const chrome = new ChromeStateMachine(() => now);
     chrome.toggle();
     expect(chrome.visible).toBe(false);
@@ -382,15 +404,15 @@ describe("ChromeStateMachine", () => {
 
   it("interactive and engine-handled clicks always pass through", () => {
     const width = 1000;
+    expect(intentForReaderClick({ x: 5, width, interactive: true, defaultPrevented: false })).toBe(
+      "passthrough",
+    );
     expect(
-      intentForReaderClick({ x: 5, width, interactive: true, defaultPrevented: false })
+      intentForReaderClick({ x: 995, width, interactive: false, defaultPrevented: true }),
     ).toBe("passthrough");
-    expect(
-      intentForReaderClick({ x: 995, width, interactive: false, defaultPrevented: true })
-    ).toBe("passthrough");
-    expect(
-      intentForReaderClick({ x: 5, width, interactive: true, defaultPrevented: true })
-    ).toBe("passthrough");
+    expect(intentForReaderClick({ x: 5, width, interactive: true, defaultPrevented: true })).toBe(
+      "passthrough",
+    );
   });
 
   it("a hold keeps the chrome up past the idle window", () => {
@@ -517,7 +539,7 @@ describe("readerThemes", () => {
         spread: "auto",
         pdfZoom: "",
       },
-      theme
+      theme,
     );
     expect(mapped.fontSize).toBeCloseTo(18 / 16);
     expect(mapped.scroll).toBe(true);

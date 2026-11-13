@@ -14,7 +14,7 @@ export function hasBlockingOverlay(): boolean {
   return (
     modalDepth() > 0 ||
     !!document.querySelector(
-      "[data-folio-modal], .folio-overlay, [role='dialog'][aria-modal='true']"
+      "[data-folio-modal], .folio-overlay, [role='dialog'][aria-modal='true']",
     )
   );
 }

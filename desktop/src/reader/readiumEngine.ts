@@ -1,9 +1,5 @@
 // Readium web toolkit engine adapter (ReaderEngine impl over EpubNavigator).
-import {
-  EpubNavigator,
-  EpubPreferences,
-  type EpubNavigatorListeners,
-} from "@readium/navigator";
+import { EpubNavigator, EpubPreferences, type EpubNavigatorListeners } from "@readium/navigator";
 import {
   Locator,
   LocatorLocations,
@@ -25,15 +21,8 @@ import { strFromU8 } from "fflate";
 import type { ReadingPrefs } from "../model/types";
 import { resolveReaderTheme, toNavigatorPreferences } from "./readerThemes";
 import { openEpubFromBytes, type EpubPackage } from "./epubPublication";
-import {
-  locatorForProgression,
-  progressionForLocator,
-} from "./positions";
-import {
-  decodeLocation,
-  encodeLocation,
-  isCfiLocation,
-} from "./locatorCodec";
+import { locatorForProgression, progressionForLocator } from "./positions";
+import { decodeLocation, encodeLocation, isCfiLocation } from "./locatorCodec";
 
 const XHTML = "application/xhtml+xml";
 import type { MiniSearch } from "../search/miniSearch";
@@ -61,7 +50,7 @@ export class ReadiumEngine implements ReaderEngine {
   constructor(
     private epubBytes: Uint8Array,
     private prefs: ReadingPrefs,
-    private initial: ReaderOpenTarget | null = null
+    private initial: ReaderOpenTarget | null = null,
   ) {
     if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
       this.systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -119,7 +108,7 @@ export class ReadiumEngine implements ReaderEngine {
           fontFamily: mapped.fontFamily ?? undefined,
         },
         defaults: {},
-      }
+      },
     );
     this.navigator = nav;
     try {
@@ -180,7 +169,7 @@ export class ReadiumEngine implements ReaderEngine {
         paragraphSpacing: mapped.paragraphSpacing,
         scroll: mapped.scroll,
         columnCount: mapped.columnCount ?? null,
-      })
+      }),
     );
   }
 
@@ -250,8 +239,8 @@ export class ReadiumEngine implements ReaderEngine {
         if (!locator) return null;
         return { id: d.id, locator, style: d.style, color: d.color };
       })
-      .filter((d): d is { id: string; locator: Locator; style: string; color: string } =>
-        d !== null
+      .filter(
+        (d): d is { id: string; locator: Locator; style: string; color: string } => d !== null,
       );
     nav.applyDecorations(locators as never, "highlights");
   }
@@ -265,8 +254,7 @@ export class ReadiumEngine implements ReaderEngine {
     this.searchIndexPromise = (async () => {
       const { MiniSearch } = await import("../search/miniSearch");
       const idx = new MiniSearch();
-      const bookTitle =
-        typeof pub.metadata?.title === "string" ? pub.metadata.title : undefined;
+      const bookTitle = typeof pub.metadata?.title === "string" ? pub.metadata.title : undefined;
       for (const link of pub.readingOrder.items) {
         let text = "";
         try {
@@ -453,7 +441,7 @@ export class ReadiumEngine implements ReaderEngine {
     if (!decoded) return null;
     const { href } = decoded;
     const link = this.pub?.readingOrder.items.find(
-      (l) => l.href === href || decodeHref(l.href) === href
+      (l) => l.href === href || decodeHref(l.href) === href,
     );
     const base =
       this.positions.find((p) => p.href === href || decodeHref(p.href) === href) ??
@@ -513,10 +501,13 @@ export class ReadiumEngine implements ReaderEngine {
     });
   }
 
-  private extractContext(targetFrameSrc: string, quote: string): { prefix: string; suffix: string } {
+  private extractContext(
+    targetFrameSrc: string,
+    quote: string,
+  ): { prefix: string; suffix: string } {
     try {
       const frame = Array.from(document.querySelectorAll("iframe")).find(
-        (f) => f.src === targetFrameSrc
+        (f) => f.src === targetFrameSrc,
       );
       const doc = frame?.contentDocument;
       const selection = doc?.getSelection();

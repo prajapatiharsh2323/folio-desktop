@@ -59,7 +59,7 @@ export class BackupError extends Error {
   constructor(
     readonly code: BackupErrorCode,
     message: string,
-    readonly detail?: string
+    readonly detail?: string,
   ) {
     super(message);
     this.name = "BackupError";
@@ -93,10 +93,7 @@ export function parseBackupMeta(bytes: Uint8Array): BackupMeta {
   try {
     raw = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
-    throw new BackupError(
-      "invalid-metadata",
-      "This backup's backup.json is not valid JSON."
-    );
+    throw new BackupError("invalid-metadata", "This backup's backup.json is not valid JSON.");
   }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new BackupError("invalid-metadata", "This backup's backup.json is malformed.");
@@ -112,14 +109,14 @@ export function parseBackupMeta(bytes: Uint8Array): BackupMeta {
     throw new BackupError(
       "unsupported-schema",
       `This backup was made by a newer version of Folio (schema ${String(
-        o.schema
-      )}). Update Folio before restoring it.`
+        o.schema,
+      )}). Update Folio before restoring it.`,
     );
   }
   if (o.schema !== 1 && o.schema !== 2) {
     throw new BackupError(
       "unsupported-schema",
-      `Backup schema ${String(o.schema)} is not supported.`
+      `Backup schema ${String(o.schema)} is not supported.`,
     );
   }
   const sha = typeof o.manifestSha256 === "string" ? o.manifestSha256 : "";
@@ -133,8 +130,7 @@ export function parseBackupMeta(bytes: Uint8Array): BackupMeta {
   }
   const docCount = typeof o.docCount === "number" ? o.docCount : -1;
   const fileCount = typeof o.fileCount === "number" ? o.fileCount : -1;
-  const uncompressedBytes =
-    typeof o.uncompressedBytes === "number" ? o.uncompressedBytes : -1;
+  const uncompressedBytes = typeof o.uncompressedBytes === "number" ? o.uncompressedBytes : -1;
   if (docCount < 0 || fileCount < 0 || uncompressedBytes < 0) {
     throw new BackupError("invalid-metadata", "This backup's metadata is incomplete.");
   }

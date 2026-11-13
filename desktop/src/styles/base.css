@@ -76,7 +76,9 @@ button {
   line-height: var(--folio-type-body-strong-line);
   font-weight: var(--folio-type-body-strong-weight);
   cursor: pointer;
-  transition: background var(--folio-motion-hover) ease, color var(--folio-motion-hover) ease;
+  transition:
+    background var(--folio-motion-hover) ease,
+    color var(--folio-motion-hover) ease;
 }
 
 .folio-sidebar__item:hover {
@@ -145,7 +147,9 @@ button {
   background: transparent;
   color: var(--folio-text-secondary);
   cursor: pointer;
-  transition: background var(--folio-motion-hover) ease, color var(--folio-motion-hover) ease;
+  transition:
+    background var(--folio-motion-hover) ease,
+    color var(--folio-motion-hover) ease;
 }
 
 .folio-iconbtn:hover {
@@ -165,7 +169,6 @@ button {
     animation-duration: 0.01ms !important;
   }
 }
-
 
 /* ---- Custom Scrollbars (03 §4, Phase 5) ---- */
 * {

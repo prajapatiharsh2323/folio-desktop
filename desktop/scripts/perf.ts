@@ -53,13 +53,14 @@ const fixtureLocators = Array.from({ length: 200 }, (_, i) =>
     href: `Text/ch${(i % CHAPTERS) + 1}.xhtml#frag${i}`,
     progression: (i % 100) / 100,
     anchor: { quote: `quote text ${i}`, prefix: `...prefix ${i}`, suffix: `suffix ${i}` },
-  })
+  }),
 );
 
 const benches = [
   {
     id: "reader_parse_openEpubFromBytes",
-    scope: "04 §12 budget 1 factor — 'parser' of cold open (zip + container/OPF + manifest → Readium Publication). Webview init/rendering excluded.",
+    scope:
+      "04 §12 budget 1 factor — 'parser' of cold open (zip + container/OPF + manifest → Readium Publication). Webview init/rendering excluded.",
     limitMs: 1_200,
     runs: 5,
     fn: () => {
@@ -72,7 +73,8 @@ const benches = [
   },
   {
     id: "import_parseEpub",
-    scope: "Import-path parse (zip + OPF + spine HTML → sanitized text). A distinct user flow ('Add book'), recorded for comparison; not the 1.2 s budget itself.",
+    scope:
+      "Import-path parse (zip + OPF + spine HTML → sanitized text). A distinct user flow ('Add book'), recorded for comparison; not the 1.2 s budget itself.",
     limitMs: null,
     runs: 5,
     fn: () => {
@@ -92,7 +94,8 @@ const benches = [
   },
   {
     id: "locator_decode_200",
-    scope: "Pure locator decode cost of a 200-highlight batch (input side of 04 §12 budget 3). Paint cost excluded — needs the webview.",
+    scope:
+      "Pure locator decode cost of a 200-highlight batch (input side of 04 §12 budget 3). Paint cost excluded — needs the webview.",
     limitMs: 400,
     runs: 9,
     fn: () => {
@@ -132,7 +135,8 @@ const report = {
     platform: `${process.platform}/${process.arch}`,
     cpu: os.cpus()[0]?.model ?? "unknown",
     cores: os.cpus().length,
-    domParser: "jsdom (slower than Chromium; numbers are a conservative baseline, not the runtime verdict)",
+    domParser:
+      "jsdom (slower than Chromium; numbers are a conservative baseline, not the runtime verdict)",
   },
   fixture: {
     epubSizeBytes: epub.length,

@@ -19,7 +19,7 @@ function render(ui: React.ReactElement) {
 
 function items(): HTMLButtonElement[] {
   return Array.from(
-    document.querySelectorAll(".folio-reader-ctxmenu [role='menuitem']")
+    document.querySelectorAll(".folio-reader-ctxmenu [role='menuitem']"),
   ) as HTMLButtonElement[];
 }
 
@@ -39,7 +39,14 @@ describe("ReaderContextMenu (07 §3 reduced menu)", () => {
 
   it("renders the three reduced actions as a menu", () => {
     render(
-      <ReaderContextMenu x={30} y={300} onClose={() => {}} onToggleChrome={() => {}} onToc={() => {}} onBookmark={() => {}} />
+      <ReaderContextMenu
+        x={30}
+        y={300}
+        onClose={() => {}}
+        onToggleChrome={() => {}}
+        onToc={() => {}}
+        onBookmark={() => {}}
+      />,
     );
     expect(document.querySelector(".folio-reader-ctxmenu[role='menu']")).not.toBeNull();
     const text = items().map((b) => b.textContent);
@@ -58,7 +65,7 @@ describe("ReaderContextMenu (07 §3 reduced menu)", () => {
         onToggleChrome={() => calls.push("chrome")}
         onToc={() => calls.push("toc")}
         onBookmark={() => calls.push("bookmark")}
-      />
+      />,
     );
     clickItem("Bookmark position");
     expect(calls).toEqual(["closed", "bookmark"]);
@@ -67,7 +74,14 @@ describe("ReaderContextMenu (07 §3 reduced menu)", () => {
   it("closes on Escape", () => {
     let closed = false;
     render(
-      <ReaderContextMenu x={30} y={300} onClose={() => (closed = true)} onToggleChrome={() => {}} onToc={() => {}} onBookmark={() => {}} />
+      <ReaderContextMenu
+        x={30}
+        y={300}
+        onClose={() => (closed = true)}
+        onToggleChrome={() => {}}
+        onToc={() => {}}
+        onBookmark={() => {}}
+      />,
     );
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -78,7 +92,14 @@ describe("ReaderContextMenu (07 §3 reduced menu)", () => {
   it("closes on a mousedown outside the menu", () => {
     let closed = false;
     render(
-      <ReaderContextMenu x={30} y={300} onClose={() => (closed = true)} onToggleChrome={() => {}} onToc={() => {}} onBookmark={() => {}} />
+      <ReaderContextMenu
+        x={30}
+        y={300}
+        onClose={() => (closed = true)}
+        onToggleChrome={() => {}}
+        onToc={() => {}}
+        onBookmark={() => {}}
+      />,
     );
     act(() => {
       document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));

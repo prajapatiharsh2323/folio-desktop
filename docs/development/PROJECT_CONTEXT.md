@@ -47,6 +47,7 @@ pnpm tauri:dev                # requires a working desktop webview
 pnpm tauri:build              # NSIS installer
 cd src-tauri
 cargo test --all-targets
+cargo test -p foliocore --all-targets   # dependency-free security core; runs on any host
 cargo fmt --all -- --check
 ```
 
@@ -63,6 +64,12 @@ exists, use `./node_modules/.bin/tsc -b`, `./node_modules/.bin/vitest run`, and
   `pnpm tauri:*` are not valid Linux verification here. Do not claim they
   passed. (The sync-only `keyring`/`reqwest` crates were removed with Drive
   sync, 2026-10-31 — see D-20261031-03.)
+- **`foliocore` sub-crate** (`src-tauri/foliocore/`: appdir, guard, sandbox)
+  has no Tauri/GUI dependencies, so its tests DO run on Linux: `cargo test -p
+  foliocore --all-targets`. Cross-check the full crate with `CARGO_TARGET_DIR=
+  /tmp/<dir> cargo check --all-targets --target x86_64-pc-windows-gnu`
+  (mingw-w64 required; keep the target dir off `/home` — it fills up and
+  rustc dies with SIGBUS).
 - Linux-safe verification: `tsc -b`, Vitest, `vite build`.
 - Vite dev server uses fixed port `1420` (`strictPort`). It ignores
   `**/src-tauri/**` while watching because cargo's locked debug DLL crashed the
@@ -89,15 +96,22 @@ layout.
 **Rust commands** (`desktop/src-tauri/src/lib.rs`):
 `fs_read`, `fs_write_atomic`, `fs_delete`, `fs_move`, `fs_stat`, `fs_list_dir`,
 `fs_free_space`, `sha256_file`, `zip_read`, `zip_write`, `open_external_url`,
-`open_app_dir`, `library_path`, `prevent_display_sleep`, and
-`take_pending_launch`. (The OAuth signIn/refresh/status/sign-out commands were
-removed with Drive sync, 2026-10-31; the `dict_*` commands with the
-dictionary removal, D-20261031-05.)
+`open_app_dir`, `open_log_dir`, `library_path`, `log_error`, `log_path`,
+`prevent_display_sleep`, `pick_import_files`, `pick_backup_source`,
+`pick_backup_dest`, `pick_image_dest`, and `take_pending_launch`. (The OAuth
+signIn/refresh/status/sign-out commands were removed with Drive sync,
+2026-10-31; the `dict_*` commands with the dictionary removal, D-20261031-05.)
 
 **Virtual paths.** TypeScript builds all library paths under `/folio-library`
 (`desktop/src/lib/libraryPaths.ts`). Rust translates that prefix to the real app
-dir in `desktop/src-tauri/src/appdir.rs`; native/UNC paths pass through. Every
-Rust write goes through `guard.rs` (absolute-path + traversal checks).
+dir (`desktop/src-tauri/foliocore/src/appdir.rs`); native/UNC paths pass
+through. Every Rust file command goes through `guard_sandboxed()`
+(`foliocore/src/guard.rs`): normalize → canonicalize (symlinks/junctions
+resolve) → must stay inside the app dir **or** be granted this session.
+Grants are exact-path, session-scoped, and made only in Rust at user actions:
+native picks (`pick_*` commands), the DragDrop Drop handler (which then emits
+`folio://drop-granted`), and open-with launch args (`open_files::remember`).
+The webview never handles a usable path before the grant exists.
 
 **On-disk layout.** Default app dir is `%APPDATA%/Folio` (Windows); the library
 root is `<appDir>/library`:

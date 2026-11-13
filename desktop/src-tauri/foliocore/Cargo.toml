@@ -1,0 +1,11 @@
+[package]
+name = "foliocore"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "1"
+
+[lib]
+name = "foliocore"
+path = "src/lib.rs"

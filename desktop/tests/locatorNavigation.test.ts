@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  decodeLocation,
-  encodeLocation,
-  hrefOf,
-} from "../src/reader/locatorCodec";
+import { decodeLocation, encodeLocation, hrefOf } from "../src/reader/locatorCodec";
 
 describe("locator navigation", () => {
   it("keeps a chapter href and fragment from a search result", () => {

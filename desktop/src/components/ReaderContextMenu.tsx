@@ -63,7 +63,7 @@ export function ReaderContextMenu({
           onToggleChrome();
         }}
       >
-        <FolioIcons.More size="sm" />
+        <FolioIcons.EyeOff size="sm" />
         Toggle toolbar
       </button>
       <button

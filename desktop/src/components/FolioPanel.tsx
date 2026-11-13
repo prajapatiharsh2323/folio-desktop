@@ -16,6 +16,11 @@ interface FolioPanelProps {
  * surface, hairline left border, x6 padding, ESC/backdrop closes, focus-trapped. */
 export function FolioPanel({ open, onClose, title, width = 360, children }: FolioPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // The effect below must not depend on `onClose`: callers pass inline arrow
+  // functions, which would re-run the effect (focus + modal push/pop) on
+  // every parent re-render and steal focus from inputs inside the panel.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -30,7 +35,7 @@ export function FolioPanel({ open, onClose, title, width = 360, children }: Foli
       if (!isTopModal(token)) return;
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       trapTabKey(panel, e);
@@ -41,13 +46,14 @@ export function FolioPanel({ open, onClose, title, width = 360, children }: Foli
       popModal(token);
       prevActive?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   return (
     <>
       <div className="folio-overlay" onClick={onClose} aria-hidden="true" />
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- focus-trap container: keydown only handles Tab trapping, all inner controls are focusable */}
       <div
         ref={panelRef}
         className="folio-panel"
@@ -60,7 +66,12 @@ export function FolioPanel({ open, onClose, title, width = 360, children }: Foli
       >
         <div className="folio-panel__header">
           {title && <h2 className="folio-panel__title">{title}</h2>}
-          <button type="button" className="folio-iconbtn" onClick={onClose} aria-label="Close panel">
+          <button
+            type="button"
+            className="folio-iconbtn"
+            onClick={onClose}
+            aria-label="Close panel"
+          >
             <FolioIcons.Close />
           </button>
         </div>

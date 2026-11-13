@@ -13,6 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+foliocore = { path = "foliocore" }
 tauri = { version = "2", features = [] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-opener = "2"
@@ -20,7 +21,9 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-zip = "2"
+# Deflate only: Folio's own archives (and EPUBs in practice) use deflate;
+# the extra codecs pull in C deps that break cross-checking and bloat the exe.
+zip = { version = "2", default-features = false, features = ["deflate"] }
 thiserror = "1"
 
 [target.'cfg(windows)'.dependencies]

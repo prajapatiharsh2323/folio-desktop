@@ -89,7 +89,7 @@ describe("ReaderChrome top bar", () => {
             open = next;
           },
         })}
-      />
+      />,
     );
     act(() => {
       byLabel("More").dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -107,7 +107,7 @@ describe("ReaderChrome top bar", () => {
           onBookmark: () => hits.push("bookmark"),
           onAppearance: () => hits.push("appearance"),
         })}
-      />
+      />,
     );
     for (const label of ["Contents", "Search in book", "Add bookmark", "Appearance"]) {
       act(() => {
@@ -144,11 +144,11 @@ describe("ReaderChrome top bar", () => {
             toggled++;
           },
         })}
-      />
+      />,
     );
-    const item = (Array.from(document.querySelectorAll("[role='menuitem']")) as HTMLButtonElement[]).find(
-      (b) => b.textContent?.includes("Hide controls")
-    )!;
+    const item = (
+      Array.from(document.querySelectorAll("[role='menuitem']")) as HTMLButtonElement[]
+    ).find((b) => b.textContent?.includes("Hide controls"))!;
     act(() => {
       item.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -193,7 +193,7 @@ describe("ReaderDock", () => {
           onPrevious: () => hits.push("previous"),
           onNext: () => hits.push("next"),
         })}
-      />
+      />,
     );
     act(() => {
       byLabel("Previous page").dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -213,7 +213,7 @@ describe("ReaderDock", () => {
           onScrubChange: (p) => calls.push(`change:${p}`),
           onScrubEnd: (p) => calls.push(`end:${p}`),
         })}
-      />
+      />,
     );
     const slider = document.querySelector(".folio-reader-dock__slider") as HTMLInputElement;
 
@@ -242,7 +242,7 @@ describe("ReaderDock", () => {
           onScrubChange: (p) => calls.push(`change:${p}`),
           onScrubEnd: (p) => calls.push(`end:${p}`),
         })}
-      />
+      />,
     );
     const slider = document.querySelector(".folio-reader-dock__slider") as HTMLInputElement;
 
@@ -260,9 +260,9 @@ describe("ReaderDock", () => {
   it("shows seeking feedback while a jump resolves", () => {
     render(<ReaderChrome {...chromeProps({ seeking: true })} />);
     expect(document.querySelector(".folio-reader-dock__seeking")?.textContent).toContain("Jumping");
-    expect(
-      document.querySelector(".folio-reader-dock__slider")?.getAttribute("aria-busy")
-    ).toBe("true");
+    expect(document.querySelector(".folio-reader-dock__slider")?.getAttribute("aria-busy")).toBe(
+      "true",
+    );
   });
 });
 

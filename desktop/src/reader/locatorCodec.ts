@@ -84,9 +84,7 @@ export function encodeLocation(loc: FolioLocation): string {
   }
 
   const query = params.toString();
-  const base = query
-    ? `${href}${href.includes("?") ? "&" : "?"}${query}`
-    : href;
+  const base = query ? `${href}${href.includes("?") ? "&" : "?"}${query}` : href;
   return fragment ? `${base}#${fragment}` : base;
 }
 
@@ -158,29 +156,20 @@ const SAME_PROGRESSION_EPSILON = 0.0001;
  * bookmarks: the engine emits slightly different progressions for the same
  * page as the viewport settles, so string equality is too strict.
  */
-export function sameLocation(
-  a: string | null | undefined,
-  b: string | null | undefined
-): boolean {
+export function sameLocation(a: string | null | undefined, b: string | null | undefined): boolean {
   const left = decodeLocation(a);
   const right = decodeLocation(b);
   if (!left || !right) return false;
   if (left.href !== right.href) return false;
   if ((left.fragment ?? "") !== (right.fragment ?? "")) return false;
-  return (
-    Math.abs((left.progression ?? 0) - (right.progression ?? 0)) <=
-    SAME_PROGRESSION_EPSILON
-  );
+  return Math.abs((left.progression ?? 0) - (right.progression ?? 0)) <= SAME_PROGRESSION_EPSILON;
 }
 
 /**
  * Attach (or clear) the text anchor on a stored locator, keeping its href,
  * fragment and progression. A null anchor leaves the value untouched.
  */
-export function withAnchor(
-  value: string,
-  anchor: LocatorAnchor | null | undefined
-): string {
+export function withAnchor(value: string, anchor: LocatorAnchor | null | undefined): string {
   if (!anchor) return value;
   const base = decodeLocation(value);
   if (!base) return value;

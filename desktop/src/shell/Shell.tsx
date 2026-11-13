@@ -9,6 +9,7 @@ import { ReaderScreen } from "../screens/ReaderScreen";
 import { exitFullscreen, toggleFullscreen } from "../lib/fullscreen";
 import { hasBlockingOverlay } from "./overlays";
 import { ToastHost } from "../components/ToastHost";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 /** Single-window shell (02 §3, 03 §5.1): one route stack, sidebar hidden in reader. */
 export function Shell() {
@@ -70,7 +71,11 @@ export function Shell() {
           {route === "collections" && <CollectionsScreen />}
           {route === "notes" && <NotesScreen />}
           {route === "settings" && <SettingsScreen />}
-          {route === "reader" && <ReaderScreen />}
+          {route === "reader" && (
+            <ErrorBoundary variant="reader" onRecover={() => setRoute("library")}>
+              <ReaderScreen />
+            </ErrorBoundary>
+          )}
         </main>
       </div>
       <ToastHost />

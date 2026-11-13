@@ -81,4 +81,3 @@ export function KeyboardShortcutsDialog({ open, onClose }: KeyboardShortcutsDial
     </FolioDialog>
   );
 }
-

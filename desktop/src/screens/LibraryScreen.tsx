@@ -7,7 +7,7 @@ import { FolioBookRow } from "../components/FolioBookRow";
 import { FolioDialog } from "../components/FolioDialog";
 import { useLibraryUi, getLibraryFs, getLibraryManager } from "../store/libraryUi";
 import { useRouteStore } from "../store/routeStore";
-import { pickImportFiles, filesFromDataTransfer, filesFromTauriDrop } from "../lib/fileSource";
+import { onDroppedFiles, pickImportFiles, filesFromDataTransfer } from "../lib/fileSource";
 import { MiniSearch } from "../search/miniSearch";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { readStorage, writeStorage } from "../lib/storage";
@@ -15,6 +15,7 @@ import { visibleRowIds } from "../lib/libraryView";
 import { searchSignature } from "../lib/searchCache";
 import { hasBlockingOverlay } from "../shell/overlays";
 import { pushToast } from "../shell/toasts";
+import { handleError } from "../lib/errorLog";
 
 /** Library screen (03 §5.2) wired to the schema-1 library via LibraryManager. */
 export function LibraryScreen() {
@@ -36,9 +37,7 @@ export function LibraryScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filterDocIds, setFilterDocIds] = useState<Set<string> | null>(null);
-  const [sort, setSort] = useState<string>(
-    () => readStorage("folio.library.sort") || "recent"
-  );
+  const [sort, setSort] = useState<string>(() => readStorage("folio.library.sort") || "recent");
   const [filterCollection, setFilterCollection] = useState<string | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [addToCollectionOpen, setAddToCollectionOpen] = useState(false);
@@ -119,7 +118,7 @@ export function LibraryScreen() {
         snippet: h.snippet,
         docId: h.docId,
         location: h.href,
-      }))
+      })),
     );
   }, []);
 
@@ -145,6 +144,68 @@ export function LibraryScreen() {
   useEffect(() => () => cancelDuplicate(), [cancelDuplicate]);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const lm = getLibraryManager();
+        const list = await lm.collections.list();
+        setCollections(list.map((c) => ({ id: c.id, name: c.name })));
+      } catch (e) {
+        handleError(e, { context: "library.collections" });
+      }
+    })();
+  }, []);
+
+  // Tauri drag-and-drop: the webview event drives the over/leave visuals,
+  // while the actual drop arrives via `folio://drop-granted` — Rust grants
+  // the paths before emitting, so the webview never handles a raw path.
+  // HTML5 dnd is the browser fallback.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+        const un = await getCurrentWebview().onDragDropEvent((event) => {
+          if (event.payload.type === "over") setDragOver(true);
+          else if (event.payload.type === "leave") setDragOver(false);
+          else if (event.payload.type === "drop") {
+            setDragOver(false);
+            // Paths are handled by the granted event below.
+          }
+        });
+        if (cancelled) un();
+        else unlisten = un;
+      } catch {
+        /* not in Tauri — HTML5 handlers cover it */
+      }
+    })();
+    let unDrop: (() => void) | undefined;
+    let dropCancelled = false;
+    void onDroppedFiles((files) => {
+      // The tour, onboarding and dialogs own the window; a drop must
+      // not import underneath them.
+      if (hasBlockingOverlay()) return;
+      void importPicked(files);
+    }).then((un) => {
+      if (dropCancelled) un();
+      else unDrop = un;
+    });
+    return () => {
+      cancelled = true;
+      dropCancelled = true;
+      unlisten?.();
+      unDrop?.();
+    };
+  }, [importPicked]);
+
+  const onImport = useCallback(async () => {
+    const files = await pickImportFiles();
+    await importPicked(files);
+  }, [importPicked]);
+
+  // Global library keys (07 §1 matrix): "/" and Ctrl+F search, Ctrl+I import.
+  // Declared after `onImport` so the dependency is complete without disables.
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (hasBlockingOverlay()) return;
       const target = e.target as HTMLElement | null;
@@ -169,57 +230,7 @@ export function LibraryScreen() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const lm = getLibraryManager();
-        const list = await lm.collections.list();
-        setCollections(list.map((c) => ({ id: c.id, name: c.name })));
-      } catch {
-        /* ignore */
-      }
-    })();
-  }, []);
-
-  // Tauri drag-and-drop (webview-level); HTML5 dnd is the browser fallback.
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
-        const un = await getCurrentWebview().onDragDropEvent((event) => {
-          if (event.payload.type === "over") setDragOver(true);
-          else if (event.payload.type === "leave") setDragOver(false);
-          else if (event.payload.type === "drop") {
-            setDragOver(false);
-            // The tour, onboarding and dialogs own the window; a drop must
-            // not import underneath them.
-            if (hasBlockingOverlay()) return;
-            void filesFromTauriDrop(event.payload.paths).then((f) => {
-              if (f) void importPicked(f);
-            });
-          }
-        });
-        if (cancelled) un();
-        else unlisten = un;
-      } catch {
-        /* not in Tauri — HTML5 handlers cover it */
-      }
-    })();
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [importPicked]);
-
-  const onImport = async () => {
-    const files = await pickImportFiles();
-    await importPicked(files);
-  };
+  }, [onImport]);
 
   const visibleRows = rows
     .filter((r) => (filterDocIds ? filterDocIds.has(r.id) : true))
@@ -282,7 +293,8 @@ export function LibraryScreen() {
         const list = await lm.collections.list();
         const c = list.find((x) => x.id === filterCollection);
         setFilterDocIds(new Set(c?.docIds ?? []));
-      } catch {
+      } catch (e) {
+        handleError(e, { context: "library.filter" });
         setFilterDocIds(null);
       }
     })();
@@ -292,7 +304,11 @@ export function LibraryScreen() {
     writeStorage("folio.library.sort", sort);
   }, [sort]);
 
+  // Toolbar count is the library total; the "N of M" form only shows while a
+  // filter actually narrows the list, so the number never jumps confusingly.
+  const total = rows.length;
   const count = visibleRows.length;
+  const filtered = count !== total;
 
   return (
     <>
@@ -300,7 +316,9 @@ export function LibraryScreen() {
         <div className="folio-toolbar__titles">
           <div className="folio-toolbar__title">Library</div>
           <div className="folio-toolbar__subtitle">
-            {count} document{count === 1 ? "" : "s"}
+            {filtered
+              ? `${count} of ${total} document${total === 1 ? "" : "s"}`
+              : `${count} document${count === 1 ? "" : "s"}`}
           </div>
         </div>
         <button
@@ -488,11 +506,7 @@ export function LibraryScreen() {
                   Show all books
                 </FolioButton>
               ) : (
-                <FolioButton
-                  variant="primary"
-                  onClick={() => void onImport()}
-                  data-tour="import"
-                >
+                <FolioButton variant="primary" onClick={() => void onImport()} data-tour="import">
                   Import a file
                 </FolioButton>
               )
@@ -574,8 +588,9 @@ export function LibraryScreen() {
                       await lm.deleteDoc(id);
                       deleted += 1;
                     } catch (e) {
+                      handleError(e, { context: "library.delete" });
                       failures.push(
-                        `${titles.get(id) ?? id}: ${e instanceof Error ? e.message : "Delete failed"}`
+                        `${titles.get(id) ?? id}: ${e instanceof Error ? e.message : "Delete failed"}`,
                       );
                     }
                   }
@@ -606,7 +621,9 @@ export function LibraryScreen() {
         }
       >
         <p className="folio-helper">
-          This will permanently remove the selected {selectedIds.size === 1 ? "document" : "documents"} and all associated notes from your library. This action cannot be undone.
+          This will permanently remove the selected{" "}
+          {selectedIds.size === 1 ? "document" : "documents"} and all associated notes from your
+          library. This action cannot be undone.
         </p>
       </FolioDialog>
 
@@ -696,7 +713,9 @@ export function LibraryScreen() {
           <div key={d.slug} className="folio-settings-row">
             <div className="folio-settings-row__body">
               <div className="folio-settings-row__title">{d.slug}</div>
-              <div className="folio-settings-row__helper">Interrupted import — delete leftover?</div>
+              <div className="folio-settings-row__helper">
+                Interrupted import — delete leftover?
+              </div>
             </div>
             <div className="folio-settings-row__control">
               <FolioButton
@@ -712,7 +731,6 @@ export function LibraryScreen() {
           </div>
         ))}
       </FolioDialog>
-
     </>
   );
 }

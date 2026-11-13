@@ -8,7 +8,7 @@ import { useRouteStore } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
 import type { Annotation } from "../model/types";
 import { nowIso } from "../model/ids";
-import { pushToast } from "../shell/toasts";
+import { describeError, handleError } from "../lib/errorLog";
 
 const SWATCH_CSS: Record<string, string> = {
   yellow: "var(--folio-swatch-yellow)",
@@ -50,6 +50,7 @@ export function NotesScreen() {
       const all = await lm.annotations.list();
       setAnnotations(all);
     } catch (e) {
+      handleError(e, { context: "notes.load" });
       setError(e instanceof Error ? e.message : "Notes could not be loaded.");
     } finally {
       setLoading(false);
@@ -73,9 +74,7 @@ export function NotesScreen() {
       docId: a.docId,
       location: a.location ?? undefined,
       anchor:
-        a.quote && a.quote.trim()
-          ? { quote: a.quote, prefix: a.prefix, suffix: a.suffix }
-          : null,
+        a.quote && a.quote.trim() ? { quote: a.quote, prefix: a.prefix, suffix: a.suffix } : null,
     });
   };
 
@@ -93,9 +92,9 @@ export function NotesScreen() {
     } catch (e) {
       // Keep the dialog open with the user's draft so a transient write
       // failure can be retried instead of silently discarding the edit.
-      pushToast({
-        tone: "error",
-        text: e instanceof Error ? e.message : "The note could not be saved.",
+      handleError(e, {
+        context: "notes.update",
+        userMessage: describeError(e, "The note could not be saved."),
       });
     } finally {
       setBusy(false);
@@ -111,9 +110,9 @@ export function NotesScreen() {
       setDeleting(null);
       await refresh();
     } catch (e) {
-      pushToast({
-        tone: "error",
-        text: e instanceof Error ? e.message : "The note could not be deleted.",
+      handleError(e, {
+        context: "notes.delete",
+        userMessage: describeError(e, "The note could not be deleted."),
       });
     } finally {
       setBusy(false);
@@ -145,13 +144,14 @@ export function NotesScreen() {
         </div>
       </header>
 
-      <div className="folio-toolbar" role="group" aria-label="Note filters" style={{ paddingTop: 0 }}>
+      <div
+        className="folio-toolbar"
+        role="group"
+        aria-label="Note filters"
+        style={{ paddingTop: 0 }}
+      >
         {(["all", "highlight", "note", "bookmark"] as Filter[]).map((f) => (
-          <FolioChip
-            key={f}
-            selected={filter === f}
-            onClick={() => setFilter(f)}
-          >
+          <FolioChip key={f} selected={filter === f} onClick={() => setFilter(f)}>
             {f === "all"
               ? "All"
               : f === "highlight"
@@ -178,9 +178,7 @@ export function NotesScreen() {
           />
         ) : filtered.length === 0 ? (
           <FolioEmptyState
-            title={
-              filter === "all" ? "No notes yet" : `No ${filterLabel[filter]} yet`
-            }
+            title={filter === "all" ? "No notes yet" : `No ${filterLabel[filter]} yet`}
             body={emptyBody[filter]}
           />
         ) : (
@@ -191,7 +189,7 @@ export function NotesScreen() {
               const railColor =
                 a.kind === "bookmark"
                   ? "var(--folio-accent)"
-                  : SWATCH_CSS[a.color ?? "yellow"] ?? "var(--folio-swatch-yellow)";
+                  : (SWATCH_CSS[a.color ?? "yellow"] ?? "var(--folio-swatch-yellow)");
               return (
                 <div key={a.id} className="folio-note-row">
                   <button
@@ -200,7 +198,11 @@ export function NotesScreen() {
                     onClick={() => openAt(a)}
                     aria-label={`Open ${kindLabel(a)} in ${title}`}
                   >
-                    <span className="folio-note-row__rail" style={{ background: railColor }} aria-hidden="true" />
+                    <span
+                      className="folio-note-row__rail"
+                      style={{ background: railColor }}
+                      aria-hidden="true"
+                    />
                     <div className="folio-note-row__body">
                       <div className="folio-note-row__meta">
                         <span className="folio-note-row__title">{title}</span>
@@ -208,9 +210,7 @@ export function NotesScreen() {
                         <span className="folio-note-row__badge">{kindLabel(a)}</span>
                         {a.note && <span className="folio-note-row__badge">Has note</span>}
                       </div>
-                      {a.quote && (
-                        <div className="folio-note-row__quote">{a.quote}</div>
-                      )}
+                      {a.quote && <div className="folio-note-row__quote">{a.quote}</div>}
                       {a.note && <div className="folio-note-row__note">{a.note}</div>}
                     </div>
                   </button>
@@ -250,11 +250,7 @@ export function NotesScreen() {
         title="Edit note"
         actions={
           <>
-            <FolioButton
-              variant="secondary"
-              onClick={() => setEditing(null)}
-              disabled={busy}
-            >
+            <FolioButton variant="secondary" onClick={() => setEditing(null)} disabled={busy}>
               Cancel
             </FolioButton>
             <FolioButton variant="primary" onClick={() => void handleEditSave()} disabled={busy}>
@@ -269,6 +265,7 @@ export function NotesScreen() {
           value={editDraft}
           onChange={(e) => setEditDraft(e.target.value)}
           autoFocus
+          data-autofocus
         />
       </FolioDialog>
 
@@ -278,11 +275,7 @@ export function NotesScreen() {
         title="Delete this note?"
         actions={
           <>
-            <FolioButton
-              variant="secondary"
-              onClick={() => setDeleting(null)}
-              disabled={busy}
-            >
+            <FolioButton variant="secondary" onClick={() => setDeleting(null)} disabled={busy}>
               Cancel
             </FolioButton>
             <FolioButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>

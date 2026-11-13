@@ -4,7 +4,7 @@ import { FolioRadioGroup } from "../components/FolioRadioGroup";
 import { trapTabKey } from "../components/focusTrap";
 import { READER_THEME_COLORS } from "../model/defaults";
 import type { FontFamilyPref, ReadingPrefs } from "../model/types";
-import { filesFromDataTransfer, filesFromTauriDrop, pickImportFiles } from "../lib/fileSource";
+import { filesFromDataTransfer, onDroppedFiles, pickImportFiles } from "../lib/fileSource";
 import { getLibraryManager, useLibraryUi } from "../store/libraryUi";
 import { useRouteStore } from "../store/routeStore";
 import { previewTheme, useThemeStore, type ThemeSetting } from "../theme/theme";
@@ -46,7 +46,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       (error) => {
         clearTimeout(timer);
         reject(error);
-      }
+      },
     );
   });
 }
@@ -182,7 +182,7 @@ function LookStep() {
           fontFamily: face,
           fontSize: size,
         }),
-        SAVE_TIMEOUT_MS
+        SAVE_TIMEOUT_MS,
       );
       setAppTheme(theme);
       completePrefs();
@@ -203,6 +203,7 @@ function LookStep() {
 
   return (
     <div className="folio-setup" data-folio-modal>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- focus-trap container: Tab trapping + Enter activation for the step's primary action */}
       <div
         className="folio-setup__panel folio-setup__step"
         role="dialog"
@@ -220,12 +221,7 @@ function LookStep() {
         <div className="folio-boot__wordmark folio-setup__wordmark">Folio</div>
 
         <div className="folio-setup__content">
-          <h1
-            id="folio-setup-title"
-            className="folio-setup__title"
-            ref={headingRef}
-            tabIndex={-1}
-          >
+          <h1 id="folio-setup-title" className="folio-setup__title" ref={headingRef} tabIndex={-1}>
             How do you like to read?
           </h1>
 
@@ -257,11 +253,7 @@ function LookStep() {
                     className={`folio-setup__swatch${selected ? " is-selected" : ""}`}
                     onClick={select}
                   >
-                    <span
-                      className="folio-setup__swatch-page"
-                      style={pageStyle}
-                      aria-hidden="true"
-                    >
+                    <span className="folio-setup__swatch-page" style={pageStyle} aria-hidden="true">
                       Aa
                     </span>
                     <span className="folio-setup__swatch-label">{option.label}</span>
@@ -315,8 +307,8 @@ function LookStep() {
             aria-hidden="true"
           >
             <p>
-              The quick brown fox jumps over the lazy dog, and the quiet page
-              asks nothing more of you than a little attention.
+              The quick brown fox jumps over the lazy dog, and the quiet page asks nothing more of
+              you than a little attention.
             </p>
           </div>
         </div>
@@ -396,7 +388,7 @@ function AddBookStep() {
         setBusy(false);
       }
     },
-    [busy, finish, importPicked]
+    [busy, finish, importPicked],
   );
 
   const chooseFiles = async () => {
@@ -410,8 +402,10 @@ function AddBookStep() {
     }
   };
 
-  // Tauri delivers OS drops at the webview level. This screen owns the window,
-  // so it listens directly instead of waiting for the Library screen.
+  // Tauri delivers OS drops: the webview event drives the over/leave visuals
+  // and the granted `folio://drop-granted` event carries the readable files.
+  // This screen owns the window, so it listens directly instead of waiting
+  // for the Library screen.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
@@ -423,9 +417,7 @@ function AddBookStep() {
           else if (event.payload.type === "leave") setDragOver(false);
           else if (event.payload.type === "drop") {
             setDragOver(false);
-            void filesFromTauriDrop(event.payload.paths).then((picked) => {
-              if (picked && picked.length > 0) void importFiles(picked);
-            });
+            // Paths are handled by the granted event below.
           }
         });
         if (cancelled) un();
@@ -434,9 +426,19 @@ function AddBookStep() {
         /* browser dev: the HTML5 handlers cover it */
       }
     })();
+    let unDrop: (() => void) | undefined;
+    let dropCancelled = false;
+    void onDroppedFiles((picked) => {
+      void importFiles(picked);
+    }).then((un) => {
+      if (dropCancelled) un();
+      else unDrop = un;
+    });
     return () => {
       cancelled = true;
+      dropCancelled = true;
       unlisten?.();
+      unDrop?.();
     };
   }, [importFiles]);
 
@@ -452,6 +454,7 @@ function AddBookStep() {
 
   return (
     <div className="folio-setup" data-folio-modal>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- focus-trap container: Tab trapping + Enter activation for the step's primary action */}
       <div
         className="folio-setup__panel folio-setup__step"
         role="dialog"
@@ -469,12 +472,7 @@ function AddBookStep() {
         <div className="folio-boot__wordmark folio-setup__wordmark">Folio</div>
 
         <div className="folio-setup__content">
-          <h1
-            id="folio-setup-title"
-            className="folio-setup__title"
-            ref={headingRef}
-            tabIndex={-1}
-          >
+          <h1 id="folio-setup-title" className="folio-setup__title" ref={headingRef} tabIndex={-1}>
             Add your first book
           </h1>
 

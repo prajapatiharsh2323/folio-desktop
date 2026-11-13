@@ -40,7 +40,6 @@ export class MemoryFileStore implements FileStore {
     return p.replace(/\\/g, "/").replace(/\/+$/, "") || "/";
   }
 
-
   async readText(path: string): Promise<string> {
     return globalMutex.run(path, async () => {
       const n = this.norm(path);

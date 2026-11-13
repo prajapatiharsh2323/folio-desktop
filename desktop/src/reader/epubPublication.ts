@@ -108,10 +108,7 @@ export function resolveEpubHref(baseDir: string, href: string): string {
   return absolute + fragment;
 }
 
-function zipEntry(
-  zip: Record<string, Uint8Array>,
-  href: string
-): Uint8Array | undefined {
+function zipEntry(zip: Record<string, Uint8Array>, href: string): Uint8Array | undefined {
   const bare = href.split("#")[0];
   return (
     zip[bare] ??
@@ -179,16 +176,13 @@ class AssetResolver {
   /** Rewrite `url(...)` references in an author stylesheet. */
   rewriteCss(css: string, cssHref: string): string {
     const baseDir = dirname(cssHref);
-    return css.replace(
-      /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi,
-      (whole, quote: string, ref: string) => {
-        const trimmed = ref.trim();
-        if (!trimmed || REMOTE_URL.test(trimmed)) return whole;
-        const abs = resolveEpubHref(baseDir, trimmed);
-        const url = this.urlFor(abs);
-        return url ? `url(${quote}${url}${quote})` : whole;
-      }
-    );
+    return css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (whole, quote: string, ref: string) => {
+      const trimmed = ref.trim();
+      if (!trimmed || REMOTE_URL.test(trimmed)) return whole;
+      const abs = resolveEpubHref(baseDir, trimmed);
+      const url = this.urlFor(abs);
+      return url ? `url(${quote}${url}${quote})` : whole;
+    });
   }
 
   /** Rewrite asset references in an XHTML resource (anchors stay untouched). */
@@ -246,7 +240,7 @@ class ZipResource extends Resource {
   constructor(
     private readonly linkValue: Link,
     private readonly entry: Uint8Array | undefined,
-    private readonly assets: AssetResolver
+    private readonly assets: AssetResolver,
   ) {
     super();
   }
@@ -263,7 +257,7 @@ class ZipResource extends Resource {
     if (!this.entry) return undefined;
     if (this.linkValue.mediaType.essence === "text/css") {
       return new TextEncoder().encode(
-        this.assets.rewriteCss(strFromU8(this.entry), this.linkValue.href)
+        this.assets.rewriteCss(strFromU8(this.entry), this.linkValue.href),
       );
     }
     return this.entry;
@@ -275,9 +269,7 @@ class ZipResource extends Resource {
     if (!mediaType.isHTML) return super.readAsXML();
     const source = strFromU8(this.entry);
     const xmlType =
-      mediaType.essence === "application/xhtml+xml"
-        ? "application/xhtml+xml"
-        : "text/html";
+      mediaType.essence === "application/xhtml+xml" ? "application/xhtml+xml" : "text/html";
     let doc = new DOMParser().parseFromString(source, xmlType);
     if (doc.querySelector("parsererror") && xmlType !== "text/html") {
       // Malformed XHTML is common in the wild; the HTML parser is forgiving.
@@ -333,7 +325,7 @@ function readManifest(doc: Document, opfDir: string): ManifestItem[] {
 
 function readSpine(
   doc: Document,
-  items: ManifestItem[]
+  items: ManifestItem[],
 ): { hrefs: string[]; tocId: string | null } {
   const byId = new Map(items.map((i) => [i.id, i]));
   const spine = firstByLocalName(doc, "spine");
@@ -348,11 +340,7 @@ function readSpine(
 }
 
 function attrsOf(el: Element, name: string): string {
-  return (
-    el.getAttribute(name) ??
-    el.getAttributeNS("http://www.idpf.org/2007/ops", name) ??
-    ""
-  );
+  return el.getAttribute(name) ?? el.getAttributeNS("http://www.idpf.org/2007/ops", name) ?? "";
 }
 
 function parseNavList(list: Element, baseDir: string): Link[] {
@@ -360,10 +348,10 @@ function parseNavList(list: Element, baseDir: string): Link[] {
   for (const child of Array.from(list.children)) {
     if (child.localName.toLowerCase() !== "li") continue;
     const linkEl = Array.from(child.children).find((c) =>
-      ["a", "span"].includes(c.localName.toLowerCase())
+      ["a", "span"].includes(c.localName.toLowerCase()),
     );
     const nested = Array.from(child.children).find((c) =>
-      ["ol", "ul"].includes(c.localName.toLowerCase())
+      ["ol", "ul"].includes(c.localName.toLowerCase()),
     );
     const title = textOf(linkEl ?? null);
     const rawHref = linkEl?.getAttribute("href") ?? "";
@@ -379,34 +367,34 @@ function parseNavList(list: Element, baseDir: string): Link[] {
         title: title || rawHref,
         type: mediaTypeFor(rawHref),
         children: children.length > 0 ? new Links(children) : undefined,
-      })
+      }),
     );
   }
   return out;
 }
 
-function parseNavToc(
-  navBytes: Uint8Array | undefined,
-  navHref: string
-): Link[] {
+function parseNavToc(navBytes: Uint8Array | undefined, navHref: string): Link[] {
   if (!navBytes) return [];
   const doc = parseHtml(strFromU8(navBytes));
   const navs = Array.from(doc.querySelectorAll("nav"));
   const tocNav =
     navs.find((nav) => {
       const type = attrsOf(nav, "type").toLowerCase();
-      return type === "toc" || type.split(/\s+/).includes("toc") || nav.getAttribute("role") === "doc-toc";
-    }) ?? navs.find((nav) => Boolean(nav.querySelector("ol, ul"))) ?? null;
+      return (
+        type === "toc" ||
+        type.split(/\s+/).includes("toc") ||
+        nav.getAttribute("role") === "doc-toc"
+      );
+    }) ??
+    navs.find((nav) => Boolean(nav.querySelector("ol, ul"))) ??
+    null;
   if (!tocNav) return [];
   const list = tocNav.querySelector("ol, ul");
   if (!list) return [];
   return parseNavList(list, dirname(navHref));
 }
 
-function parseNcxToc(
-  ncxBytes: Uint8Array | undefined,
-  ncxHref: string
-): Link[] {
+function parseNcxToc(ncxBytes: Uint8Array | undefined, ncxHref: string): Link[] {
   if (!ncxBytes) return [];
   let doc: Document;
   try {
@@ -431,7 +419,7 @@ function parseNcxToc(
           title: textOf(label) || src,
           type: mediaTypeFor(src),
           children: children.length > 0 ? new Links(children) : undefined,
-        })
+        }),
       );
     }
     return out;
@@ -439,11 +427,7 @@ function parseNcxToc(
   return build(navMap);
 }
 
-function readCover(
-  doc: Document,
-  items: ManifestItem[],
-  opfDir: string
-): ManifestItem | null {
+function readCover(doc: Document, items: ManifestItem[], opfDir: string): ManifestItem | null {
   // EPUB3: properties="cover-image"
   const byProperty = items.find((i) => i.properties.includes("cover-image"));
   if (byProperty) return byProperty;
@@ -482,10 +466,8 @@ function readLayout(doc: Document): Layout | undefined {
     const property = meta.getAttribute("property") ?? "";
     const name = meta.getAttribute("name") ?? "";
     const content = meta.getAttribute("content") ?? "";
-    if (property === "rendition:layout" && content === "pre-paginated")
-      return Layout.fixed;
-    if (name === "fixed-layout" && content.toLowerCase() === "true")
-      return Layout.fixed;
+    if (property === "rendition:layout" && content === "pre-paginated") return Layout.fixed;
+    if (name === "fixed-layout" && content.toLowerCase() === "true") return Layout.fixed;
   }
   return undefined;
 }
@@ -544,7 +526,7 @@ export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
         mediaType: mediaTypeFor(href),
         properties: [],
         absHref: href,
-      }
+      },
     );
   }
 
@@ -557,7 +539,7 @@ export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
           item.properties.length > 0
             ? new Properties(Object.fromEntries(item.properties.map((p) => [p, true])))
             : undefined,
-      })
+      }),
   );
 
   const cover = readCover(opf, items, opfDir);
@@ -581,7 +563,7 @@ export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
             item.properties.length > 0
               ? new Properties(Object.fromEntries(item.properties.map((p) => [p, true])))
               : undefined,
-        })
+        }),
     );
   if (coverLink && !resources.some((r) => r.href === coverLink.href)) {
     resources.push(coverLink);
@@ -589,9 +571,7 @@ export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
 
   // TOC: EPUB3 nav document first, NCX second.
   const navItem = items.find((i) => i.properties.includes("nav"));
-  let toc = navItem
-    ? parseNavToc(zipEntry(zip, navItem.absHref), navItem.absHref)
-    : [];
+  let toc = navItem ? parseNavToc(zipEntry(zip, navItem.absHref), navItem.absHref) : [];
   if (toc.length === 0) {
     const ncxItem =
       items.find((i) => i.mediaType === "application/x-dtbncx+xml") ??
@@ -603,7 +583,7 @@ export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
   const authors = allText(opf, "creator");
   const languages = allText(opf, "language");
   const modifiedRaw = byLocalName(opf, "meta").find(
-    (m) => m.getAttribute("property") === "dcterms:modified"
+    (m) => m.getAttribute("property") === "dcterms:modified",
   );
   const modifiedText = textOf(modifiedRaw ?? null);
   const modified = modifiedText ? new Date(modifiedText) : undefined;
@@ -615,7 +595,7 @@ export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
     authors:
       authors.length > 0
         ? new Contributors(
-            authors.map((name) => new Contributor({ name: new LocalizedString(name) }))
+            authors.map((name) => new Contributor({ name: new LocalizedString(name) })),
           )
         : undefined,
     layout: readLayout(opf),

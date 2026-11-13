@@ -12,6 +12,7 @@
   --folio-text-secondary: #676A61;
   --folio-text-muted: #87897F;
   --folio-border: #E1E0D6;
+  --folio-border-control: #8A897C;
   --folio-accent: #355847;
   --folio-accent-pressed: #294638;
   --folio-accent-container: #E2EAE1;
@@ -114,6 +115,27 @@
   --folio-motion-panel: 220ms;
   --folio-motion-panel-ease: cubic-bezier(.2,.7,.2,1);
   --folio-motion-page: 300ms;
+
+  /* ---- Z-index ladder (flat; app chrome over reader layers) ---- */
+  --folio-z-content: 0;
+  --folio-z-content-raised: 1;
+  --folio-z-content-top: 2;
+  --folio-z-reader-empty: 10;
+  --folio-z-reader-scrim: 15;
+  --folio-z-reader-hairline: 19;
+  --folio-z-reader-chrome: 20;
+  --folio-z-reader-splash: 30;
+  --folio-z-reader-focus-exit: 35;
+  --folio-z-overlay: 40;
+  --folio-z-overlay-surface: 41;
+  --folio-z-reader-menu: 45;
+  --folio-z-reader-panel: 50;
+  --folio-z-selection-toolbar: 60;
+  --folio-z-ctxmenu: 65;
+  --folio-z-panel: 70;
+  --folio-z-tour: 80;
+  --folio-z-dialog: 90;
+  --folio-z-boot: 100;
 }
 
 /* ---- App UI · dark palette (03 §2) — never pure black ---- */
@@ -126,11 +148,15 @@
   --folio-text-secondary: #B2B7AB;
   --folio-text-muted: #8D968A;
   --folio-border: #343D35;
+  --folio-border-control: #748074;
   --folio-accent: #A7C4A6;
   --folio-accent-pressed: #BED4BB;
   --folio-accent-container: #2B3C2F;
+  --folio-on-accent: #14201A;
   --folio-success: #8CC39B;
   --folio-warning: #D8B77E;
   --folio-danger: #E0A09A;
+  --folio-danger-container: #3A2220;
+  --folio-on-danger-container: #F3C9C4;
   --folio-scrim: rgba(0,0,0,.6);
 }

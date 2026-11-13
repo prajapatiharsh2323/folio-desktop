@@ -16,13 +16,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /** Quiet 232px left sidebar (03 §5.1). Hidden entirely inside the reader. */
-export function Sidebar({
-  route,
-  onNavigate,
-}: {
-  route: Route;
-  onNavigate: (r: Route) => void;
-}) {
+export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: Route) => void }) {
   return (
     <nav className="folio-sidebar" aria-label="Main navigation">
       {NAV_ITEMS.map(({ route: r, label, icon: Icon }) => {

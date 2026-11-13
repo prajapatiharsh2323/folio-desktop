@@ -15,17 +15,9 @@ export interface SelectionToolbarProps {
 }
 
 /** Floating selection toolbar (04 §7): 4 swatches, Add note, Copy. */
-export function SelectionToolbar({
-  rect,
-  onHighlight,
-  onNote,
-  onCopy,
-}: SelectionToolbarProps) {
+export function SelectionToolbar({ rect, onHighlight, onNote, onCopy }: SelectionToolbarProps) {
   const top = Math.max(8, rect.top - 48);
-  const left = Math.min(
-    window.innerWidth - 260,
-    Math.max(8, (rect.left + rect.right) / 2 - 130)
-  );
+  const left = Math.min(window.innerWidth - 260, Math.max(8, (rect.left + rect.right) / 2 - 130));
   return (
     <div
       className="folio-selection-toolbar"
@@ -60,7 +52,7 @@ export function SelectionToolbar({
         title="Copy"
         onClick={onCopy}
       >
-        <FolioIcons.Search size="sm" />
+        <FolioIcons.Copy size="sm" />
       </button>
     </div>
   );

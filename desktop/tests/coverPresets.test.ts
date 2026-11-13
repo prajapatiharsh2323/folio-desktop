@@ -49,4 +49,3 @@ describe("coverPresets", () => {
     expect(COVER_PRESETS).toContain(colA1);
   });
 });
-

@@ -14,10 +14,7 @@ describe("FileStore atomicity", () => {
     const fs = new MemoryFileStore();
     fs.mkdirp("/tmp");
     const p = "/tmp/conc.txt";
-    await Promise.all([
-      fs.writeTextAtomic(p, "first"),
-      fs.writeTextAtomic(p, "second"),
-    ]);
+    await Promise.all([fs.writeTextAtomic(p, "first"), fs.writeTextAtomic(p, "second")]);
     const val = await fs.readText(p);
     expect(val === "first" || val === "second").toBe(true);
   });

@@ -1,11 +1,6 @@
 // TXT/HTML importers (02 §6): paragraphs, Devanagari language detect, 3–5 chapter split.
 import { detectLanguage } from "./fileDetector";
-import {
-  paragraphsFromHtml,
-  sanitizeHtml,
-  splitChapters,
-  type ExtractedImage,
-} from "./sanitize";
+import { paragraphsFromHtml, sanitizeHtml, splitChapters, type ExtractedImage } from "./sanitize";
 import type { BuilderChapter } from "./clip/epubBuilder";
 
 export interface ArticleImport {
@@ -28,10 +23,7 @@ export function chapterHtmlFromParagraphs(paragraphs: string[]): string {
   return paragraphs.map((p) => `<p>${p}</p>`).join("\n");
 }
 
-export async function importHtml(
-  html: string,
-  fallbackTitle: string
-): Promise<ArticleImport> {
+export async function importHtml(html: string, fallbackTitle: string): Promise<ArticleImport> {
   const { html: clean, title, images } = await sanitizeHtml(html);
   const paragraphs = paragraphsFromHtml(clean);
   const groups = splitChapters(paragraphs);

@@ -40,9 +40,7 @@ describe("InBookSearchPanel", () => {
       />,
     );
 
-    const input = document.querySelector(
-      ".folio-inbook-search-panel__input",
-    ) as HTMLInputElement;
+    const input = document.querySelector(".folio-inbook-search-panel__input") as HTMLInputElement;
     expect(input.value).toBe("mystery");
 
     const clearBtn = document.querySelector(
@@ -69,10 +67,9 @@ describe("InBookSearchPanel", () => {
       />,
     );
 
-    expect(
-      document.querySelector(".folio-inbook-search-panel__loading")
-        ?.textContent,
-    ).toContain("Searching in book…");
+    expect(document.querySelector(".folio-inbook-search-panel__loading")?.textContent).toContain(
+      "Searching in book…",
+    );
   });
 
   it("displays matches and navigates on result click", async () => {
@@ -105,9 +102,9 @@ describe("InBookSearchPanel", () => {
       />,
     );
 
-    expect(
-      document.querySelector(".folio-inbook-search-panel__count")?.textContent,
-    ).toContain("1 match found");
+    expect(document.querySelector(".folio-inbook-search-panel__count")?.textContent).toContain(
+      "1 match found",
+    );
 
     const resultCard = document.querySelector(
       ".folio-inbook-search-panel__card",
@@ -137,8 +134,8 @@ describe("InBookSearchPanel", () => {
       />,
     );
 
-    expect(
-      document.querySelector(".folio-workspace__empty-title")?.textContent,
-    ).toBe("No matches found");
+    expect(document.querySelector(".folio-workspace__empty-title")?.textContent).toBe(
+      "No matches found",
+    );
   });
 });

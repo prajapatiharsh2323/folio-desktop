@@ -80,10 +80,7 @@ export function useBoot(): void {
         else unlisten = un;
 
         try {
-          const recovered = await recoverInterruptedRestore(
-            getLibraryFs(),
-            LIBRARY_ROOT
-          );
+          const recovered = await recoverInterruptedRestore(getLibraryFs(), LIBRARY_ROOT);
           if (recovered && !disposed) await useLibraryUi.getState().refresh();
         } catch {
           // Best-effort: a failed cleanup must not block app start.

@@ -1,4 +1,4 @@
-use crate::guard::guard_user_path;
+use crate::guard::guard_sandboxed;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
@@ -22,7 +22,7 @@ pub struct Stat {
 }
 
 fn guard(path: &str) -> Result<PathBuf, String> {
-    guard_user_path(path).map_err(|e| e.to_string())
+    guard_sandboxed(path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -217,6 +217,7 @@ mod tests {
     #[test]
     fn write_read_roundtrip_and_overwrite() {
         let dir = temp_dir("roundtrip");
+        crate::sandbox::grant(&dir);
         let file = dir.join("nested").join("data.bin");
         fs_write_atomic(s(&file), b"hello".to_vec()).unwrap();
         assert_eq!(fs_read(s(&file)).unwrap(), b"hello");
@@ -236,6 +237,7 @@ mod tests {
     #[test]
     fn stat_list_move_delete() {
         let dir = temp_dir("ops");
+        crate::sandbox::grant(&dir);
         let a = dir.join("a.txt");
         let b = dir.join("sub").join("b.txt");
         fs_write_atomic(s(&a), b"12345".to_vec()).unwrap();
@@ -264,6 +266,7 @@ mod tests {
     #[test]
     fn delete_removes_nonempty_directory() {
         let dir = temp_dir("delete-dir");
+        crate::sandbox::grant(&dir);
         fs_write_atomic(s(&dir.join("nested").join("file.txt")), b"x".to_vec()).unwrap();
         fs_delete(s(&dir)).unwrap();
         assert!(fs_stat(s(&dir)).unwrap().is_none());
@@ -276,6 +279,37 @@ mod tests {
         assert!(fs_read("../escape".to_string()).is_err());
         assert!(fs_write_atomic("../escape".to_string(), vec![1]).is_err());
         assert!(fs_list_dir("/a/../../b".to_string()).is_err());
+    }
+
+    #[test]
+    fn rejects_paths_outside_the_sandbox() {
+        let _lock = crate::appdir::lock_app_dir_for_tests();
+        let app = temp_dir("sandbox-app");
+        crate::appdir::set_app_dir(app.clone());
+        let outside = temp_dir("sandbox-outside");
+        let outside_file = outside.join("victim.txt");
+        fs::write(&outside_file, b"do not touch").unwrap();
+        let outside_string = outside_file.to_string_lossy().to_string();
+
+        // Reads, writes and deletes all refuse an arbitrary absolute path.
+        assert!(fs_read(outside_string.clone()).is_err());
+        assert!(fs_write_atomic(outside_string.clone(), vec![1]).is_err());
+        assert!(fs_delete(outside_string.clone()).is_err());
+        assert!(fs_stat(outside_string.clone()).is_err());
+        assert!(fs_list_dir(outside.to_string_lossy().to_string()).is_err());
+        // The file survived: fs_delete can no longer remove anything outside.
+        assert!(outside_file.is_file());
+
+        // A granted path still works end-to-end.
+        crate::sandbox::grant(&outside);
+        assert!(fs_read(outside_string.clone()).is_ok());
+        fs_delete(outside_string).unwrap();
+        assert!(!outside_file.exists());
+
+        crate::sandbox::clear_grants();
+        crate::appdir::set_app_dir(PathBuf::from("/folio-library"));
+        let _ = fs::remove_dir_all(&app);
+        let _ = fs::remove_dir_all(&outside);
     }
 
     #[cfg(windows)]
@@ -311,6 +345,7 @@ mod tests {
 
     #[test]
     fn maps_virtual_app_dir_when_installed() {
+        let _lock = crate::appdir::lock_app_dir_for_tests();
         let dir = temp_dir("virtual");
         crate::appdir::set_app_dir(dir.clone());
         let virtual_path = crate::appdir::VIRTUAL_APP_DIR.to_string() + "/library/virtual.txt";

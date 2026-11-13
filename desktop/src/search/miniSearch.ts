@@ -43,9 +43,12 @@ const B = 0.7;
 const AVG_LEN = 200;
 
 function tokenize(s: string): string[] {
-  return normalizeQuery(s)
-    .split(/[^a-z0-9\u0900-\u097f]+/i)
-    .filter(Boolean);
+  return (
+    normalizeQuery(s)
+      // eslint-disable-next-line no-misleading-character-class -- Devanagari range is intentionally split on combining marks; changing it would alter the search index
+      .split(/[^a-z0-9\u0900-\u097f]+/i)
+      .filter(Boolean)
+  );
 }
 
 function editDistance(a: string, b: string): number {

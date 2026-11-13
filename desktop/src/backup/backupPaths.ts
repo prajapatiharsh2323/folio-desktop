@@ -22,11 +22,7 @@ const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 /** Normalize and validate one archive entry name. Throws BackupError. */
 export function normalizeArchivePath(raw: string, limits: ArchiveLimits): string {
   const unsafe = (reason: string): never => {
-    throw new BackupError(
-      "unsafe-path",
-      `The backup contains an unsafe path: ${reason}`,
-      raw
-    );
+    throw new BackupError("unsafe-path", `The backup contains an unsafe path: ${reason}`, raw);
   };
 
   if (typeof raw !== "string" || raw.length === 0) unsafe("empty name");
@@ -87,7 +83,7 @@ export function normalizeEntry(raw: string, limits: ArchiveLimits): NormalizedEn
     throw new BackupError(
       "invalid-library",
       `The backup contains an unexpected file: ${path}`,
-      path
+      path,
     );
   }
   return { raw, path, kind };
@@ -97,9 +93,7 @@ export function normalizeEntry(raw: string, limits: ArchiveLimits): NormalizedEn
  * Reject case-insensitive duplicates. Windows restores two differently-cased
  * names into the same file, which would silently drop data.
  */
-export function assertNoDuplicatePaths(
-  entries: { path: string }[]
-): void {
+export function assertNoDuplicatePaths(entries: { path: string }[]): void {
   const seen = new Map<string, string>();
   for (const e of entries) {
     const key = e.path.toLowerCase();
@@ -108,7 +102,7 @@ export function assertNoDuplicatePaths(
       throw new BackupError(
         "duplicate-path",
         "The backup contains duplicate file names that differ only by case.",
-        `${previous} / ${e.path}`
+        `${previous} / ${e.path}`,
       );
     }
     seen.set(key, e.path);

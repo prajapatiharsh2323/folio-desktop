@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { FolioButton } from "../components/FolioButton";
 import { FolioChip } from "../components/FolioChip";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioSectionHeader } from "../components/FolioSectionHeader";
 import { FolioSettingsRow } from "../components/FolioSettingsRow";
 import { useThemeStore, type ThemeSetting } from "../theme/theme";
-import {
-  getLibraryFs,
-  getLibraryManager,
-  LIBRARY_ROOT,
-  useLibraryUi,
-} from "../store/libraryUi";
+import { getLibraryFs, getLibraryManager, LIBRARY_ROOT, useLibraryUi } from "../store/libraryUi";
 import { useReaderStore } from "../store/readerStore";
+import { handleError } from "../lib/errorLog";
+import { pickBackupDestPath, pickBackupSourcePath } from "../lib/fileSource";
 import { DEFAULT_READING_PREFS } from "../model/defaults";
 import type { ReadingPrefs } from "../model/types";
 import { PreferencesEditor } from "../onboarding/PreferencesEditor";
@@ -48,18 +44,16 @@ function describeRestore(result: RestoreResult): string {
       result.addedDocs === 1 ? "" : "s"
     } restored.`;
   }
-  const parts = [
-    `${result.addedDocs} new document${result.addedDocs === 1 ? "" : "s"} added`,
-  ];
+  const parts = [`${result.addedDocs} new document${result.addedDocs === 1 ? "" : "s"} added`];
   if (result.annotationsMerged > 0) {
     parts.push(
-      `${result.annotationsMerged} annotation${
-        result.annotationsMerged === 1 ? "" : "s"
-      } merged`
+      `${result.annotationsMerged} annotation${result.annotationsMerged === 1 ? "" : "s"} merged`,
     );
   }
   if (result.progressMerged > 0) {
-    parts.push(`${result.progressMerged} reading position${result.progressMerged === 1 ? "" : "s"} updated`);
+    parts.push(
+      `${result.progressMerged} reading position${result.progressMerged === 1 ? "" : "s"} updated`,
+    );
   }
   if (result.skippedDocs.length > 0) {
     parts.push(`${result.skippedDocs.length} skipped`);
@@ -103,8 +97,8 @@ export function SettingsScreen() {
     try {
       const lm = getLibraryManager();
       setDefaultPrefs(await lm.prefs.global());
-    } catch {
-      /* ignore */
+    } catch (e) {
+      handleError(e, { context: "settings.prefs.load" });
     }
   }, []);
 
@@ -126,7 +120,8 @@ export function SettingsScreen() {
       await walk(LIBRARY_ROOT);
       const free = await fs.freeSpace();
       setStorageInfo({ size, free });
-    } catch {
+    } catch (e) {
+      handleError(e, { context: "settings.storage" });
       setStorageInfo(null);
     }
   }, []);
@@ -148,7 +143,8 @@ export function SettingsScreen() {
     setMessage(null);
     try {
       setDraftPrefs(await getLibraryManager().prefs.global());
-    } catch {
+    } catch (e) {
+      handleError(e, { context: "settings.prefs.load" });
       setDraftPrefs(defaultPrefs);
     }
     setPrefsOpen(true);
@@ -172,8 +168,13 @@ export function SettingsScreen() {
       setPrefsOpen(false);
       setMessage("Default reading preferences saved.");
     } catch (e) {
+      handleError(e, {
+        context: "settings.prefs.save",
+        userMessage:
+          e instanceof Error ? e.message : "Default reading preferences could not be saved.",
+      });
       setMessage(
-        e instanceof Error ? e.message : "Default reading preferences could not be saved."
+        e instanceof Error ? e.message : "Default reading preferences could not be saved.",
       );
     } finally {
       setBusy(false);
@@ -186,16 +187,12 @@ export function SettingsScreen() {
     try {
       const bytes = await createBackup(getLibraryFs(), LIBRARY_ROOT);
       if (isTauri()) {
-        const path = await saveDialog({
-          defaultPath: "folio-backup.zip",
-          filters: [{ name: "Zip", extensions: ["zip"] }],
-        });
-        if (!path || Array.isArray(path)) return;
+        // The Rust command grants the picked path; fs_write_atomic accepts it.
+        const path = await pickBackupDestPath("folio-backup.zip");
+        if (!path) return;
         await invoke("fs_write_atomic", { path, data: Array.from(bytes) });
       } else {
-        const url = URL.createObjectURL(
-          new Blob([bytes as BlobPart], { type: "application/zip" })
-        );
+        const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
         const a = document.createElement("a");
         a.href = url;
         a.download = "folio-backup.zip";
@@ -204,6 +201,7 @@ export function SettingsScreen() {
       }
       setMessage(`Backup exported (${formatBytes(bytes.length)}).`);
     } catch (e) {
+      handleError(e, { context: "settings.backup.export" });
       setMessage(e instanceof Error ? e.message : "Export failed");
     } finally {
       setBusy(false);
@@ -216,11 +214,8 @@ export function SettingsScreen() {
     try {
       let bytes: Uint8Array | null = null;
       if (isTauri()) {
-        const path = await openDialog({
-          multiple: false,
-          filters: [{ name: "Zip", extensions: ["zip"] }],
-        });
-        if (!path || Array.isArray(path)) return;
+        const path = await pickBackupSourcePath();
+        if (!path) return;
         bytes = new Uint8Array(await invoke<number[]>("fs_read", { path }));
       } else {
         const input = document.createElement("input");
@@ -241,6 +236,7 @@ export function SettingsScreen() {
       setReplaceConfirmed(false);
       setRestoreOpen(true);
     } catch (e) {
+      handleError(e, { context: "settings.backup.inspect" });
       setMessage(e instanceof Error ? e.message : "This file could not be read as a backup.");
     }
   };
@@ -279,8 +275,9 @@ export function SettingsScreen() {
       setMessage(describeRestore(result));
       await loadStorage();
     } catch (e) {
+      handleError(e, { context: "settings.backup.restore" });
       setRestoreError(
-        e instanceof Error ? e.message : "Restore failed; your library was not changed."
+        e instanceof Error ? e.message : "Restore failed; your library was not changed.",
       );
     } finally {
       setBusy(false);
@@ -347,7 +344,11 @@ export function SettingsScreen() {
           title="Restore backup"
           helper="Merge or replace with a backup zip"
           control={
-            <FolioButton variant="secondary" onClick={() => void handlePickRestore()} disabled={busy}>
+            <FolioButton
+              variant="secondary"
+              onClick={() => void handlePickRestore()}
+              disabled={busy}
+            >
               Restore
             </FolioButton>
           }
@@ -415,10 +416,7 @@ export function SettingsScreen() {
             </FolioButton>
           }
         />
-        <FolioSettingsRow
-          title="Version"
-          helper={__APP_VERSION__}
-        />
+        <FolioSettingsRow title="Version" helper={__APP_VERSION__} />
       </div>
 
       <FolioDialog
@@ -437,9 +435,7 @@ export function SettingsScreen() {
         }
       >
         <PreferencesEditor prefs={draftPrefs} onChange={setDraftPrefs} />
-        <p className="folio-helper">
-          Changes made inside a book stay with that book.
-        </p>
+        <p className="folio-helper">Changes made inside a book stay with that book.</p>
       </FolioDialog>
 
       <FolioDialog
@@ -478,7 +474,11 @@ export function SettingsScreen() {
           </div>
         )}
 
-        <div role="group" aria-label="Restore mode" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div
+          role="group"
+          aria-label="Restore mode"
+          style={{ display: "flex", gap: 8, marginBottom: 12 }}
+        >
           <FolioChip
             selected={restoreMode === "merge"}
             onClick={() => setRestoreMode("merge")}

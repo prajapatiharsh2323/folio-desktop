@@ -7,7 +7,7 @@ describe("flushAndClose", () => {
     const result = await flushAndClose(
       async () => undefined,
       async () => undefined,
-      close
+      close,
     );
     expect(result).toEqual({ flushFailed: false, releaseFailed: false });
     expect(close).toHaveBeenCalledTimes(1);
@@ -20,7 +20,7 @@ describe("flushAndClose", () => {
         throw new Error("disk");
       },
       async () => undefined,
-      close
+      close,
     );
     expect(result.flushFailed).toBe(true);
     expect(close).toHaveBeenCalledTimes(1);
@@ -33,7 +33,7 @@ describe("flushAndClose", () => {
       async () => {
         throw new Error("power");
       },
-      close
+      close,
     );
     expect(result.releaseFailed).toBe(true);
     expect(close).toHaveBeenCalledTimes(1);
@@ -41,7 +41,11 @@ describe("flushAndClose", () => {
 
   it("tolerates missing controllers", async () => {
     const close = vi.fn();
-    const result = await flushAndClose(() => undefined, () => undefined, close);
+    const result = await flushAndClose(
+      () => undefined,
+      () => undefined,
+      close,
+    );
     expect(result.flushFailed).toBe(false);
     expect(close).toHaveBeenCalledTimes(1);
   });

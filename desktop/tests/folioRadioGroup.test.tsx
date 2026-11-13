@@ -46,16 +46,12 @@ function render(initial = "b", options: RadioOption<string>[] = OPTIONS) {
 }
 
 function radios() {
-  return Array.from(
-    container!.querySelectorAll<HTMLButtonElement>('[role="radio"]')
-  );
+  return Array.from(container!.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
 }
 
 function press(target: HTMLElement, key: string) {
   act(() => {
-    target.dispatchEvent(
-      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })
-    );
+    target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
   });
 }
 
@@ -66,11 +62,7 @@ describe("FolioRadioGroup", () => {
     expect(group?.getAttribute("aria-label")).toBe("Test group");
 
     const items = radios();
-    expect(items.map((el) => el.getAttribute("aria-checked"))).toEqual([
-      "false",
-      "true",
-      "false",
-    ]);
+    expect(items.map((el) => el.getAttribute("aria-checked"))).toEqual(["false", "true", "false"]);
     expect(items.map((el) => el.tabIndex)).toEqual([-1, 0, -1]);
   });
 
@@ -116,7 +108,7 @@ describe("FolioRadioGroup", () => {
           ctrlKey: true,
           bubbles: true,
           cancelable: true,
-        })
+        }),
       );
     });
     expect(radios()[2].getAttribute("aria-checked")).toBe("true");

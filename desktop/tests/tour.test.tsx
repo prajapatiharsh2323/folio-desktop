@@ -13,10 +13,7 @@ vi.mock("../src/lib/storage", () => ({
 }));
 
 import { Tour } from "../src/onboarding/Tour";
-import {
-  TOUR_COMPLETE_KEY,
-  useOnboarding,
-} from "../src/onboarding/onboardingState";
+import { TOUR_COMPLETE_KEY, useOnboarding } from "../src/onboarding/onboardingState";
 import { useRouteStore } from "../src/store/routeStore";
 import { useToasts } from "../src/shell/toasts";
 import { resetModalStack } from "../src/shell/modalStack";
@@ -50,7 +47,7 @@ function render() {
 
 function button(label: string): HTMLButtonElement {
   const found = Array.from(container!.querySelectorAll("button")).find((b) =>
-    b.textContent?.includes(label)
+    b.textContent?.includes(label),
   );
   if (!found) throw new Error(`button ${label} not found`);
   return found;
@@ -78,7 +75,7 @@ describe("welcome tour", () => {
 
     act(() => {
       document.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
       );
     });
 
@@ -113,12 +110,8 @@ describe("welcome tour", () => {
       button("Next").dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(useRouteStore.getState().route).toBe("collections");
-    expect(
-      container!.querySelector(".folio-tour__spotlight")
-    ).not.toBeNull();
-    expect(
-      container!.querySelector(".folio-tour__card--anchored")
-    ).not.toBeNull();
+    expect(container!.querySelector(".folio-tour__spotlight")).not.toBeNull();
+    expect(container!.querySelector(".folio-tour__card--anchored")).not.toBeNull();
   });
 
   it("marks the shell inert while open and restores it afterwards", () => {

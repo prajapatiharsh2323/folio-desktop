@@ -1,4 +1,5 @@
 import { Shell } from "./shell/Shell";
+import { ErrorBoundary } from "./shell/ErrorBoundary";
 import { useBoot } from "./shell/useBoot";
 import { BootSplash } from "./onboarding/BootSplash";
 import { OnboardingFlow } from "./onboarding/OnboardingFlow";
@@ -15,9 +16,9 @@ export default function App() {
   if (stage === "look" || stage === "library") return <OnboardingFlow />;
 
   return (
-    <>
+    <ErrorBoundary variant="root">
       <Shell />
       {tourOpen && <Tour />}
-    </>
+    </ErrorBoundary>
   );
 }

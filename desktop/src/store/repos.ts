@@ -1,16 +1,8 @@
 // FileStore-backed repositories for the schema-1 user files (05 §2).
 import type { FileStore } from "../lib/fileStore";
-import {
-  libraryLayout as L,
-} from "../lib/libraryPaths";
+import { libraryLayout as L } from "../lib/libraryPaths";
 import { readJsonAsync, writeJsonAtomic } from "./jsonio";
-import type {
-  Annotation,
-  Collection,
-  Manifest,
-  Progress,
-  ReadingPrefs,
-} from "../model/types";
+import type { Annotation, Collection, Manifest, Progress, ReadingPrefs } from "../model/types";
 import { DEFAULT_READING_PREFS } from "../model/defaults";
 
 /** Merge known fields onto the raw parsed record, preserving unknown keys. */
@@ -24,7 +16,7 @@ function mergePreserve<T extends object>(raw: unknown, patch: Partial<T>): T {
 export class ManifestRepo {
   constructor(
     private fs: FileStore,
-    private root: string
+    private root: string,
   ) {}
 
   path(): string {
@@ -45,7 +37,7 @@ export class ManifestRepo {
 export class AnnotationsRepo {
   constructor(
     private fs: FileStore,
-    private root: string
+    private root: string,
   ) {}
 
   private p(): string {
@@ -99,7 +91,7 @@ export class AnnotationsRepo {
 export class ProgressRepo {
   constructor(
     private fs: FileStore,
-    private root: string
+    private root: string,
   ) {}
 
   private p(): string {
@@ -119,10 +111,7 @@ export class ProgressRepo {
   async put(progress: Progress): Promise<void> {
     const all = await this.all();
     const raw = await readJsonAsync<Record<string, unknown>>(this.fs, this.p());
-    all[progress.docId] = mergePreserve<Progress>(
-      raw?.[progress.docId],
-      progress
-    );
+    all[progress.docId] = mergePreserve<Progress>(raw?.[progress.docId], progress);
     await writeJsonAtomic(this.fs, this.p(), all);
   }
 
@@ -138,7 +127,7 @@ export class ProgressRepo {
 export class CollectionsRepo {
   constructor(
     private fs: FileStore,
-    private root: string
+    private root: string,
   ) {}
 
   private p(): string {
@@ -182,7 +171,7 @@ export class CollectionsRepo {
 export class PrefsRepo {
   constructor(
     private fs: FileStore,
-    private root: string
+    private root: string,
   ) {}
 
   /** Global ReadingPrefs (user/settings.json). */
@@ -199,7 +188,7 @@ export class PrefsRepo {
   async docOverride(docId: string): Promise<ReadingPrefs | null> {
     const all = await readJsonAsync<Record<string, ReadingPrefs>>(
       this.fs,
-      L.docSettings(this.root)
+      L.docSettings(this.root),
     );
     return all?.[docId] ?? null;
   }
@@ -207,7 +196,7 @@ export class PrefsRepo {
   async allDocOverrides(): Promise<Record<string, ReadingPrefs>> {
     const all = await readJsonAsync<Record<string, ReadingPrefs>>(
       this.fs,
-      L.docSettings(this.root)
+      L.docSettings(this.root),
     );
     return all ?? {};
   }

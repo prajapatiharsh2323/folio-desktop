@@ -7,7 +7,7 @@ import { FolioRow } from "../components/FolioRow";
 import { useRouteStore, type ReaderOrigin } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
 import { getCollectionCoverPreset } from "../lib/coverPresets";
-import { pushToast } from "../shell/toasts";
+import { describeError, handleError } from "../lib/errorLog";
 import type { Collection, ManifestDoc } from "../model/types";
 
 /** Collections gallery + detail (03 §5.5, 06 §1/§2). */
@@ -17,7 +17,7 @@ export function CollectionsScreen() {
   // Returning from the reader restores the collection the user came from;
   // readerOrigin survives closeReader exactly long enough to be read here.
   const [selectedId, setSelectedId] = useState<string | null>(
-    () => useRouteStore.getState().readerOrigin?.collectionId ?? null
+    () => useRouteStore.getState().readerOrigin?.collectionId ?? null,
   );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -51,6 +51,7 @@ export function CollectionsScreen() {
       });
       setCollections(list);
     } catch (e) {
+      handleError(e, { context: "collections.load" });
       setLoadError(e instanceof Error ? e.message : "Collections could not be loaded.");
     } finally {
       setLoading(false);
@@ -77,15 +78,15 @@ export function CollectionsScreen() {
       } catch (e) {
         // The global host survives dialog state; the dialog itself stays open
         // so the user can retry or cancel instead of losing their input.
-        pushToast({
-          tone: "error",
-          text: e instanceof Error ? e.message : "That change didn't go through.",
+        handleError(e, {
+          context: "collections.op",
+          userMessage: describeError(e, "That change didn't go through."),
         });
       } finally {
         setBusy(false);
       }
     },
-    [busy]
+    [busy],
   );
 
   const createCollection = () =>
@@ -228,7 +229,9 @@ export function CollectionsScreen() {
                     <div className="folio-collection-card__name">{c.name}</div>
                     <div className="folio-collection-card__meta">
                       {c.docIds.length} item{c.docIds.length === 1 ? "" : "s"}
-                      {c.updatedAt ? ` · updated ${new Date(c.updatedAt).toLocaleDateString()}` : ""}
+                      {c.updatedAt
+                        ? ` · updated ${new Date(c.updatedAt).toLocaleDateString()}`
+                        : ""}
                     </div>
                   </div>
                 </button>
@@ -246,7 +249,11 @@ export function CollectionsScreen() {
               <FolioButton variant="secondary" onClick={() => setCreateOpen(false)} disabled={busy}>
                 Cancel
               </FolioButton>
-              <FolioButton variant="primary" onClick={() => void createCollection()} disabled={busy}>
+              <FolioButton
+                variant="primary"
+                onClick={() => void createCollection()}
+                disabled={busy}
+              >
                 Create
               </FolioButton>
             </>
@@ -345,16 +352,15 @@ export function CollectionsScreen() {
             <div className="folio-collection-hero__title">{selected.name}</div>
             <div className="folio-collection-hero__meta">
               {members.length} item{members.length === 1 ? "" : "s"}
-              {selected.updatedAt ? ` · updated ${new Date(selected.updatedAt).toLocaleDateString()}` : ""}
+              {selected.updatedAt
+                ? ` · updated ${new Date(selected.updatedAt).toLocaleDateString()}`
+                : ""}
             </div>
           </div>
         </div>
 
         {members.length === 0 ? (
-          <FolioEmptyState
-            title="Empty collection"
-            body="Add books from your library."
-          />
+          <FolioEmptyState title="Empty collection" body="Add books from your library." />
         ) : (
           <div className="folio-collection-members">
             {members.map((m) => (
@@ -366,9 +372,7 @@ export function CollectionsScreen() {
                   className="folio-collection-member__open"
                   onClick={() => void openMember(m.id)}
                   title={m.missing ? "This book is no longer in your library" : m.title}
-                  aria-label={
-                    m.missing ? `${m.title} (missing from library)` : `Open ${m.title}`
-                  }
+                  aria-label={m.missing ? `${m.title} (missing from library)` : `Open ${m.title}`}
                   disabled={m.missing}
                 >
                   <span className="folio-collection-member__title">

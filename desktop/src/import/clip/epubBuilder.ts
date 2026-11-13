@@ -69,11 +69,20 @@ function contentOpf(opts: {
       return `<item id="ch${i + 1}" href="ch${i + 1}.xhtml" media-type="application/xhtml+xml"/>`;
     }),
     ...opts.images.map((img, i) => {
-      const mt = img.endsWith(".png") ? "image/png" : img.endsWith(".gif") ? "image/gif" : img.endsWith(".svg") ? "image/svg+xml" : "image/jpeg";
+      const mt = img.endsWith(".png")
+        ? "image/png"
+        : img.endsWith(".gif")
+          ? "image/gif"
+          : img.endsWith(".svg")
+            ? "image/svg+xml"
+            : "image/jpeg";
       return `<item id="img${i + 1}" href="images/${img}" media-type="${mt}"/>`;
     }),
   ].join("\n    ");
-  const spineItems = Array.from({ length: opts.chapterCount }, (_, i) => `<itemref idref="ch${i + 1}"/>`).join("\n    ");
+  const spineItems = Array.from(
+    { length: opts.chapterCount },
+    (_, i) => `<itemref idref="ch${i + 1}"/>`,
+  ).join("\n    ");
   return `<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -131,7 +140,7 @@ export async function buildEpub(input: {
           language: input.language,
           chapterCount: chapters.length,
           images: input.images ?? [],
-        })
+        }),
       ),
       { level: 6, mtime: FIXED_MTIME },
     ],

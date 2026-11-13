@@ -52,7 +52,8 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
   load: async (request) => {
     const token = ++loadToken;
     const previous = get().doc;
-    if (previous?.coverUrl && previous.coverUrl.startsWith("blob:")) URL.revokeObjectURL(previous.coverUrl);
+    if (previous?.coverUrl && previous.coverUrl.startsWith("blob:"))
+      URL.revokeObjectURL(previous.coverUrl);
     set({ status: "loading", error: null, doc: null, request });
 
     try {
@@ -64,10 +65,9 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
       if (!meta) throw new Error("This book's metadata is damaged");
 
       const fs = getLibraryFs();
-      const readingPath =
-        meta.files.reading ?? "reading/book.epub";
+      const readingPath = meta.files.reading ?? "reading/book.epub";
       const epubBytes = await fs.readBytes(
-        `${L.docDir(LIBRARY_ROOT, entry.slug)}/${readingPath.replace(/^\/+/, "")}`
+        `${L.docDir(LIBRARY_ROOT, entry.slug)}/${readingPath.replace(/^\/+/, "")}`,
       );
 
       const [prefs, progress] = await Promise.all([
@@ -79,10 +79,10 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
       if (meta.files.cover) {
         try {
           const coverBytes = await fs.readBytes(
-            `${L.docDir(LIBRARY_ROOT, entry.slug)}/${meta.files.cover.replace(/^\/+/, "")}`
+            `${L.docDir(LIBRARY_ROOT, entry.slug)}/${meta.files.cover.replace(/^\/+/, "")}`,
           );
           coverUrl = URL.createObjectURL(
-            new Blob([coverBytes as BlobPart], { type: coverMime(meta.files.cover) })
+            new Blob([coverBytes as BlobPart], { type: coverMime(meta.files.cover) }),
           );
         } catch {
           coverUrl = null;

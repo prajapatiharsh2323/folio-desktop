@@ -19,10 +19,7 @@ export const DEFAULT_READING_PREFS: ReadingPrefs = {
   pdfZoom: "", // dead field, persisted for byte-compat only
 };
 
-export const READER_THEME_COLORS: Record<
-  string,
-  { bg: string; text: string }
-> = {
+export const READER_THEME_COLORS: Record<string, { bg: string; text: string }> = {
   light: { bg: "#FAFAF7", text: "#1C1B19" },
   warm: { bg: "#F4ECD8", text: "#3B3226" },
   dark: { bg: "#121214", text: "#E6E3DC" },

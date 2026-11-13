@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { AppearancePanel } from "../components/AppearancePanel";
 import { ReaderChrome } from "../components/ReaderChrome";
 import { ReaderContextMenu } from "../components/ReaderContextMenu";
 import { ReaderSplash, type SplashPhase } from "../components/ReaderSplash";
-import { TocPanel, type WorkspaceTab } from "../components/TocPanel";
+import { TocPanel } from "../components/TocPanel";
 import { InBookSearchPanel } from "../components/InBookSearchPanel";
 import { ReadingSessionDialog } from "../components/ReadingSessionDialog";
 import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
@@ -16,45 +15,30 @@ import { tintIndexFromHash } from "../import/cover";
 import type { TextSelectionInfo } from "../reader/ReaderEngine";
 import { useReaderStore } from "../store/readerStore";
 import { useRouteStore } from "../store/routeStore";
-import { getLibraryFs, getLibraryManager } from "../store/libraryUi";
+import { getLibraryManager } from "../store/libraryUi";
 import { pushToast } from "../shell/toasts";
+import { describeError, handleError } from "../lib/errorLog";
 import { DEFAULT_READING_PREFS } from "../model/defaults";
 import type { ReadingPrefs, Annotation } from "../model/types";
 import { nowIso } from "../model/ids";
-import { createReadiumEngine } from "../reader/readiumEngine";
+import type { ReaderEngine } from "../reader/ReaderEngine";
+import { ChromeStateMachine, type ChromeHold } from "../reader/chrome";
 import type {
-  ReaderEngine,
-  ReaderLocator,
-  ReaderOpenTarget,
-  TocEntry,
-} from "../reader/ReaderEngine";
-import {
-  ChromeStateMachine,
-  CHROME_IDLE_MS,
-  intentForReaderClick,
-  type ChromeHold,
-} from "../reader/chrome";
-import {
-  createNavigationCoordinator,
-  type NavigationOrigin,
-  type NavigationOutcome,
-  type ReaderNavigationCoordinator,
+  NavigationOrigin,
+  NavigationOutcome,
+  ReaderNavigationCoordinator,
 } from "../reader/navigation";
-import { ProgressWriter } from "../reader/progress";
 import { flushAndClose } from "../lib/lifecycle";
-import { ReadingPaceStats, formatTimeLeft } from "../reader/pace";
-import { resumePlan, type ResumePlan } from "../reader/resume";
-import { hrefOf, sameLocation, withAnchor } from "../reader/locatorCodec";
-import type { DecorationSpec } from "../reader/ReaderEngine";
-import {
-  KeepAwakeController,
-  isTauri,
-  readPreventSleepSetting,
-} from "../reader/keepAwake";
+import { formatTimeLeft } from "../reader/pace";
+import { hrefOf, sameLocation } from "../reader/locatorCodec";
 import { resolveReaderTheme, scrimAlpha } from "../reader/readerThemes";
+import { isTauri, KeepAwakeController } from "../reader/keepAwake";
+import { useInBookSearch } from "./reader/useInBookSearch";
+import { useReaderChrome } from "./reader/useReaderChrome";
+import { useAnnotations, type BookmarkResult } from "./reader/useAnnotations";
+import { useReaderKeyboard } from "./reader/useReaderKeyboard";
+import { useReaderEngine } from "./reader/useReaderEngine";
 
-const SPLASH_FADE_MS = 300;
-const SPLASH_FAILSAFE_MS = 8000;
 const CLOSE_FLUSH_CAP_MS = 1500;
 
 /** Resolve/reject within `ms`; used to cap the close-time progress flush. */
@@ -69,46 +53,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       (error) => {
         clearTimeout(timer);
         reject(error);
-      }
+      },
     );
   });
-}
-/** Bottom hover band that reveals the dock (07 §2). */
-const DOCK_REVEAL_ZONE_PX = 56;
-
-/** Outcome of a bookmark toggle, surfaced as a user-facing notice (07 §2). */
-type BookmarkResult = "added" | "removed" | "failed";
-
-function planTarget(plan: ResumePlan): ReaderOpenTarget | null {
-  switch (plan.kind) {
-    case "override-locator":
-      return { location: plan.locator };
-    case "override-percent":
-      return { percent: plan.percent };
-    // The toolkit's `go()` accepts CFIs only through a parsed locator; our
-    // byte-backed publication keeps the percent fallback (04 §8 step 2b).
-    case "cfi":
-      return { percent: plan.fallbackPercent };
-    case "saved-locator":
-      return { location: plan.locator };
-    case "percent":
-      return { percent: plan.percent };
-    case "first":
-      return null;
-  }
-}
-
-function openExternal(href: string): boolean {
-  if (!/^https?:\/\//i.test(href)) return false;
-  void (async () => {
-    try {
-      if (isTauri()) await invoke("open_external_url", { url: href });
-      else window.open(href, "_blank", "noopener,noreferrer");
-    } catch {
-      /* no browser hook in tests/browser-dev — ignore */
-    }
-  })();
-  return true;
 }
 
 function hrefMatches(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -133,57 +80,6 @@ function backLabelFor(route: string | undefined): string {
   }
 }
 
-const HIGHLIGHT_CSS: Record<string, string> = {
-  yellow: "#FFF3B0",
-  green: "#CDE8C2",
-  blue: "#BFDFF7",
-  pink: "#F8CFE0",
-};
-
-/**
- * Highlights carry the text quote as their anchor so the range survives
- * repagination and a new edition's CSS. Annotations written by mobile have the
- * quote in separate fields rather than in `location`, so merge them here.
- */
-function decorationsFor(annotations: Annotation[]): DecorationSpec[] {
-  return annotations
-    .filter((a) => a.kind === "highlight" && a.location)
-    .map((a) => ({
-      id: a.id,
-      locator: withAnchor(
-        a.location as string,
-        a.quote.trim()
-          ? { quote: a.quote, prefix: a.prefix, suffix: a.suffix }
-          : null
-      ),
-      style: "highlight",
-      color: HIGHLIGHT_CSS[a.color ?? "yellow"] ?? HIGHLIGHT_CSS.yellow,
-    }));
-}
-
-/**
- * Text entry and sliders own their keys — typing a query or nudging the
- * scrubber must never turn the page (07 §2). Chrome buttons deliberately do
- * NOT own the arrow keys: page turns keep working while a toolbar control has
- * focus, which is what a permanent dock makes obvious.
- */
-function isTextEntryTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return Boolean(
-    target.closest(
-      "input, textarea, select, [contenteditable='true'], [role='textbox'], [role='slider'], [role='spinbutton'], [role='dialog']"
-    )
-  );
-}
-
-/** Space/Enter belong to a focused control; arrows still page-turn. */
-function isActivatableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return Boolean(
-    target.closest("button, a[href], [role='button'], [role='menuitem'], [role='switch'], [role='radio']")
-  );
-}
-
 /** Reader route: splash → Readium canvas → themed chrome + workspace panels. */
 export function ReaderScreen() {
   const request = useRouteStore((s) => s.readerRequest);
@@ -199,53 +95,23 @@ export function ReaderScreen() {
   const persistProgress = useReaderStore((s) => s.persistProgress);
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  // Created here so the chrome, annotations and engine hooks can share them
+  // without circular hook arguments.
   const engineRef = useRef<ReaderEngine | null>(null);
   const navRef = useRef<ReaderNavigationCoordinator | null>(null);
-  const writerRef = useRef<ProgressWriter | null>(null);
-  const paceRef = useRef<ReadingPaceStats | null>(null);
-  const keepAwakeRef = useRef<KeepAwakeController | null>(null);
   const chromeRef = useRef<ChromeStateMachine | null>(null);
   if (!chromeRef.current) chromeRef.current = new ChromeStateMachine();
+  const keepAwakeRef = useRef<KeepAwakeController | null>(null);
   const prefsRef = useRef<ReadingPrefs>(DEFAULT_READING_PREFS);
   const savedPrefsRef = useRef("");
-  const seekingRef = useRef(false);
   const disposedRef = useRef(false);
   const previousPercentRef = useRef<number | null>(null);
-  const bookmarkToggleRef = useRef<() => Promise<BookmarkResult>>(async () => "failed");
-  /** Mirror of scrubValue: the dock can release twice (keyup + blur). */
-  const scrubValueRef = useRef<number | null>(null);
   /** A live selection owns the pointer — edge clicks must not turn the page. */
   const selectionRef = useRef<TextSelectionInfo | null>(null);
-  const lastPacePublishRef = useRef(0);
   const sessionStartTsRef = useRef(Date.now());
 
   const [prefs, setPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS);
-  const [splash, setSplash] = useState<SplashPhase>("loading");
-  const [engineError, setEngineError] = useState<string | null>(null);
-  const [locator, setLocator] = useState<ReaderLocator | null>(null);
   const [chromeVisible, setChromeVisible] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuOpenRef = useRef(false);
-  const [scrubValue, setScrubValue] = useState<number | null>(null);
-  const [panel, setPanel] = useState<"appearance" | "toc" | null>(null);
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("contents");
-  const [toc, setToc] = useState<TocEntry[]>([]);
-
-  // Search state
-  const [inbookSearchOpen, setInbookSearchOpen] = useState(false);
-  const [inbookQuery, setInbookQuery] = useState("");
-  const [inbookSearching, setInbookSearching] = useState(false);
-  const [inbookError, setInbookError] = useState<string | null>(null);
-  const [inbookResults, setInbookResults] = useState<
-    { chapterTitle: string; snippetHtml: string; locator: string }[]
-  >([]);
-  const inbookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inbookSearchSeqRef = useRef(0);
-
-  // Dialogs & Focus Mode
-  const [isFocusMode, setIsFocusMode] = useState(false);
-  const [sessionInfoOpen, setSessionInfoOpen] = useState(false);
-  const [shortcutsGuideOpen, setShortcutsGuideOpen] = useState(false);
 
   const [selection, setSelection] = useState<TextSelectionInfo | null>(null);
   const [quoteSelection, setQuoteSelection] = useState<TextSelectionInfo | null>(null);
@@ -270,19 +136,15 @@ export function ReaderScreen() {
   const [quoteCardOpen, setQuoteCardOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingSelection, setPendingSelection] = useState<TextSelectionInfo | null>(null);
+  const [sessionInfoOpen, setSessionInfoOpen] = useState(false);
+  const [shortcutsGuideOpen, setShortcutsGuideOpen] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const [navNotice, setNavNotice] = useState<string | null>(null);
   const navNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [seeking, setSeeking] = useState(false);
-  /** Bumped at most once a second so pace-derived labels stay live without
-   *  re-rendering on every scroll locator. */
-  const [paceVersion, setPaceVersion] = useState(0);
-  /** This book's annotations — the source for bookmark state and the workspace panel. */
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [systemDark, setSystemDark] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
-      : false
+      : false,
   );
 
   const theme = resolveReaderTheme(prefs.theme, systemDark);
@@ -306,37 +168,147 @@ export function ReaderScreen() {
         })
         .catch(() => showNavNotice(message));
     },
-    [showNavNotice]
+    [showNavNotice],
   );
 
-  const paintAnnotations = useCallback(async (list: Annotation[]) => {
-    setAnnotations(list);
-    try {
-      await engineRef.current?.applyDecorations(decorationsFor(list));
-    } catch {
-      /* a paint failure must not break reading */
-    }
-  }, []);
-
-  const refreshAnnotations = useCallback(
-    async (docId?: string): Promise<Annotation[]> => {
-      const id = docId ?? useReaderStore.getState().doc?.docId;
-      if (!id) return [];
-      const list = await getLibraryManager().annotations.listForDoc(id);
-      await paintAnnotations(list);
-      return list;
+  const announceBookmark = useCallback(
+    (result: BookmarkResult) => {
+      if (result === "added") showNavNotice("Bookmark added.");
+      else if (result === "removed") showNavNotice("Bookmark removed.");
+      else if (result === "failed") showNavNotice("Couldn't update the bookmark.");
     },
-    [paintAnnotations]
+    [showNavNotice],
   );
 
-  /** Focus/pointer holds keep the chrome up while the user works in it. */
-  const handleChromeHold = useCallback((reason: "focus" | "pointer", active: boolean) => {
-    const chrome = chromeRef.current;
-    if (!chrome) return;
-    if (active) chrome.hold(reason);
-    else chrome.release(reason);
-    setChromeVisible(chrome.visible);
+  // ---- chapter resolution for annotation targets ---------------------------
+  const resolveChapterId = useCallback(
+    (location: string | null | undefined): string | null => {
+      if (!doc || !location) return null;
+      const href = hrefOf(location);
+      if (!href) return null;
+      const chapter = doc.meta.chapters.find((c) => hrefMatches(c.href, href));
+      return chapter?.id ?? null;
+    },
+    [doc],
+  );
+
+  // ---- in-book search (extracted hook) --------------------------------------
+  const search = useInBookSearch({ engineRef });
+
+  /** Holds owned outside the chrome hook: dialogs, search, selection and the
+   *  context menu (which contributes to the menu hold). Memoized so the
+   *  chrome hook's sync effect only runs when one of them actually changes. */
+  const holds = useMemo(
+    () => [
+      { reason: "menu" as ChromeHold, active: ctxMenu !== null },
+      {
+        reason: "dialog" as ChromeHold,
+        active: noteEditorOpen || quoteCardOpen || sessionInfoOpen || shortcutsGuideOpen,
+      },
+      { reason: "search" as ChromeHold, active: search.open },
+      { reason: "selection" as ChromeHold, active: selection !== null },
+    ],
+    [
+      ctxMenu,
+      noteEditorOpen,
+      quoteCardOpen,
+      sessionInfoOpen,
+      shortcutsGuideOpen,
+      search.open,
+      selection,
+    ],
+  );
+
+  /** Engine events outlive renders; they read focus mode through this ref so a
+   *  first-time focus toggle behaves like later ones (E2 stale-closure fix). */
+  const isFocusModeRef = useRef(false);
+
+  // ---- annotation data layer, then the engine lifecycle (extracted hooks) --
+  const {
+    annotations,
+    clearAnnotations,
+    refreshAnnotations,
+    createAnnotation,
+    toggleHighlight,
+    handleBookmarkToggle,
+    bookmarkToggleRef,
+  } = useAnnotations({
+    docId: doc?.docId,
+    engineRef,
+    resolveChapterId,
+    showNavNotice,
+    clearSelection: () => setSelection(null),
+  });
+
+  /** New selection from the engine; quote keeps the last selection for Share. */
+  const handleEngineSelection = useCallback((sel: TextSelectionInfo | null) => {
+    setSelection(sel);
+    if (sel) setQuoteSelection(sel);
   }, []);
+
+  const engine = useReaderEngine({
+    doc,
+    request,
+    retryNonce,
+    canvasRef,
+    engineRef,
+    navRef,
+    prefsRef,
+    chromeRef,
+    keepAwakeRef,
+    selectionRef,
+    contextMenuRef,
+    isFocusModeRef,
+    previousPercentRef,
+    setChromeVisible,
+    onSelection: handleEngineSelection,
+    reportNavigation,
+    refreshAnnotations,
+    persistProgress,
+  });
+  const {
+    splash,
+    setSplash,
+    engineError,
+    setEngineError,
+    locator,
+    setLocator,
+    toc,
+    seeking,
+    paceVersion,
+    resetForRetry,
+    resetToc,
+    writerRef,
+    paceRef,
+  } = engine;
+
+  // ---- chrome state machine (extracted hook) -------------------------------
+  const chrome = useReaderChrome({
+    docId: doc?.docId,
+    docProgressPercent: doc?.progress?.percent,
+    locatorProgression: locator?.progression,
+    chromeRef,
+    keepAwakeRef,
+    setChromeVisible,
+    navRef,
+    paceRef,
+    previousPercentRef,
+    holds,
+    reportNavigation,
+  });
+
+  const { closePanel, exitFocusMode } = chrome;
+
+  useEffect(() => {
+    isFocusModeRef.current = chrome.isFocusMode;
+  }, [chrome.isFocusMode]);
+
+  useEffect(() => {
+    if (status === "error") {
+      setEngineError(loadError);
+      setSplash("error");
+    }
+  }, [status, loadError, setEngineError, setSplash]);
 
   // ---- load the schema-1 doc for the route request -------------------------
   useEffect(() => {
@@ -353,320 +325,57 @@ export function ReaderScreen() {
     }
   }, []);
 
-  // ---- adopt the doc's resolved prefs on (re)load --------------------------
+  // ---- adopt the doc's resolved prefs on load -------------------------------
+  // Runs on doc identity changes: progress writes replace the doc object, but
+  // they write back the same prefs reference, so adoption stays a no-op.
   useEffect(() => {
     if (!doc) return;
     setPrefs(doc.prefs);
     prefsRef.current = doc.prefs;
     savedPrefsRef.current = JSON.stringify(doc.prefs);
+  }, [doc, setPrefs]);
+
+  // ---- reset transient reader UI once per document load ---------------------
+  // Keyed on docId + retryNonce (never on doc: progress writes must not reset
+  // the reader); body reads no doc fields, only stable setters and refs.
+  const docId = doc?.docId;
+  useEffect(() => {
+    if (!docId) return;
     setSplash("loading");
     setEngineError(null);
     setLocator(null);
-    setToc([]);
-    setPanel(null);
+    resetToc();
+    closePanel();
     setCtxMenu(null);
-    setAnnotations([]);
-    setIsFocusMode(false);
+    clearAnnotations();
+    exitFocusMode();
     setSessionInfoOpen(false);
     setShortcutsGuideOpen(false);
     setEditingAnnotation(null);
     sessionStartTsRef.current = Date.now();
     previousPercentRef.current = null;
-  }, [doc?.docId, retryNonce]);
+  }, [
+    docId,
+    retryNonce,
+    setSplash,
+    setEngineError,
+    setLocator,
+    resetToc,
+    closePanel,
+    clearAnnotations,
+    exitFocusMode,
+    setCtxMenu,
+    setSessionInfoOpen,
+    setShortcutsGuideOpen,
+  ]);
 
   useEffect(() => {
     selectionRef.current = selection;
   }, [selection]);
 
-  // Debounced in-book text search
-  useEffect(() => {
-    if (!inbookSearchOpen) return;
-    if (inbookTimerRef.current) clearTimeout(inbookTimerRef.current);
-    if (!inbookQuery.trim()) {
-      setInbookResults([]);
-      setInbookSearching(false);
-      setInbookError(null);
-      return;
-    }
-    setInbookSearching(true);
-    setInbookError(null);
-    const token = ++inbookSearchSeqRef.current;
-    inbookTimerRef.current = setTimeout(async () => {
-      const engine = engineRef.current;
-      if (!engine || !inbookQuery.trim()) {
-        setInbookResults([]);
-        setInbookSearching(false);
-        return;
-      }
-      try {
-        const hits = await engine.search(inbookQuery);
-        if (token === inbookSearchSeqRef.current) {
-          setInbookResults(hits);
-          setInbookSearching(false);
-        }
-      } catch {
-        if (token === inbookSearchSeqRef.current) {
-          setInbookResults([]);
-          setInbookSearching(false);
-          setInbookError("Search failed to complete.");
-        }
-      }
-    }, 250);
-    return () => {
-      if (inbookTimerRef.current) clearTimeout(inbookTimerRef.current);
-    };
-  }, [inbookQuery, inbookSearchOpen]);
-
-  useEffect(() => {
-    if (status === "error") {
-      setEngineError(loadError);
-      setSplash("error");
-    }
-  }, [status, loadError]);
-
-  // Cross-fade after the first locator (300 ms, 03 §6).
-  useEffect(() => {
-    if (splash !== "fading") return;
-    const timer = setTimeout(() => setSplash("done"), SPLASH_FADE_MS);
-    return () => clearTimeout(timer);
-  }, [splash]);
-
-  // ---- engine lifecycle ----------------------------------------------------
-  useEffect(() => {
-    if (!doc) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    disposedRef.current = false;
-    const plan = resumePlan(
-      doc.progress ? { location: doc.progress.location, percent: doc.progress.percent } : null,
-      request
-        ? { location: request.location, percent: request.percent, anchor: request.anchor }
-        : null
-    );
-    const target = planTarget(plan);
-    const restorePending = plan.kind !== "first";
-
-    const engine = createReadiumEngine({
-      epubBytes: doc.epubBytes,
-      prefs: prefsRef.current,
-      initial: target,
-    });
-    engineRef.current = engine;
-
-    // Create pacing before the coordinator: its onBeforeMove callback closes
-    // over this binding, and the coordinator may invoke it during setup.
-    const pace = new ReadingPaceStats(doc.progress?.pace ?? null);
-    paceRef.current = pace;
-
-    // Every navigation goes through one coordinator: page clicks, keyboard,
-    // scrubbing, TOC, search. It gates seek state, sequences overlapping requests
-    // and returns success/failure outcomes.
-    const nav = createNavigationCoordinator(engine, {
-      onBeforeMove: () => pace.breakSession(Date.now()),
-      onSeekingChanged: (seekingNow) => {
-        seekingRef.current = seekingNow;
-        setSeeking(seekingNow);
-      },
-    });
-    navRef.current = nav;
-
-    const writer = new ProgressWriter(async (snapshot) => {
-      await persistProgress({
-        location: snapshot.location,
-        percent: snapshot.percent,
-        pace: snapshot.pace ?? pace.state(),
-      });
-    });
-    writerRef.current = writer;
-
-    let firstLocatorSeen = false;
-    let cancelled = false;
-
-    const failsafe = setTimeout(() => {
-      if (cancelled || firstLocatorSeen) return;
-      setEngineError("This book is taking longer than expected to open.");
-      setSplash("error");
-    }, SPLASH_FAILSAFE_MS);
-
-    const offLocator = engine.onLocator((next) => {
-      firstLocatorSeen = true;
-      clearTimeout(failsafe);
-      keepAwakeRef.current?.markActivity();
-      setLocator(next);
-      setSplash((phase) => (phase === "loading" ? "fading" : phase));
-
-      const percent = (next.progression ?? 0) * 100;
-      const now = Date.now();
-      if (seekingRef.current) {
-        pace.breakSession(now);
-      } else if (
-        previousPercentRef.current !== null &&
-        Math.abs(percent - previousPercentRef.current) > 0.01
-      ) {
-        pace.onForwardMove(percent, now);
-      }
-      previousPercentRef.current = percent;
-
-      if (now - lastPacePublishRef.current >= 1000) {
-        lastPacePublishRef.current = now;
-        setPaceVersion((v) => v + 1);
-      }
-
-      const snapshot = {
-        location: next.location,
-        percent,
-        pace: pace.state(),
-      };
-      if (restorePending && !writer.hasWritten) {
-        void writer.writeRestored(snapshot);
-      } else if (seekingRef.current) {
-        void writer.onScrub(snapshot);
-      } else {
-        void writer.onLocator(snapshot);
-      }
-    });
-
-    const offClick = engine.onClick((info) => {
-      const chrome = chromeRef.current!;
-      const intent = intentForReaderClick({
-        x: info.x,
-        width: info.width || canvas.clientWidth || 1,
-        interactive: info.interactive,
-        defaultPrevented: info.defaultPrevented,
-      });
-      if (intent === "passthrough") return false;
-      if (selectionRef.current) return false;
-      if (chrome.visible && !isFocusMode) chrome.onActivity();
-      if (intent === "next") {
-        reportNavigation(nav.next("page-edge"), "Couldn't turn the page forward.");
-      } else {
-        reportNavigation(nav.previous("page-edge"), "Couldn't turn the page back.");
-      }
-      return true;
-    });
-
-    const offSelection = engine.onSelection((sel) => {
-      setSelection(sel);
-      if (sel) {
-        setQuoteSelection(sel);
-        paceRef.current?.breakSession(Date.now());
-      }
-    });
-
-    const offLink = engine.onLink((href) => openExternal(href));
-    const offPointer = engine.onPointerActivity(() => {
-      const chrome = chromeRef.current;
-      if (!chrome || isFocusMode) return;
-      chrome.onActivity();
-      setChromeVisible(chrome.visible);
-    });
-    const offCtxMenu = engine.onContextMenu((info) => {
-      contextMenuRef.current(info.x, info.y);
-      return true;
-    });
-
-    void (async () => {
-      try {
-        await engine.open(canvas);
-        if (cancelled) return;
-        setToc(engine.toc());
-        try {
-          await refreshAnnotations(doc.docId);
-        } catch {
-          /* annotation load failure must not break reading */
-        }
-      } catch (error) {
-        if (cancelled) return;
-        clearTimeout(failsafe);
-        setEngineError(error instanceof Error ? error.message : "This book can't be opened");
-        setSplash("error");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      clearTimeout(failsafe);
-      offLocator();
-      offClick();
-      offSelection();
-      offLink();
-      offPointer();
-      offCtxMenu();
-      void writer.flush();
-      void engine.destroy();
-      if (engineRef.current === engine) engineRef.current = null;
-      if (navRef.current === nav) navRef.current = null;
-      writerRef.current = null;
-      paceRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc?.docId, retryNonce, request]);
-
-  // ---- chrome holds: menus, panels, dialogs, search, selection -------------
-  useEffect(() => {
-    const chrome = chromeRef.current;
-    if (!chrome) return;
-    const sync = (reason: ChromeHold, active: boolean) => {
-      if (active) chrome.hold(reason);
-      else chrome.release(reason);
-    };
-    sync("menu", menuOpen || ctxMenu !== null);
-    sync("panel", panel !== null);
-    sync("dialog", noteEditorOpen || quoteCardOpen || sessionInfoOpen || shortcutsGuideOpen);
-    sync("search", inbookSearchOpen);
-    sync("selection", selection !== null);
-    setChromeVisible(chrome.visible);
-  }, [
-    menuOpen,
-    ctxMenu,
-    panel,
-    noteEditorOpen,
-    quoteCardOpen,
-    sessionInfoOpen,
-    shortcutsGuideOpen,
-    inbookSearchOpen,
-    selection,
-  ]);
-
-  // ---- chrome auto-hide + keep-awake polling ------------------------------
-  useEffect(() => {
-    if (!doc) return;
-    const chromeTimer = setInterval(() => {
-      const chrome = chromeRef.current;
-      if (!chrome) return;
-      setChromeVisible(chrome.tick() === "visible");
-    }, Math.min(250, CHROME_IDLE_MS / 4));
-    return () => clearInterval(chromeTimer);
-  }, [doc?.docId]);
-
-  useEffect(() => {
-    if (!doc) return;
-    let cancelled = false;
-    const controller = new KeepAwakeController();
-    keepAwakeRef.current = controller;
-    let enabled = true;
-
-    void readPreventSleepSetting(getLibraryFs()).then((value) => {
-      enabled = value;
-      if (!value && !cancelled) void controller.release();
-    });
-
-    const timer = setInterval(() => {
-      if (!cancelled && enabled) void controller.tick();
-    }, 5000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      void controller.release();
-      if (keepAwakeRef.current === controller) keepAwakeRef.current = null;
-    };
-  }, [doc?.docId]);
-
   // ---- debounced per-book prefs writes ------------------------------------
   useEffect(() => {
-    if (!doc) return;
+    if (!docId) return;
     prefsRef.current = prefs;
     void engineRef.current?.applyPrefs(prefs);
     const serialized = JSON.stringify(prefs);
@@ -676,158 +385,13 @@ export function ReaderScreen() {
       void savePrefs(prefs);
     }, 400);
     return () => clearTimeout(timer);
-  }, [prefs, doc?.docId, savePrefs]);
-
-  // ---- keyboard matrix ----------------------------------------------------
-  useEffect(() => {
-    if (!doc) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || isTextEntryTarget(event.target)) return;
-      if (event.key === " " && isActivatableTarget(event.target)) return;
-      const engine = engineRef.current;
-      if (!engine) return;
-
-      const turn = (direction: "next" | "previous") => {
-        const nav = navRef.current;
-        if (!nav) return;
-        reportNavigation(
-          nav[direction]("keyboard"),
-          direction === "next" ? "Couldn't turn the page forward." : "Couldn't turn the page back."
-        );
-      };
-      const jump = (percent: number) => {
-        const nav = navRef.current;
-        if (!nav) return;
-        reportNavigation(nav.goToPercent(percent, "keyboard"), "Couldn't jump to that position.");
-      };
-
-      switch (event.key) {
-        case "ArrowRight":
-        case "PageDown":
-        case "ArrowDown":
-          event.preventDefault();
-          turn("next");
-          break;
-        case "ArrowLeft":
-        case "PageUp":
-        case "ArrowUp":
-          event.preventDefault();
-          turn("previous");
-          break;
-        case " ":
-          event.preventDefault();
-          if (event.shiftKey) turn("previous");
-          else turn("next");
-          break;
-        case "Home":
-          event.preventDefault();
-          jump(0);
-          break;
-        case "End":
-          event.preventDefault();
-          jump(100);
-          break;
-        case "MediaTrackNext":
-          event.preventDefault();
-          turn("next");
-          break;
-        case "MediaTrackPrevious":
-          event.preventDefault();
-          turn("previous");
-          break;
-        case "t":
-        case "T":
-          event.preventDefault();
-          setWorkspaceTab("contents");
-          setPanel((current) => (current === "toc" ? null : "toc"));
-          chromeRef.current?.onActivity();
-          setChromeVisible(true);
-          break;
-        case "b":
-        case "B":
-          if (event.ctrlKey || event.metaKey) {
-            event.preventDefault();
-            void bookmarkToggleRef.current().then(announceBookmark);
-          }
-          break;
-        case "m":
-        case "M":
-          event.preventDefault();
-          chromeRef.current?.toggle();
-          setChromeVisible(chromeRef.current?.visible ?? false);
-          break;
-        case "f":
-        case "F":
-          if (event.ctrlKey || event.metaKey) {
-            event.preventDefault();
-            setInbookSearchOpen((open) => !open);
-            chromeRef.current?.onActivity();
-            setChromeVisible(true);
-          } else {
-            // Unmodified 'f' toggles focus mode
-            event.preventDefault();
-            setIsFocusMode((f) => !f);
-          }
-          break;
-        case "?":
-          event.preventDefault();
-          setShortcutsGuideOpen((open) => !open);
-          break;
-        case "Escape":
-          // Close topmost interaction:
-          // Menu → Shortcuts → Session info → Note editor → Quote card → Ctx menu → Panel → Search → Focus mode → Selection
-          if (menuOpenRef.current) {
-            setMenu(false);
-            document.getElementById("folio-reader-more")?.focus();
-          } else if (shortcutsGuideOpen) {
-            setShortcutsGuideOpen(false);
-          } else if (sessionInfoOpen) {
-            setSessionInfoOpen(false);
-          } else if (noteEditorOpen) {
-            setNoteEditorOpen(false);
-            setEditingAnnotation(null);
-            setPendingSelection(null);
-          } else if (quoteCardOpen) {
-            setQuoteCardOpen(false);
-          } else if (ctxMenu) {
-            setCtxMenu(null);
-          } else if (panel) {
-            setPanel(null);
-          } else if (inbookSearchOpen) {
-            setInbookSearchOpen(false);
-          } else if (isFocusMode) {
-            setIsFocusMode(false);
-            showNavNotice("Exited focus mode.");
-          } else if (selection) {
-            setSelection(null);
-          }
-          break;
-        default:
-          break;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    doc,
-    panel,
-    inbookSearchOpen,
-    selection,
-    ctxMenu,
-    isFocusMode,
-    shortcutsGuideOpen,
-    sessionInfoOpen,
-    noteEditorOpen,
-    quoteCardOpen,
-    reportNavigation,
-    showNavNotice,
-  ]);
+  }, [prefs, docId, savePrefs, engineRef, prefsRef, savedPrefsRef]);
 
   // Flush progress before the window goes away. `beforeunload` is not
   // guaranteed to finish async work in WebView2, so Tauri's close request is
   // intercepted, awaited (with a cap), and only then destroyed.
   useEffect(() => {
-    if (!doc) return;
+    if (!docId) return;
 
     const flush = () => {
       void writerRef.current?.flush();
@@ -850,11 +414,8 @@ export function ReaderScreen() {
             event.preventDefault();
             try {
               await withTimeout(
-                Promise.all([
-                  writerRef.current?.flush(),
-                  keepAwakeRef.current?.release(),
-                ]),
-                CLOSE_FLUSH_CAP_MS
+                Promise.all([writerRef.current?.flush(), keepAwakeRef.current?.release()]),
+                CLOSE_FLUSH_CAP_MS,
               );
             } catch {
               // A hung write must not keep the window alive forever.
@@ -879,7 +440,7 @@ export function ReaderScreen() {
       document.removeEventListener("visibilitychange", onVisibility);
       unlisten?.();
     };
-  }, [doc?.docId]);
+  }, [docId, writerRef, keepAwakeRef]);
 
   useEffect(() => {
     return () => {
@@ -896,21 +457,19 @@ export function ReaderScreen() {
       () => {
         closeDoc();
         closeReader();
-      }
+      },
     );
     if (flushFailed) {
       pushToast({ tone: "error", text: "Last page position may not have saved" });
     }
-  }, [closeDoc, closeReader]);
+  }, [closeDoc, closeReader, writerRef, keepAwakeRef]);
 
   const handleRetry = useCallback(() => {
-    setEngineError(null);
-    setLocator(null);
-    setSplash("loading");
+    resetForRetry();
     previousPercentRef.current = null;
     setRetryNonce((n) => n + 1);
     if (request && status === "error") void load(request);
-  }, [load, request, status]);
+  }, [resetForRetry, load, request, status]);
 
   const handlePrefsChange = useCallback((next: ReadingPrefs) => {
     setPrefs(next);
@@ -929,89 +488,59 @@ export function ReaderScreen() {
     }
   }, [resetPrefs]);
 
-  const resolveChapterId = useCallback(
-    (location: string | null | undefined): string | null => {
-      if (!doc || !location) return null;
-      const href = hrefOf(location);
-      if (!href) return null;
-      const chapter = doc.meta.chapters.find((c) => hrefMatches(c.href, href));
-      return chapter?.id ?? null;
+  // ---- keyboard matrix (extracted hook, 07 §1) -----------------------------
+  useReaderKeyboard({
+    doc,
+    engineRef,
+    navRef,
+    chromeRef,
+    bookmarkToggleRef,
+    isFocusMode: chrome.isFocusMode,
+    toggleFocusMode: chrome.toggleFocusMode,
+    exitFocusMode: chrome.exitFocusMode,
+    panel: chrome.panel,
+    closePanel: chrome.closePanel,
+    togglePanel: chrome.togglePanel,
+    menuOpenRef: chrome.menuOpenRef,
+    setMenu: chrome.setMenu,
+    searchOpen: search.open,
+    setSearchOpen: search.setOpen,
+    clearSelection: () => setSelection(null),
+    ctxMenu,
+    clearCtxMenu: () => setCtxMenu(null),
+    noteEditorOpen,
+    closeNoteEditor: () => {
+      setNoteEditorOpen(false);
+      setEditingAnnotation(null);
+      setPendingSelection(null);
     },
-    [doc]
-  );
+    quoteCardOpen,
+    setQuoteCardOpen,
+    sessionInfoOpen,
+    setSessionInfoOpen,
+    shortcutsGuideOpen,
+    setShortcutsGuideOpen,
+    reportNavigation,
+    showNavNotice,
+    announceBookmark,
+    setChromeVisible,
+  });
 
-  const createAnnotation = useCallback(
-    async (
-      sel: TextSelectionInfo,
-      kind: Annotation["kind"],
-      color: Annotation["color"] = null,
-      note: string | null = null
-    ) => {
-      if (!doc) return;
-      const lm = getLibraryManager();
-      const prefix = sel.prefix.slice(0, 32);
-      const suffix = sel.suffix.slice(0, 32);
-      const annotation: Annotation = {
-        id: crypto.randomUUID(),
-        docId: doc.docId,
-        chapterId: resolveChapterId(sel.location),
-        quote: sel.quote,
-        prefix,
-        suffix,
-        location: sel.location
-          ? withAnchor(sel.location, { quote: sel.quote, prefix, suffix })
-          : null,
-        kind,
-        color,
-        note,
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-      };
-      await lm.annotations.add(annotation);
+  const handleCopySelection = useCallback(
+    async (quote: string) => {
       try {
-        await refreshAnnotations(doc.docId);
-      } catch {
-        /* a paint failure must not lose the annotation */
-      }
-    },
-    [doc, resolveChapterId, refreshAnnotations]
-  );
-
-  const toggleHighlight = useCallback(
-    async (color: string, sel: TextSelectionInfo) => {
-      if (!doc) return;
-      const lm = getLibraryManager();
-      const existing = (await lm.annotations.listForDoc(doc.docId)).find(
-        (a) => a.kind === "highlight" && a.quote === sel.quote && a.color === color
-      );
-      if (existing) {
-        await lm.annotations.remove(existing.id);
-        showNavNotice("Highlight removed.");
-      } else {
-        await createAnnotation(sel, "highlight", color as Annotation["color"], null);
-        showNavNotice("Highlight added.");
-        setSelection(null);
-        return;
-      }
-      try {
-        await refreshAnnotations(doc.docId);
-      } catch {
-        /* ignore */
+        await navigator.clipboard.writeText(quote);
+        showNavNotice("Copied to clipboard.");
+      } catch (e) {
+        handleError(e, {
+          context: "reader.clipboard",
+          userMessage: describeError(e, "The text could not be copied."),
+        });
       }
       setSelection(null);
     },
-    [doc, createAnnotation, refreshAnnotations, showNavNotice]
+    [showNavNotice],
   );
-
-  const handleCopySelection = useCallback(async (quote: string) => {
-    try {
-      await navigator.clipboard.writeText(quote);
-      showNavNotice("Copied to clipboard.");
-    } catch {
-      /* ignore */
-    }
-    setSelection(null);
-  }, [showNavNotice]);
 
   const openNoteEditor = useCallback((sel: TextSelectionInfo) => {
     setEditingAnnotation(null);
@@ -1024,11 +553,27 @@ export function ReaderScreen() {
   const saveNote = useCallback(async () => {
     if (editingAnnotation) {
       const lm = getLibraryManager();
-      await lm.annotations.update(editingAnnotation.id, {
-        note: noteDraft.trim() || null,
-        updatedAt: nowIso(),
-      });
-      if (doc) await refreshAnnotations(doc.docId);
+      try {
+        await lm.annotations.update(editingAnnotation.id, {
+          note: noteDraft.trim() || null,
+          updatedAt: nowIso(),
+        });
+      } catch (e) {
+        // Keep the dialog open with the draft so a transient write failure
+        // can be retried (same contract as NotesScreen.handleEditSave).
+        handleError(e, {
+          context: "reader.annotations.update",
+          userMessage: describeError(e, "The note could not be saved."),
+        });
+        return;
+      }
+      if (doc) {
+        try {
+          await refreshAnnotations(doc.docId);
+        } catch (e) {
+          handleError(e, { context: "reader.annotations.refresh" });
+        }
+      }
       showNavNotice("Note updated.");
       setNoteEditorOpen(false);
       setEditingAnnotation(null);
@@ -1036,66 +581,26 @@ export function ReaderScreen() {
       return;
     }
     if (!pendingSelection) return;
-    await createAnnotation(pendingSelection, "note", "yellow", noteDraft.trim() || null);
+    const saved = await createAnnotation(
+      pendingSelection,
+      "note",
+      "yellow",
+      noteDraft.trim() || null,
+    );
+    if (!saved) return; // dialog stays open with the draft intact
     showNavNotice("Note saved.");
     setNoteEditorOpen(false);
     setPendingSelection(null);
     setNoteDraft("");
-  }, [editingAnnotation, pendingSelection, noteDraft, doc, refreshAnnotations, createAnnotation, showNavNotice]);
-
-  const handleBookmarkToggle = useCallback(async (): Promise<BookmarkResult> => {
-    if (!doc) return "failed";
-    const loc = engineRef.current?.currentLocator();
-    if (!loc) return "failed";
-    const refreshBookmarks = async () => {
-      try {
-        await refreshAnnotations(doc.docId);
-      } catch {
-        /* bookmark state catches up on next refresh */
-      }
-    };
-    try {
-      const lm = getLibraryManager();
-      const existing = (await lm.annotations.listForDoc(doc.docId)).find(
-        (a) => a.kind === "bookmark" && sameLocation(a.location, loc.location)
-      );
-      if (existing) {
-        await lm.annotations.remove(existing.id);
-        await refreshBookmarks();
-        return "removed";
-      }
-      const annotation: Annotation = {
-        id: crypto.randomUUID(),
-        docId: doc.docId,
-        chapterId: resolveChapterId(loc.location),
-        quote: "",
-        prefix: "",
-        suffix: "",
-        location: loc.location || null,
-        kind: "bookmark",
-        color: null,
-        note: null,
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-      };
-      await lm.annotations.add(annotation);
-      await refreshBookmarks();
-      return "added";
-    } catch {
-      return "failed";
-    }
-  }, [doc, resolveChapterId, refreshAnnotations]);
-
-  useEffect(() => {
-    bookmarkToggleRef.current = handleBookmarkToggle;
-  }, [handleBookmarkToggle]);
-
-  const openPanel = useCallback((next: "appearance" | "toc") => {
-    paceRef.current?.breakSession(Date.now());
-    chromeRef.current?.onActivity();
-    setChromeVisible(true);
-    setPanel(next);
-  }, []);
+  }, [
+    editingAnnotation,
+    pendingSelection,
+    noteDraft,
+    doc,
+    refreshAnnotations,
+    createAnnotation,
+    showNavNotice,
+  ]);
 
   const goToHref = useCallback(
     (href: string, origin: NavigationOrigin = "contents"): Promise<NavigationOutcome> => {
@@ -1109,46 +614,7 @@ export function ReaderScreen() {
       }
       return nav.goToHref(href, origin);
     },
-    []
-  );
-
-  const setMenu = useCallback((open: boolean) => {
-    menuOpenRef.current = open;
-    setMenuOpen(open);
-  }, []);
-
-  const announceBookmark = useCallback((result: BookmarkResult) => {
-    if (result === "added") showNavNotice("Bookmark added.");
-    else if (result === "removed") showNavNotice("Bookmark removed.");
-    else if (result === "failed") showNavNotice("Couldn't update the bookmark.");
-  }, [showNavNotice]);
-
-  const handleScrubStart = useCallback(() => {
-    chromeRef.current?.onScrubStart();
-    paceRef.current?.breakSession(Date.now());
-    previousPercentRef.current = null;
-    const current = (locator?.progression ?? (doc?.progress?.percent ?? 0) / 100) * 100;
-    scrubValueRef.current = current;
-    setScrubValue(current);
-  }, [doc?.progress?.percent, locator?.progression]);
-
-  const handleScrubChange = useCallback((percent: number) => {
-    scrubValueRef.current = percent;
-    setScrubValue(percent);
-    chromeRef.current?.onActivity();
-  }, []);
-
-  const handleScrubEnd = useCallback(
-    (percent: number) => {
-      chromeRef.current?.onScrubEnd();
-      if (scrubValueRef.current === null) return;
-      scrubValueRef.current = null;
-      setScrubValue(null);
-      const nav = navRef.current;
-      if (!nav) return;
-      reportNavigation(nav.goToPercent(percent, "slider"), "Couldn't jump to that position.");
-    },
-    [reportNavigation]
+    [],
   );
 
   const handleTurn = useCallback(
@@ -1157,53 +623,17 @@ export function ReaderScreen() {
       if (!nav) return;
       reportNavigation(
         nav[direction]("button"),
-        direction === "next" ? "Couldn't turn the page forward." : "Couldn't turn the page back."
+        direction === "next" ? "Couldn't turn the page forward." : "Couldn't turn the page back.",
       );
     },
-    [reportNavigation]
+    [reportNavigation],
   );
-
-  const handleToggleChrome = useCallback(() => {
-    const chrome = chromeRef.current;
-    if (!chrome) return;
-    chrome.release("menu");
-    chrome.release("focus");
-    chrome.toggle();
-    setChromeVisible(chrome.visible);
-  }, []);
-
-  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (isFocusMode) return;
-    const chrome = chromeRef.current;
-    if (!chrome) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (rect.height > 0 && e.clientY >= rect.bottom - DOCK_REVEAL_ZONE_PX) {
-      chrome.onPillarHover();
-    } else {
-      chrome.onActivity();
-    }
-    setChromeVisible((visible) => (visible ? visible : true));
-  }, [isFocusMode]);
-
-  const onReaderSurfaceClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (isFocusMode) return;
-    const target = e.target as HTMLElement | null;
-    if (
-      target?.closest(
-        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search-panel, .folio-selection-toolbar, .folio-dialog, [role='dialog'], .folio-snackbar, .folio-reader-splash, .folio-reader-focus-exit"
-      )
-    ) {
-      return;
-    }
-    chromeRef.current?.onActivity();
-    setChromeVisible(true);
-  }, [isFocusMode]);
 
   const onReaderContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement | null;
     if (
       target?.closest(
-        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search-panel, .folio-selection-toolbar, [role='dialog'], .folio-snackbar, .folio-reader-splash, .folio-reader-focus-exit"
+        ".folio-reader-chrome, .folio-panel, .folio-overlay, .folio-reader-menu, .folio-reader-ctxmenu, .folio-inbook-search-panel, .folio-selection-toolbar, [role='dialog'], .folio-snackbar, .folio-reader-splash, .folio-reader-focus-exit",
       )
     ) {
       return;
@@ -1218,30 +648,34 @@ export function ReaderScreen() {
     doc?.meta.chapters.find((c) => hrefMatches(c.href, locator?.chapterHref))?.title ??
     title;
   const percent =
-    scrubValue ??
+    chrome.scrubValue ??
     (locator?.progression !== undefined
       ? locator.progression * 100
       : (doc?.progress?.percent ?? 0));
   const timeLeft = useMemo(
-    () => formatTimeLeft(paceRef.current?.timeLeftMinutes(percent) ?? null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [paceVersion, percent]
+    () => {
+      // paceVersion is the reactive invalidation token for the ref read below.
+      void paceVersion;
+      return formatTimeLeft(paceRef.current?.timeLeftMinutes(percent) ?? null);
+    },
+    // paceRef is the live (non-reactive) value.
+    [paceVersion, percent, paceRef],
   );
   const backLabel = backLabelFor(readerOrigin?.route);
   const bookmarked = useMemo(
     () =>
       !!locator &&
       annotations.some((a) => a.kind === "bookmark" && sameLocation(a.location, locator.location)),
-    [annotations, locator]
+    [annotations, locator],
   );
 
   const tint = doc?.meta.contentHash ? tintIndexFromHash(doc.meta.contentHash) : 0;
-  const splashPhase: SplashPhase =
-    status === "error" || splash === "error" ? "error" : splash;
+  const splashPhase: SplashPhase = status === "error" || splash === "error" ? "error" : splash;
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- full-surface reader canvas; all actions have keyboard shortcuts (07 §1)
     <div
-      className={`folio-reader${isFocusMode ? " is-focus-mode" : ""}`}
+      className={`folio-reader${chrome.isFocusMode ? " is-focus-mode" : ""}`}
       style={
         {
           "--reader-bg": theme.pageBg,
@@ -1252,8 +686,8 @@ export function ReaderScreen() {
           color: theme.pageText,
         } as CSSProperties
       }
-      onMouseMove={onMouseMove}
-      onClick={onReaderSurfaceClick}
+      onMouseMove={chrome.onMouseMove}
+      onClick={chrome.onReaderSurfaceClick}
       onContextMenu={onReaderContextMenu}
     >
       <div
@@ -1271,57 +705,50 @@ export function ReaderScreen() {
       {doc && (
         <>
           <ReaderChrome
-            visible={chromeVisible && splashPhase === "done" && !isFocusMode}
+            visible={chromeVisible && splashPhase === "done" && !chrome.isFocusMode}
             backLabel={backLabel}
             title={title}
             chapterTitle={chapterTitle}
             percent={percent}
             timeLeft={timeLeft}
-            scrubValue={scrubValue}
+            scrubValue={chrome.scrubValue}
             seeking={seeking}
             bookmarked={bookmarked}
-            menuOpen={menuOpen}
-            onMenuChange={setMenu}
+            menuOpen={chrome.menuOpen}
+            onMenuChange={chrome.setMenu}
             onBack={() => void handleBack()}
-            onAppearance={() => openPanel("appearance")}
-            onContents={() => {
-              setWorkspaceTab("contents");
-              openPanel("toc");
-            }}
+            onAppearance={() => chrome.openPanel("appearance")}
+            onContents={() => chrome.openPanel("toc")}
             onSearch={() => {
-              setInbookSearchOpen((v) => !v);
+              search.setOpen((v) => !v);
               chromeRef.current?.onActivity();
               setChromeVisible(true);
             }}
             onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
             onShareQuote={() => setQuoteCardOpen(true)}
             shareEnabled={!!quoteSelection}
-            onToggleChrome={handleToggleChrome}
-            onHold={handleChromeHold}
+            onToggleChrome={chrome.handleToggleChrome}
+            onHold={chrome.handleChromeHold}
             onPrevious={() => handleTurn("previous")}
             onNext={() => handleTurn("next")}
-            onScrubStart={handleScrubStart}
-            onScrubChange={handleScrubChange}
-            onScrubEnd={handleScrubEnd}
-            isFocusMode={isFocusMode}
-            onFocusMode={() => setIsFocusMode((f) => !f)}
+            onScrubStart={chrome.handleScrubStart}
+            onScrubChange={chrome.handleScrubChange}
+            onScrubEnd={chrome.handleScrubEnd}
+            isFocusMode={chrome.isFocusMode}
+            onFocusMode={chrome.toggleFocusMode}
             onSessionInfo={() => setSessionInfoOpen(true)}
             onShortcutsGuide={() => setShortcutsGuideOpen(true)}
           />
 
           <InBookSearchPanel
-            open={inbookSearchOpen}
-            query={inbookQuery}
-            results={inbookResults}
-            isSearching={inbookSearching}
-            searchError={inbookError}
-            onQueryChange={setInbookQuery}
-            onClear={() => {
-              setInbookQuery("");
-              setInbookResults([]);
-              setInbookError(null);
-            }}
-            onClose={() => setInbookSearchOpen(false)}
+            open={search.open}
+            query={search.query}
+            results={search.results}
+            isSearching={search.searching}
+            searchError={search.error}
+            onQueryChange={search.setQuery}
+            onClear={search.clear}
+            onClose={() => search.setOpen(false)}
             onSelectResult={(loc) => {
               reportNavigation(goToHref(loc, "search"), "Couldn't reach that search result.");
             }}
@@ -1336,43 +763,52 @@ export function ReaderScreen() {
                 chromeRef.current?.toggle();
                 setChromeVisible(chromeRef.current?.visible ?? false);
               }}
-              onToc={() => {
-                setWorkspaceTab("contents");
-                openPanel("toc");
-              }}
+              onToc={() => chrome.openPanel("toc")}
               onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
             />
           )}
 
           <AppearancePanel
-            open={panel === "appearance"}
+            open={chrome.panel === "appearance"}
             prefs={activePrefs}
-            onClose={() => setPanel(null)}
+            onClose={chrome.closePanel}
             onChange={handlePrefsChange}
             onReset={() => void handleReset()}
           />
 
           <TocPanel
-            open={panel === "toc"}
-            initialTab={workspaceTab}
+            open={chrome.panel === "toc"}
+            initialTab={chrome.workspaceTab}
             entries={toc}
             currentHref={locator?.chapterHref}
             annotations={annotations}
             chapters={doc?.meta.chapters}
-            onClose={() => setPanel(null)}
+            onClose={chrome.closePanel}
             onSelect={(href) => goToHref(href, "contents")}
-            onSelectAnnotation={(target) =>
-              navRef.current?.goToAnnotation(target, "annotation")
-            }
+            onSelectAnnotation={(target) => navRef.current?.goToAnnotation(target, "annotation")}
             onRemoveBookmark={async (id) => {
-              await getLibraryManager().annotations.remove(id);
-              await refreshAnnotations(doc.docId);
-              showNavNotice("Bookmark removed.");
+              try {
+                await getLibraryManager().annotations.remove(id);
+                await refreshAnnotations(doc.docId);
+                showNavNotice("Bookmark removed.");
+              } catch (e) {
+                handleError(e, {
+                  context: "reader.annotations.remove",
+                  userMessage: "The bookmark could not be removed.",
+                });
+              }
             }}
             onDeleteAnnotation={async (id) => {
-              await getLibraryManager().annotations.remove(id);
-              await refreshAnnotations(doc.docId);
-              showNavNotice("Annotation deleted.");
+              try {
+                await getLibraryManager().annotations.remove(id);
+                await refreshAnnotations(doc.docId);
+                showNavNotice("Annotation deleted.");
+              } catch (e) {
+                handleError(e, {
+                  context: "reader.annotations.remove",
+                  userMessage: "The item could not be deleted.",
+                });
+              }
             }}
             onEditNote={(a) => {
               setEditingAnnotation(a);
@@ -1453,6 +889,7 @@ export function ReaderScreen() {
               onChange={(e) => setNoteDraft(e.target.value)}
               placeholder="Add personal note…"
               autoFocus
+              data-autofocus
             />
           </FolioDialog>
         </>

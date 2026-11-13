@@ -82,7 +82,7 @@ describe("accessible chip semantics (03 §7)", () => {
       <>
         <FolioChip selected>A</FolioChip>
         <FolioChip>B</FolioChip>
-      </>
+      </>,
     );
     const chips = Array.from(container!.querySelectorAll("button.folio-chip"));
     expect(chips[0].getAttribute("aria-pressed")).toBe("true");
@@ -99,10 +99,8 @@ describe("accessible chip semantics (03 §7)", () => {
         <FolioChip selected asRadio>
           Paginated
         </FolioChip>
-        <FolioChip asRadio>
-          Scrolled
-        </FolioChip>
-      </div>
+        <FolioChip asRadio>Scrolled</FolioChip>
+      </div>,
     );
     const group = container!.querySelector('[role="radiogroup"]')!;
     expect(group.getAttribute("aria-label")).toBe("Layout");

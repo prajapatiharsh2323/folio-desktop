@@ -59,6 +59,9 @@ pub fn remember(req: LaunchRequest) {
     if let Ok(mut pending) = PENDING.lock() {
         for f in req.files {
             if !pending.files.contains(&f) {
+                // Open-with paths are a user action: grant them so the file
+                // commands accept them this session.
+                crate::sandbox::grant(Path::new(&f));
                 pending.files.push(f);
             }
         }

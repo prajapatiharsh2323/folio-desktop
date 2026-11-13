@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { MemoryFileStore } from "../src/lib/fileStore";
 import { LibraryManager } from "../src/store/libraryManager";
-import {
-  assertImportable,
-  detectLanguage,
-  ImportError,
-  COPY,
-} from "../src/import/fileDetector";
+import { assertImportable, detectLanguage, ImportError, COPY } from "../src/import/fileDetector";
 import { importFile, replaceDoc } from "../src/import/importService";
 import { buildEpub } from "../src/import/clip/epubBuilder";
 import { parseEpub } from "../src/import/epubImporter";
@@ -31,13 +26,13 @@ function epubWith(containerExtra: Zippable = {}): Uint8Array {
     mimetype: [strToU8("application/epub+zip"), { level: 0 }],
     "META-INF/container.xml": [
       strToU8(
-        `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`
+        `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`,
       ),
       {},
     ],
     "OEBPS/content.opf": [
       strToU8(
-        `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">urn:uuid:x</dc:identifier><dc:title>T</dc:title><dc:language>en</dc:language><meta property="dcterms:modified">2025-01-01T00:00:00Z</meta></metadata><manifest/><spine/></package>`
+        `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">urn:uuid:x</dc:identifier><dc:title>T</dc:title><dc:language>en</dc:language><meta property="dcterms:modified">2025-01-01T00:00:00Z</meta></metadata><manifest/><spine/></package>`,
       ),
       {},
     ],
@@ -66,7 +61,7 @@ describe("import gates (fileDetector)", () => {
       "META-INF/container.xml": [strToU8("<container/>"), {}],
       "META-INF/encryption.xml": [
         strToU8(
-          `<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><enc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/></encryption>`
+          `<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><enc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/></encryption>`,
         ),
         {},
       ],
@@ -78,7 +73,7 @@ describe("import gates (fileDetector)", () => {
     const bytes = epubWith({
       "META-INF/encryption.xml": [
         strToU8(
-          `<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#"><EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/></encryption>`
+          `<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#"><EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/></encryption>`,
         ),
         {},
       ],
@@ -129,8 +124,12 @@ describe("EpubBuilder determinism", () => {
     expect(parsed.chapters.map((c) => c.title)).toEqual(["C1"]);
     // uuid derivation is a pure function of the hash
     const { uuidFromContentHash } = await import("../src/import/clip/epubBuilder");
-    const u1 = uuidFromContentHash("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
-    const u2 = uuidFromContentHash("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+    const u1 = uuidFromContentHash(
+      "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    );
+    const u2 = uuidFromContentHash(
+      "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    );
     expect(u1).toBe(u2);
     expect(u1).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
   });
@@ -141,7 +140,7 @@ describe("sanitize", () => {
     const out = await sanitizeHtml(
       `<html><head><title>My Article</title><script>alert(1)</script></head><body>
        <h1>Head</h1><p onclick="x()">para</p><a href="javascript:evil()">bad</a>
-       <a href="https://ok.example">good</a></body></html>`
+       <a href="https://ok.example">good</a></body></html>`,
     );
     expect(out.title).toBe("My Article");
     expect(out.html).not.toContain("script");
@@ -169,7 +168,7 @@ describe("sanitize", () => {
         <img src="https://tracker.example/pixel.png" alt="remote">
         <img src="images/local.png" alt="relative">
         <img src="//cdn.example/x.png" alt="protocol-relative">
-      </body>`
+      </body>`,
     );
     expect(out.html).not.toContain("<img");
     expect(out.html).not.toContain("tracker.example");
@@ -179,7 +178,9 @@ describe("sanitize", () => {
 
 describe("import pipeline", () => {
   it("imports TXT: article kind, reading EPUB, index cache, manifest last", async () => {
-    const text = Array.from({ length: 60 }, (_, i) => `Paragraph ${i} text.\n\nSecond line.`).join("\n\n");
+    const text = Array.from({ length: 60 }, (_, i) => `Paragraph ${i} text.\n\nSecond line.`).join(
+      "\n\n",
+    );
     const res = await importFile(lm, "note.txt", TE.encode(text));
     expect(res.status).toBe("imported");
     const manifest = await lm.load();
@@ -237,7 +238,7 @@ describe("import pipeline", () => {
       mimetype: [strToU8("application/epub+zip"), { level: 0 }],
       "META-INF/container.xml": [
         strToU8(
-          `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`
+          `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`,
         ),
         {},
       ],
@@ -249,11 +250,14 @@ describe("import pipeline", () => {
             <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
             <item id="cov" href="cover.png" media-type="image/png" properties="cover-image"/>
           </manifest>
-          <spine><itemref idref="c1"/></spine></package>`
+          <spine><itemref idref="c1"/></spine></package>`,
         ),
         {},
       ],
-      "OEBPS/ch1.xhtml": [strToU8("<html><body><h1>Loomings</h1><p>Call me Ishmael.</p></body></html>"), {}],
+      "OEBPS/ch1.xhtml": [
+        strToU8("<html><body><h1>Loomings</h1><p>Call me Ishmael.</p></body></html>"),
+        {},
+      ],
       "OEBPS/cover.png": [coverPng, { level: 0 }],
     });
     const res = await importFile(lm, "sea.epub", bytes);
@@ -265,7 +269,7 @@ describe("import pipeline", () => {
     expect(meta!.author).toBe("Sailor");
     expect(meta!.files.cover).toBe("cover.png");
     expect(Array.from(await fs.readBytes(`${ROOT}/docs/${doc.slug}/cover.png`))).toEqual(
-      Array.from(coverPng)
+      Array.from(coverPng),
     );
     expect(meta!.chapters[0].title).toBe("Loomings");
   });
@@ -275,7 +279,7 @@ describe("import pipeline", () => {
       mimetype: [strToU8("application/epub+zip"), { level: 0 }],
       "META-INF/container.xml": [
         strToU8(
-          `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`
+          `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`,
         ),
         {},
       ],
@@ -284,7 +288,7 @@ describe("import pipeline", () => {
           `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="id">
           <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><dc:identifier id="id">u</dc:identifier><dc:title>Old Book</dc:title><dc:language>en</dc:language><meta name="cover" content="cov-id"/></metadata>
           <manifest><item id="c1" href="c1.html" media-type="application/xhtml+xml"/><item id="cov-id" href="cov.jpg" media-type="image/jpeg"/></manifest>
-          <spine><itemref idref="c1"/></spine></package>`
+          <spine><itemref idref="c1"/></spine></package>`,
         ),
         {},
       ],
@@ -351,9 +355,22 @@ describe("import pipeline", () => {
     const bytes = TE.encode("Original.\n\nContent.");
     const first = await importFile(lm, "a.txt", bytes);
     const id = first.docId!;
-    await lm.progress.put({ docId: id, location: "x", percent: 10, updatedAt: "2025-01-01T00:00:00Z", pace: null });
+    await lm.progress.put({
+      docId: id,
+      location: "x",
+      percent: 10,
+      updatedAt: "2025-01-01T00:00:00Z",
+      pace: null,
+    });
     const newer = TE.encode("Original.\n\nContent. v2");
-    const rep = await replaceDoc(lm, id, "a.txt", newer, "txt", await (await import("../src/lib/sha256")).sha256Hex(newer));
+    const rep = await replaceDoc(
+      lm,
+      id,
+      "a.txt",
+      newer,
+      "txt",
+      await (await import("../src/lib/sha256")).sha256Hex(newer),
+    );
     expect(rep.status).toBe("replaced");
     const docs = (await lm.load())!.docs;
     expect(docs).toHaveLength(1);

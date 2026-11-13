@@ -12,7 +12,7 @@ const FOCUSABLE = [
 export function trapTabKey(container: HTMLElement, e: KeyboardEvent): void {
   if (e.key !== "Tab") return;
   const focusables = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (el) => el.offsetParent !== null
+    (el) => el.offsetParent !== null,
   );
   if (focusables.length === 0) {
     e.preventDefault();

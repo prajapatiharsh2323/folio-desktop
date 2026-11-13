@@ -49,4 +49,3 @@ export function getCollectionCoverPreset(collectionId: string): string {
   const idx = hashSeed(`collection::${collectionId}`) % COVER_PRESETS.length;
   return COVER_PRESETS[idx];
 }
-

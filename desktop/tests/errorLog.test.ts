@@ -5,7 +5,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { installGlobalErrorHandlers, reportError } from "../src/lib/errorLog";
+import { installGlobalErrorHandlers, reportError, handleError } from "../src/lib/errorLog";
+import { useToasts } from "../src/shell/toasts";
 
 const invokeMock = vi.mocked(invoke);
 
@@ -60,5 +61,53 @@ describe("local error log", () => {
     uninstall();
     window.dispatchEvent(new ErrorEvent("error", { message: "ignored" }));
     expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("handleError", () => {
+  beforeEach(() => {
+    useToasts.setState({ toast: null });
+  });
+
+  it("always logs, and toasts with the given user message", () => {
+    setTauri(true);
+    handleError(new Error("note write failed"), {
+      context: "reader.annotations",
+      userMessage: "The note could not be saved.",
+    });
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock.mock.calls[0][0]).toBe("log_error");
+    expect(useToasts.getState().toast).toMatchObject({
+      tone: "error",
+      text: "The note could not be saved.",
+    });
+  });
+
+  it("logs without a toast when no user message is given", () => {
+    setTauri(true);
+    handleError(new Error("silent path"), { context: "reader.paint" });
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(useToasts.getState().toast).toBeNull();
+  });
+
+  it("passes detail lines through to the toast", () => {
+    handleError(new Error("batch"), {
+      context: "import.queue",
+      userMessage: "Some files could not be imported.",
+      details: ["a.epub: too large"],
+    });
+    expect(useToasts.getState().toast?.details).toEqual(["a.epub: too large"]);
+  });
+
+  it("still logs when the toast host is unavailable", () => {
+    setTauri(true);
+    const spy = vi.spyOn(useToasts, "getState").mockImplementation(() => {
+      throw new Error("host gone");
+    });
+    expect(() =>
+      handleError(new Error("boom"), { context: "x", userMessage: "Shown" }),
+    ).not.toThrow();
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
   });
 });

@@ -41,6 +41,10 @@ vi.mock("../src/lib/fileSource", () => ({
   pickImportFiles: h.pickImportFiles,
   filesFromDataTransfer: h.filesFromDataTransfer,
   filesFromTauriDrop: async () => null,
+  onDroppedFiles: async () => () => {},
+  pickBackupDestPath: async () => null,
+  pickBackupSourcePath: async () => null,
+  pickImageDestPath: async () => null,
 }));
 
 import { OnboardingFlow } from "../src/onboarding/OnboardingFlow";
@@ -65,7 +69,7 @@ const PREFS = {
 
 function button(label: string): HTMLButtonElement {
   const found = Array.from(container!.querySelectorAll("button")).find(
-    (b) => b.textContent?.trim() === label
+    (b) => b.textContent?.trim() === label,
   );
   if (!found) throw new Error(`button ${label} not found`);
   return found;
@@ -73,7 +77,7 @@ function button(label: string): HTMLButtonElement {
 
 function radio(label: string): HTMLButtonElement {
   const found = Array.from(container!.querySelectorAll<HTMLButtonElement>("[role='radio']")).find(
-    (b) => b.textContent?.includes(label)
+    (b) => b.textContent?.includes(label),
   );
   if (!found) throw new Error(`radio ${label} not found`);
   return found;
@@ -278,7 +282,7 @@ describe("setup — step 2 (library)", () => {
     });
 
     expect(container!.querySelector("[role='alert']")?.textContent).toContain(
-      "Couldn't open the file picker"
+      "Couldn't open the file picker",
     );
     expect(useOnboarding.getState().stage).toBe("library");
   });
@@ -304,10 +308,10 @@ describe("setup — step 2 (library)", () => {
 
 describe("setup layout contract", () => {
   // Normalize CRLF so the @media block slicing also works on Windows checkouts.
-  const css = readFileSync(
-    resolve(process.cwd(), "src/styles/components.css"),
-    "utf8"
-  ).replace(/\r\n/g, "\n");
+  const css = readFileSync(resolve(process.cwd(), "src/styles/components.css"), "utf8").replace(
+    /\r\n/g,
+    "\n",
+  );
 
   it("hides the decorative preview on short windows (720×560 minimum)", () => {
     const short = css.slice(css.indexOf("@media (max-height: 639px)"));

@@ -20,10 +20,7 @@ function render(ui: React.ReactElement) {
 }
 
 function setInputValue(input: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value",
-  )?.set;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
   setter?.call(input, value);
   input.dispatchEvent(new Event("input", { bubbles: true }));
   input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -117,12 +114,7 @@ describe("TocPanel / Reading Workspace", () => {
 
   it("filters chapters in real time when searching", () => {
     render(
-      <TocPanel
-        open={true}
-        entries={SAMPLE_ENTRIES}
-        onClose={() => {}}
-        onSelect={() => {}}
-      />,
+      <TocPanel open={true} entries={SAMPLE_ENTRIES} onClose={() => {}} onSelect={() => {}} />,
     );
 
     const searchInput = document.querySelector(
@@ -178,9 +170,9 @@ describe("TocPanel / Reading Workspace", () => {
       />,
     );
 
-    const prologueBtn = Array.from(
-      document.querySelectorAll(".folio-toc__item"),
-    ).find((b) => b.textContent?.includes("Prologue")) as HTMLButtonElement;
+    const prologueBtn = Array.from(document.querySelectorAll(".folio-toc__item")).find((b) =>
+      b.textContent?.includes("Prologue"),
+    ) as HTMLButtonElement;
 
     await act(async () => {
       prologueBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -209,9 +201,9 @@ describe("TocPanel / Reading Workspace", () => {
       />,
     );
 
-    const prologueBtn = Array.from(
-      document.querySelectorAll(".folio-toc__item"),
-    ).find((b) => b.textContent?.includes("Prologue")) as HTMLButtonElement;
+    const prologueBtn = Array.from(document.querySelectorAll(".folio-toc__item")).find((b) =>
+      b.textContent?.includes("Prologue"),
+    ) as HTMLButtonElement;
 
     await act(async () => {
       prologueBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -246,22 +238,16 @@ describe("TocPanel / Reading Workspace", () => {
       />,
     );
 
-    const bookmarkTitle = document.querySelector(
-      ".folio-workspace-card__title",
-    );
+    const bookmarkTitle = document.querySelector(".folio-workspace-card__title");
     expect(bookmarkTitle?.textContent).toContain("Part One");
 
-    const jumpBtn = document.querySelector(
-      ".folio-workspace-card__main",
-    ) as HTMLButtonElement;
+    const jumpBtn = document.querySelector(".folio-workspace-card__main") as HTMLButtonElement;
     await act(async () => {
       jumpBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(jumpedLocation).toBe("text/part1.xhtml#ch1");
 
-    const removeBtn = document.querySelector(
-      ".folio-workspace-card__action",
-    ) as HTMLButtonElement;
+    const removeBtn = document.querySelector(".folio-workspace-card__action") as HTMLButtonElement;
     act(() => {
       removeBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -290,18 +276,14 @@ describe("TocPanel / Reading Workspace", () => {
       />,
     );
 
-    const cards = document.querySelectorAll(
-      ".folio-workspace-card--annotation",
-    );
+    const cards = document.querySelectorAll(".folio-workspace-card--annotation");
     expect(cards.length).toBe(2);
 
     expect(document.body.textContent).toContain("A memorable sentence.");
     expect(document.body.textContent).toContain("Important plot point.");
     expect(document.body.textContent).toContain("Must remember this twist!");
 
-    const editBtn = document.querySelector(
-      "[title='Edit note']",
-    ) as HTMLButtonElement;
+    const editBtn = document.querySelector("[title='Edit note']") as HTMLButtonElement;
     expect(editBtn).not.toBeNull();
     act(() => {
       editBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));

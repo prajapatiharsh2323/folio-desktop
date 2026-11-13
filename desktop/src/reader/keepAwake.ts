@@ -20,7 +20,7 @@ export const DESKTOP_APP_DIR = "/folio-library";
 
 export async function readPreventSleepSetting(
   fs: FileStore,
-  appDir: string = DESKTOP_APP_DIR
+  appDir: string = DESKTOP_APP_DIR,
 ): Promise<boolean> {
   const raw = await readJsonAsync<WindowSettings>(fs, L.windowState(appDir));
   // Anything but an explicit `false` keeps the documented default (true).
@@ -49,7 +49,7 @@ export class KeepAwakeController {
 
   constructor(
     private readonly inhibit: SleepInhibitor = tauriInhibitor,
-    private readonly now: () => number = () => Date.now()
+    private readonly now: () => number = () => Date.now(),
   ) {}
 
   /** A locator arrived (or the user turned a page) — start/refresh the window. */

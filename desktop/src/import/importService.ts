@@ -1,7 +1,12 @@
 // Import pipeline orchestration (02 §6): detect → dedup gate → build → write
 // doc folder → meta.json → index/text/<docId>.json → manifest rewrite LAST
 // (via LibraryManager.addDoc, which owns the commit point).
-import { assertImportable, detectFormat, ImportError, type SourceFormatDetect } from "./fileDetector";
+import {
+  assertImportable,
+  detectFormat,
+  ImportError,
+  type SourceFormatDetect,
+} from "./fileDetector";
 import { sha256Hex } from "../lib/sha256";
 import { parseEpub } from "./epubImporter";
 import { importHtml, importTxt, type ArticleImport } from "./articleImporters";
@@ -40,7 +45,7 @@ async function runPipeline(
   fileName: string,
   bytes: Uint8Array,
   format: SourceFormatDetect,
-  contentHash: string
+  contentHash: string,
 ): Promise<{
   title: string;
   author: string | null;
@@ -58,7 +63,8 @@ async function runPipeline(
   /** plain text per chapter, aligned with chapters */
   chapterTexts: string[];
 }> {
-  const originalName = format === "epub" ? "book.epub" : format === "html" ? "page.html" : "book.txt";
+  const originalName =
+    format === "epub" ? "book.epub" : format === "html" ? "page.html" : "book.txt";
   const sourceFormat: SourceFormat = format;
 
   if (format === "epub") {
@@ -81,7 +87,10 @@ async function runPipeline(
       cleanHtml: null,
       imageFiles: {},
       cover: parsed.cover
-        ? { name: `cover.${parsed.cover.ext === "jpeg" ? "jpg" : parsed.cover.ext}`, bytes: parsed.cover.bytes }
+        ? {
+            name: `cover.${parsed.cover.ext === "jpeg" ? "jpg" : parsed.cover.ext}`,
+            bytes: parsed.cover.bytes,
+          }
         : null,
       wordCount: null,
       chapterTexts: parsed.chapters.map((c) => c.text),
@@ -121,7 +130,12 @@ async function runPipeline(
     imageFiles,
     cover: null,
     wordCount: article.wordCount || null,
-    chapterTexts: article.chapters.map((c) => c.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()),
+    chapterTexts: article.chapters.map((c) =>
+      c.html
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    ),
   };
 }
 
@@ -140,7 +154,7 @@ async function writeIndex(
   lm: LibraryManager,
   docId: string,
   chapters: { id: string; title: string; order: number; href: string }[],
-  textByChapter: Map<string, string> | null
+  textByChapter: Map<string, string> | null,
 ): Promise<void> {
   const index = {
     schema: 1 as const,
@@ -154,7 +168,7 @@ async function writeIndex(
   };
   await lm.writeFileAtomic(
     L.indexText(lm.root, docId),
-    new TextEncoder().encode(JSON.stringify(index))
+    new TextEncoder().encode(JSON.stringify(index)),
   );
 }
 
@@ -162,7 +176,7 @@ export async function importFile(
   lm: LibraryManager,
   fileName: string,
   bytes: Uint8Array,
-  onDuplicate?: (existingTitle: string) => Promise<DuplicateResolution>
+  onDuplicate?: (existingTitle: string) => Promise<DuplicateResolution>,
 ): Promise<ImportResult> {
   try {
     const format = assertImportable(fileName, bytes);
@@ -174,7 +188,8 @@ export async function importFile(
     if (existing) {
       const resolution = onDuplicate ? await onDuplicate(existing.title) : "skip";
       if (resolution === "skip") return { status: "skipped", docId: existing.id };
-      if (resolution === "replace") return replaceDoc(lm, existing.id, fileName, bytes, format, contentHash);
+      if (resolution === "replace")
+        return replaceDoc(lm, existing.id, fileName, bytes, format, contentHash);
     }
 
     const p = await runPipeline(fileName, bytes, format, contentHash);
@@ -206,9 +221,7 @@ export async function importFile(
     };
     await lm.addDoc({ meta, files: filesMapFor(p) });
 
-    const textByChapter = new Map(
-      p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""])
-    );
+    const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
     await writeIndex(lm, meta.id, p.chapters, textByChapter);
 
     return { status: "imported", docId: meta.id, title: p.title };
@@ -229,7 +242,7 @@ export async function replaceDoc(
   fileName: string,
   bytes: Uint8Array,
   formatHint?: SourceFormatDetect,
-  contentHashOverride?: string
+  contentHashOverride?: string,
 ): Promise<ImportResult> {
   try {
     const manifest = await lm.load();
@@ -271,9 +284,7 @@ export async function replaceDoc(
     await lm.deleteFolderOnly(L.docDir(lm.root, md.slug));
     await lm.addDoc({ meta, files: filesMapFor(p) });
 
-    const textByChapter = new Map(
-      p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""])
-    );
+    const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
     await writeIndex(lm, meta.id, p.chapters, textByChapter);
 
     return { status: "replaced", docId: meta.id, title: p.title };
