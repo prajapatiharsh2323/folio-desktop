@@ -43,6 +43,18 @@ export function ToastHost() {
           </ul>
         </details>
       )}
+      {toast.action && toast.tone !== "busy" && (
+        <button
+          type="button"
+          className="folio-snackbar__action"
+          onClick={() => {
+            toast.action!.run();
+            dismiss(toast.id);
+          }}
+        >
+          {toast.action.label}
+        </button>
+      )}
       {toast.tone !== "busy" && (
         <button
           type="button"

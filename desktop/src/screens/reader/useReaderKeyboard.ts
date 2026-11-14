@@ -32,6 +32,11 @@ interface UseReaderKeyboardOptions {
   // In-book search (from useInBookSearch)
   searchOpen: boolean;
   setSearchOpen: Dispatch<SetStateAction<boolean>>;
+  /** Next/Prev match (F3 / Shift+F3); no-ops when nothing to step through. */
+  searchNext: () => void;
+  searchPrev: () => void;
+  /** Return through the position history (Alt+Left, R4). */
+  goBack: () => void;
 
   // Interactions owned by the screen
   clearSelection: () => void;
@@ -68,6 +73,9 @@ export function useReaderKeyboard({
   setMenu,
   searchOpen,
   setSearchOpen,
+  searchNext,
+  searchPrev,
+  goBack,
   clearSelection,
   ctxMenu,
   clearCtxMenu,
@@ -117,7 +125,12 @@ export function useReaderKeyboard({
         case "PageUp":
         case "ArrowUp":
           event.preventDefault();
-          turn("previous");
+          if (event.key === "ArrowLeft" && event.altKey) {
+            // Alt+Left returns through the position history (07 §1, R4).
+            goBack();
+          } else {
+            turn("previous");
+          }
           break;
         case " ":
           event.preventDefault();
@@ -170,6 +183,12 @@ export function useReaderKeyboard({
             event.preventDefault();
             toggleFocusMode();
           }
+          break;
+        case "F3":
+          // Step through in-book matches; Shift+F3 goes back (07 §1).
+          event.preventDefault();
+          if (event.shiftKey) searchPrev();
+          else searchNext();
           break;
         case "?":
           event.preventDefault();
@@ -229,6 +248,9 @@ export function useReaderKeyboard({
     togglePanel,
     setMenu,
     setSearchOpen,
+    searchNext,
+    searchPrev,
+    goBack,
     clearSelection,
     clearCtxMenu,
     closeNoteEditor,

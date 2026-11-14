@@ -10,6 +10,11 @@ export interface Toast {
   text: string;
   /** Optional per-file failure lines shown behind a "Details" disclosure. */
   details?: string[];
+  /**
+   * Optional single action (e.g. "Back", "Undo"). Shown as a button in the
+   * host; running it dismisses the toast. Additive — R14 extends this.
+   */
+  action?: { label: string; run: () => void };
 }
 
 interface ToastState {

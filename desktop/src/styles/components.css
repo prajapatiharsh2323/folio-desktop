@@ -585,6 +585,23 @@
   background: rgba(255, 255, 255, 0.16);
 }
 
+/* Text action next to the message (e.g. "Back", later "Undo"). */
+.folio-snackbar__action {
+  flex: none;
+  padding: 4px 10px;
+  border: var(--folio-divider) solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--folio-radius-pill);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folio-snackbar__action:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .folio-snackbar__details {
   flex: 1;
   min-width: 0;
@@ -770,6 +787,15 @@
   background: var(--folio-surface-subtle);
   color: var(--folio-text-primary);
   font: inherit;
+}
+
+.folio-searchbar__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-2);
+  padding: 0 var(--folio-screen-inset) var(--folio-space-2);
+  font-size: var(--folio-type-label-size);
+  color: var(--folio-text-secondary);
 }
 
 .folio-searchresults {

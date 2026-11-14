@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { AppearancePanel } from "../components/AppearancePanel";
 import { ReaderChrome } from "../components/ReaderChrome";
 import { ReaderContextMenu } from "../components/ReaderContextMenu";
+import { FootnotePopover } from "../components/FootnotePopover";
 import { ReaderSplash, type SplashPhase } from "../components/ReaderSplash";
 import { TocPanel } from "../components/TocPanel";
 import { InBookSearchPanel } from "../components/InBookSearchPanel";
@@ -12,7 +13,7 @@ import { QuoteCard } from "../components/QuoteCard";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioButton } from "../components/FolioButton";
 import { tintIndexFromHash } from "../import/cover";
-import type { TextSelectionInfo } from "../reader/ReaderEngine";
+import type { NoterefActivation, TextSelectionInfo } from "../reader/ReaderEngine";
 import { useReaderStore } from "../store/readerStore";
 import { useRouteStore } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
@@ -116,6 +117,8 @@ export function ReaderScreen() {
   const [selection, setSelection] = useState<TextSelectionInfo | null>(null);
   const [quoteSelection, setQuoteSelection] = useState<TextSelectionInfo | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  /** Noteref footnote popover content (R4 2.2b); null closes it. */
+  const [footnote, setFootnote] = useState<NoterefActivation | null>(null);
   /** Latest context-menu launcher, so engine events (long-lived lifecycle) never
    *  act on stale state (07 §3). */
   const contextMenuRef = useRef<(x: number, y: number) => void>(() => {});
@@ -180,6 +183,33 @@ export function ReaderScreen() {
     [showNavNotice],
   );
 
+  /** R4: return through the position history (Alt+Left, toast Back action). */
+  const goBackInHistory = useCallback(() => {
+    const nav = navRef.current;
+    if (nav) reportNavigation(nav.goBack(), "Couldn't go back.");
+  }, [reportNavigation, navRef]);
+
+  /** Offer a way back right after an in-content internal link lands. */
+  const onInternalLinkMoved = useCallback(() => {
+    pushToast({
+      tone: "info",
+      text: "Jumped to a linked location.",
+      action: { label: "Back", run: goBackInHistory },
+    });
+  }, [goBackInHistory]);
+
+  /** Noteref tap: show the footnote popover; a failed extraction is a notice. */
+  const onNoterefActivation = useCallback(
+    (activation: NoterefActivation | null) => {
+      if (!activation) {
+        showNavNotice("Couldn't open that footnote.");
+        return;
+      }
+      setFootnote(activation);
+    },
+    [showNavNotice],
+  );
+
   // ---- chapter resolution for annotation targets ---------------------------
   const resolveChapterId = useCallback(
     (location: string | null | undefined): string | null => {
@@ -193,7 +223,7 @@ export function ReaderScreen() {
   );
 
   // ---- in-book search (extracted hook) --------------------------------------
-  const search = useInBookSearch({ engineRef });
+  const search = useInBookSearch({ engineRef, navRef });
 
   /** Holds owned outside the chrome hook: dialogs, search, selection and the
    *  context menu (which contributes to the menu hold). Memoized so the
@@ -263,6 +293,8 @@ export function ReaderScreen() {
     setChromeVisible,
     onSelection: handleEngineSelection,
     reportNavigation,
+    onInternalLinkMoved,
+    onNoterefActivation,
     refreshAnnotations,
     persistProgress,
   });
@@ -302,6 +334,11 @@ export function ReaderScreen() {
   useEffect(() => {
     isFocusModeRef.current = chrome.isFocusMode;
   }, [chrome.isFocusMode]);
+
+  // A move makes the footnote popover's anchor point stale (R4 2.2b).
+  useEffect(() => {
+    setFootnote(null);
+  }, [locator]);
 
   useEffect(() => {
     if (status === "error") {
@@ -505,6 +542,9 @@ export function ReaderScreen() {
     setMenu: chrome.setMenu,
     searchOpen: search.open,
     setSearchOpen: search.setOpen,
+    searchNext: search.moveNext,
+    searchPrev: search.movePrev,
+    goBack: goBackInHistory,
     clearSelection: () => setSelection(null),
     ctxMenu,
     clearCtxMenu: () => setCtxMenu(null),
@@ -744,14 +784,15 @@ export function ReaderScreen() {
             open={search.open}
             query={search.query}
             results={search.results}
+            activeIndex={search.activeIndex}
             isSearching={search.searching}
             searchError={search.error}
             onQueryChange={search.setQuery}
             onClear={search.clear}
-            onClose={() => search.setOpen(false)}
-            onSelectResult={(loc) => {
-              reportNavigation(goToHref(loc, "search"), "Couldn't reach that search result.");
-            }}
+            onClose={search.close}
+            onSelectResult={(_, index) => search.select(index)}
+            onNext={() => search.move(1)}
+            onPrev={() => search.move(-1)}
           />
 
           {ctxMenu && (
@@ -767,6 +808,8 @@ export function ReaderScreen() {
               onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
             />
           )}
+
+          {footnote && <FootnotePopover activation={footnote} onClose={() => setFootnote(null)} />}
 
           <AppearancePanel
             open={chrome.panel === "appearance"}

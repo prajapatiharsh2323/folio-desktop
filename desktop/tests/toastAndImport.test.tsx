@@ -138,4 +138,35 @@ describe("toast host", () => {
     });
     expect(useToasts.getState().toast).toBeNull();
   });
+
+  it("runs a toast action and dismisses the toast (R4 Back)", () => {
+    let ran = false;
+    useToasts.getState().push({
+      tone: "info",
+      text: "Jumped to a linked location.",
+      action: { label: "Back", run: () => (ran = true) },
+    });
+    render();
+
+    const action = container.querySelector<HTMLButtonElement>(".folio-snackbar__action");
+    expect(action).not.toBeNull();
+    expect(action!.textContent).toBe("Back");
+
+    act(() => {
+      action!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(ran).toBe(true);
+    expect(useToasts.getState().toast).toBeNull();
+  });
+
+  it("does not render an action on busy toasts", () => {
+    useToasts.getState().push({
+      tone: "busy",
+      text: "Importing…",
+      action: { label: "Back", run: () => {} },
+    });
+    render();
+
+    expect(container.querySelector(".folio-snackbar__action")).toBeNull();
+  });
 });

@@ -9,6 +9,7 @@ import type { ReaderDoc } from "../../store/readerStore";
 import type { ReaderOpenRequest } from "../../store/routeStore";
 import type { ReadingPrefs, Annotation } from "../../model/types";
 import type {
+  NoterefActivation,
   ReaderEngine,
   ReaderLocator,
   TextSelectionInfo,
@@ -54,6 +55,16 @@ interface UseReaderEngineOptions {
   /** New text selection (or cleared with null); the screen owns the UI. */
   onSelection: (sel: TextSelectionInfo | null) => void;
   reportNavigation: (pending: Promise<NavigationOutcome>, message: string) => void;
+  /**
+   * Called after an in-content internal link lands (coordinator-routed, R4)
+   * so the screen can offer the "Back" action while the position is recent.
+   */
+  onInternalLinkMoved: () => void;
+  /**
+   * Noteref activation (R4 2.2b): show the footnote popover at the point, or
+   * a notice when null (extraction failed). The reader position is unchanged.
+   */
+  onNoterefActivation: (activation: NoterefActivation | null) => void;
   refreshAnnotations: (docId: string) => Promise<Annotation[]>;
   persistProgress: (snapshot: {
     location: string;
@@ -79,6 +90,8 @@ export function useReaderEngine({
   setChromeVisible,
   onSelection,
   reportNavigation,
+  onInternalLinkMoved,
+  onNoterefActivation,
   refreshAnnotations,
   persistProgress,
 }: UseReaderEngineOptions) {
@@ -149,6 +162,8 @@ export function useReaderEngine({
         seekingRef.current = seekingNow;
         setSeeking(seekingNow);
       },
+      // Where an absolute move is leaving: recorded for back navigation.
+      getCurrentLocation: () => engine.currentLocator()?.location ?? null,
     });
     navRef.current = nav;
 
@@ -235,6 +250,20 @@ export function useReaderEngine({
     });
 
     const offLink = engine.onLink((href) => openExternal(href));
+    // In-content internal links route through the coordinator (R4): they are
+    // serialized with every other move and land in the position history.
+    const offInternalLink = engine.onInternalLink((loc) => {
+      const pending = nav.goToHref(loc, "link");
+      reportNavigation(pending, "Couldn't open that link.");
+      void pending.then((outcome) => {
+        if (outcome.ok && !outcome.superseded && nav.canGoBack()) {
+          onInternalLinkMoved();
+        }
+      });
+      return true;
+    });
+    // Noteref activations (R4 2.2b): open the footnote popover, never navigate.
+    const offNoteref = engine.onNoteref((activation) => onNoterefActivation(activation));
     const offPointer = engine.onPointerActivity(() => {
       const chrome = chromeRef.current;
       if (!chrome || isFocusModeRef.current) return;
@@ -271,6 +300,8 @@ export function useReaderEngine({
       offClick();
       offSelection();
       offLink();
+      offInternalLink();
+      offNoteref();
       offPointer();
       offCtxMenu();
       void writer.flush();
@@ -301,6 +332,8 @@ export function useReaderEngine({
     setChromeVisible,
     onSelection,
     reportNavigation,
+    onInternalLinkMoved,
+    onNoterefActivation,
     refreshAnnotations,
     persistProgress,
   ]);

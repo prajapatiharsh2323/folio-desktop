@@ -381,3 +381,152 @@ describe("ReaderNavigationCoordinator", () => {
     expect(fake.goCalls).toEqual([]);
   });
 });
+
+describe("position history (R4 back navigation)", () => {
+  function setupHistory(initial = "ch1.xhtml") {
+    const fake = new FakeEngine();
+    const { hooks, calls } = makeHooks();
+    let current = initial;
+    hooks.getCurrentLocation = () => current;
+    const nav = createNavigationCoordinator(fake as unknown as ReaderEngine, hooks);
+    return { fake, nav, calls, setCurrent: (v: string) => (current = v) };
+  }
+
+  /** goAt, but tolerant of the drain loop needing a tick to start the move. */
+  async function goAtWait(fake: FakeEngine, i: number): Promise<Deferred> {
+    for (let t = 0; t < 20; t++) {
+      try {
+        return fake.goAt(i);
+      } catch {
+        await new Promise((r) => setTimeout(r, 5));
+      }
+    }
+    return fake.goAt(i);
+  }
+
+  it("records the position left behind and goBack returns to it", async () => {
+    const { fake, nav, setCurrent } = setupHistory();
+
+    const move = nav.goToHref("ch2.xhtml", "contents");
+    fake.goAt(0).resolve(true);
+    await expect(move).resolves.toEqual({ ok: true, superseded: false });
+    setCurrent("ch2.xhtml");
+    expect(nav.canGoBack()).toBe(true);
+
+    const back = nav.goBack();
+    fake.goAt(1).resolve(true);
+    await expect(back).resolves.toEqual({ ok: true, superseded: false });
+    expect(fake.goCalls).toEqual(["ch2.xhtml", "ch1.xhtml"]);
+    expect(nav.canGoBack()).toBe(false);
+  });
+
+  it("an internal link follow is recorded like any absolute move", async () => {
+    const { fake, nav, setCurrent } = setupHistory();
+
+    const move = nav.goToHref("footnote.xhtml#fn1", "link");
+    fake.goAt(0).resolve(true);
+    await move;
+    await settle();
+    setCurrent("footnote.xhtml");
+
+    const back = nav.goBack();
+    fake.goAt(1).resolve(true);
+    await back;
+    expect(fake.goCalls).toEqual(["footnote.xhtml#fn1", "ch1.xhtml"]);
+  });
+
+  it("back with no recorded position fails without moving", async () => {
+    const { fake, nav } = setupHistory();
+
+    await expect(nav.goBack()).resolves.toMatchObject({
+      ok: false,
+      superseded: false,
+      reason: "No earlier position to go back to.",
+    });
+    expect(fake.goCalls).toEqual([]);
+  });
+
+  it("a scrub jump records nothing, a back move records nothing", async () => {
+    const { fake, nav, setCurrent } = setupHistory();
+
+    const jump = nav.goToPercent(40, "slider");
+    fake.goAt(0).resolve(true);
+    await jump;
+    await settle();
+    setCurrent("mid.xhtml");
+    expect(nav.canGoBack()).toBe(false);
+
+    // Seed one entry, go back, then check the landing was not recorded.
+    const move = nav.goToHref("ch2.xhtml", "contents");
+    fake.goAt(1).resolve(true);
+    await move;
+    await settle();
+    setCurrent("ch2.xhtml");
+
+    const back = nav.goBack();
+    fake.goAt(2).resolve(true);
+    await back;
+    setCurrent("ch1.xhtml");
+    expect(nav.canGoBack()).toBe(false);
+  });
+
+  it("a coalesced destination chain records only the starting position", async () => {
+    const { fake, nav, setCurrent } = setupHistory();
+
+    const first = nav.goToHref("ch2.xhtml", "contents");
+    const second = nav.goToHref("ch3.xhtml", "search");
+    // first is already executing (the drain took it), so it resolves as
+    // superseded only when its in-flight engine move settles.
+    (await goAtWait(fake, 0)).resolve(true);
+    await expect(first).resolves.toMatchObject({ ok: true, superseded: true });
+    (await goAtWait(fake, 1)).resolve(true);
+    await expect(second).resolves.toEqual({ ok: true, superseded: false });
+    await settle();
+    setCurrent("ch3.xhtml");
+
+    const back = nav.goBack();
+    (await goAtWait(fake, 2)).resolve(true);
+    await back;
+    // Back returned to the original position, not the superseded ch2.
+    expect(fake.goCalls.at(-1)).toBe("ch1.xhtml");
+  });
+
+  it("a jump to the current position records nothing", async () => {
+    const { fake, nav } = setupHistory();
+
+    const move = nav.goToHref("ch1.xhtml", "contents");
+    fake.goAt(0).resolve(true);
+    await move;
+    expect(nav.canGoBack()).toBe(false);
+  });
+
+  it("keeps history bounded at 50 entries", async () => {
+    const { fake, nav, setCurrent } = setupHistory();
+
+    for (let i = 1; i <= 55; i++) {
+      const move = nav.goToHref(`ch${i + 1}.xhtml`, "contents");
+      fake.goAt(i - 1).resolve(true);
+      await move;
+      await settle();
+      setCurrent(`ch${i + 1}.xhtml`);
+    }
+
+    expect(nav.canGoBack()).toBe(true);
+    // Back pops the newest recorded position first.
+    let back = nav.goBack();
+    (await goAtWait(fake, 55)).resolve(true);
+    await back;
+    expect(fake.goCalls.at(-1)).toBe("ch55.xhtml");
+
+    // Exactly 50 entries were kept: ch55 is #50; the next 49 pops succeed
+    // (reaching ch6), then the stack is empty.
+    for (let i = 54; i >= 6; i--) {
+      back = nav.goBack();
+      (await goAtWait(fake, 56 + (54 - i))).resolve(true);
+      await back;
+    }
+    expect(fake.goCalls.at(-1)).toBe("ch6.xhtml");
+    expect(nav.canGoBack()).toBe(false);
+    await expect(nav.goBack()).resolves.toMatchObject({ ok: false });
+  });
+});

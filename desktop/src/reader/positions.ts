@@ -5,35 +5,10 @@
 // ~1024 characters of a spine resource.
 import { Locator, LocatorLocations, type Link, type Publication } from "@readium/shared";
 import { strFromU8 } from "fflate";
+import { htmlToText } from "../lib/htmlToText";
 
 /** Readium's default position length (characters) for reflowable EPUBs. */
 export const POSITION_LENGTH = 1024;
-
-const HTML_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  nbsp: " ",
-  "#39": "'",
-};
-
-function decodeEntities(s: string): string {
-  return s.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (whole, entity: string) => {
-    const named = HTML_ENTITIES[entity];
-    if (named !== undefined) return named;
-    if (entity.startsWith("#x") || entity.startsWith("#X")) {
-      const code = Number.parseInt(entity.slice(2), 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
-    }
-    if (entity.startsWith("#")) {
-      const code = Number.parseInt(entity.slice(1), 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
-    }
-    return whole;
-  });
-}
 
 /** Extract human-readable text from an HTML/XHTML resource without a DOM.
  *  A DOM parse would be more faithful but also far more expensive for a 3 MB
@@ -45,14 +20,7 @@ export function textLengthOfHtml(bytes: Uint8Array): number {
   } catch {
     return 0;
   }
-  const text = decodeEntities(
-    html
-      .replace(/<\?[\s\S]*?\?>/g, " ")
-      .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/<(script|style|head)\b[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<[^>]+>/g, " "),
-  );
-  return text.replace(/\s+/g, " ").trim().length;
+  return htmlToText(html).length;
 }
 
 export interface PositionedLink {

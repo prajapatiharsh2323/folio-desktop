@@ -19,6 +19,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["←", "PageUp", "Shift + Space", "↑"], description: "Turn to previous page" },
       { keys: ["Home"], description: "Jump to start of book" },
       { keys: ["End"], description: "Jump to end of book" },
+      { keys: ["Alt", "←"], description: "Go back to the previous position" },
+      { keys: ["F3"], description: "Next in-book search match (Shift+F3: previous)" },
       { keys: ["Media Next / Prev"], description: "Hardware page turn keys" },
     ],
   },

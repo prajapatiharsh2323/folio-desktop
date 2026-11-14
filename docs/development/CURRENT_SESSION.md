@@ -1,27 +1,155 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261113-01` — Production-readiness Phase 1 + Phase 2 Step 2.0
-(P0 blockers, quick wins, and the E2 reader refactor from the 2026-11-12
-report; plan at `~/.opencode/plan/folio-production-readiness.md`)
-**Updated:** 2026-11-13
-**Status:** Phase 1 complete; **Phase 2 Step 2.0 (E2 reader refactor) complete**
-— `ReaderScreen.tsx` split from 1,557 → ~870 lines into `src/screens/reader/`
-hooks (`useReaderEngine`, `useReaderChrome`, `useAnnotations`, `useReaderKeyboard`,
-`useInBookSearch` + `decorations.ts`, `keyGuards.ts`, `resumeTargets.ts`,
-`launchExternal.ts`); stale `isFocusMode` closure fixed via `isFocusModeRef`;
-all 16 `exhaustive-deps` warnings fixed by adding stable deps (refs/setters,
-`docId` guards — never the `doc` object, whose identity changes on every
-progress write); **zero `eslint-disable` remain for exhaustive-deps**.
-ESLint 9 flat config + Prettier added (`eslint.config.js`, `.prettierrc.json`,
-`.prettierignore`, `pnpm lint` / `pnpm format` / `pnpm format:check`); lint
-passes with **0 errors / 0 warnings**, Prettier formatted (121 files; hex
-pinned files excluded). Gates: `tsc -b` clean, **Vitest 331 / 331 (45 files)**,
-`vite build` green, `prettier --check` clean. **Committed as `203f237` and pushed to
-`origin/main` (2026-11-13, user-authorized).**
+**Session:** `S-20261113-01` — Production-readiness Phase 1 + Phase 2 Steps
+2.0–2.2b (P0 blockers, quick wins, the E2 reader refactor, search quality,
+back navigation and the noteref footnote popover from the 2026-11-12 report;
+plan at `~/.opencode/plan/folio-production-readiness.md`)
+**Updated:** 2026-11-14
+**Status:** Phase 1 complete; **Step 2.0 (E2 reader refactor) complete**;
+**Step 2.1 (R1+R2+R3 search quality) complete**; **Step 2.2a (R4 back
+navigation core) complete**; **Step 2.2b (noteref footnote popover)
+complete** — in-frame capture-phase noteref interception (no injectables;
+frames are same-origin), zip-backed sanitized footnote extraction,
+FootnotePopover (Escape/outside/close dismiss, no navigation). Gates:
+`tsc -b` clean, ESLint 0/0, **Vitest 414 / 414
+(51 files)**, `prettier --check` clean, `vite build` green.
+**Phase 1 + Step 2.0 committed as `203f237` and pushed to `origin/main`
+(2026-11-13, user-authorized). Steps 2.1, 2.2a and 2.2b are uncommitted**
+pending authorization.
 Windows runtime verification (grant flows, full Tauri `cargo test`, installer,
-focus-mode/keyboard visual parity) remains blocked.
+focus-mode/keyboard visual parity, webview search + back-navigation feel,
+noteref popover interaction) remains blocked.
+
+## Phase 2 · Step 2.2b (noteref footnote popover) — completed this pass
+
+1. **In-frame interception, no injectables needed** (`src/reader/footnotes.ts`
+   - `readiumEngine.ts`): the navigator routes interactive clicks through its
+     own comms (`pointerup` → `click` message → internal `go()`), never
+     consulting host listeners for internal links. But content frames are
+     same-origin (`sandbox="allow-same-origin allow-scripts"`) and Peripherals
+     listens bubble-phase on the frame document, so the engine hooks each frame
+     document **capture-phase** (`hookNoteref`, pruned when pool frames evict)
+     and beats it: pointerup on `epub:type="noteref"` /
+     `role="doc-noteref"` is stopped and turned into an activation; the
+     follow-up click is suppressed (no default fragment jump), while a
+     keyboard activation (click `detail === 0`) still opens the popover.
+     Selection-active pointerups are left alone.
+2. **Footnote extraction** (`extractFootnote`): the noteref href is resolved
+   against the open chapter (`resolveNoterefTarget`, zip-absolute), the body
+   is read straight from the opened zip (`EpubPackage.zip`), parsed, the
+   footnote backlink removed, images dropped (their sources cannot resolve in
+   a popover), and the fragment run through the existing `sanitizeHtml`
+   allow-list. Blank/missing bodies report null.
+3. **Host API**: `ReaderEngine.onNoteref(cb)` with `NoterefActivation`
+   `{x, y, html, text, source}` (host-relative CSS px from the click, or the
+   anchor's centre for keyboard activations); null = extraction failure.
+   Wired through `useReaderEngine` → ReaderScreen (stale-position popover
+   closes on the next locator event; failures surface as a nav notice; all
+   errors logged via `handleError` context `reader.noteref`).
+4. **FootnotePopover component** (`src/components/FootnotePopover.tsx` +
+   reader.css): fixed card beside the reference, clamped to the viewport,
+   scrollable sanitized body, header with close; dismissed by Escape
+   (capture-phase), outside press, or the close button. **No navigation
+   occurs** — the reader position is unchanged, no history entry.
+5. **2.2a gap decision (recorded)**: navigator source confirms real internal
+   links (`#frag`, relative) navigate via the navigator's own `go()` and
+   never reach `handleLocator`, so 2.2a's `onInternalLink` coordinator
+   routing fires only for http/https/mailto/tel and unresolvable hrefs.
+   Accepted: noterefs — the dominant internal-link case — now open a popover
+   instead of navigating, and other cross-references navigating
+   navigator-internally (without a history entry) is a deliberate deferral;
+   routing them would need `lockNavigation(true)` plus intercepting and
+   replaying every anchor click through the coordinator.
+6. **Tests:** 25 `tests/footnotes.test.ts` (detection incl. XHTML-namespaced
+   `epub:type`, intercept ordering/dedupe/keyboard/selection guards,
+   resolution, extraction/sanitization/backlink/blank/encoded paths) and 6
+   `tests/footnotePopover.test.tsx` (render, close, Escape, outside press,
+   inside-press stays, viewport clamping). Suites: **414 / 414 (51 files)**,
+   tsc, ESLint 0/0, Prettier, `vite build` all green.
+
+## Phase 2 · Step 2.2a (R4 back navigation core) — completed this pass
+
+1. **Coordinator position history** (`src/reader/navigation.ts`): absolute
+   moves from contents/search/annotation/link record the position the user
+   left behind (read through the new `getCurrentLocation` hook);
+   scrub/slider seeks and back moves record nothing; a coalesced destination
+   chain records only the starting position; no-op jumps to the current spot
+   record nothing; history capped at 50. `goBack()` pops the newest entry and
+   never records the return; `canGoBack()` guards the affordances.
+2. **Internal links route through the coordinator** (`readiumEngine.ts`
+   `onInternalLink` + `handleLocator`): in-content links (footnotes,
+   cross-references) no longer bypass the coordinator with a raw
+   `navigator.go`; same-document `#fragment` links resolve against the
+   chapter currently open; the raw navigator move remains a fallback when no
+   handler is registered. Wired in `useReaderEngine.ts` alongside the other
+   engine subscriptions; failures surface through `reportNavigation`.
+3. **"Back to where you were" toast** (`toasts.ts` + `ToastHost.tsx`):
+   additive `action?: {label, run}` on toasts rendered as a pill button that
+   runs and dismisses (busy toasts show no action). After a link move lands,
+   ReaderScreen offers "Back" → `nav.goBack()` ( groundwork also serves R5
+   Undo / R14 action buttons).
+4. **Alt+Left** in `useReaderKeyboard` (before the plain-arrow branch, so
+   PageUp keeps page-turning), documented in `KeyboardShortcutsDialog` along
+   with F3/Shift+F3.
+5. **Tests:** 8 coordinator history cases (record/back/empty-back/scrub
+   no-record/coalesce/no-op/cap), 3 keyboard cases (Alt+Left, plain arrow,
+   Alt+PageUp), 2 toast-action cases. Suites: **383 / 383 (49 files)**, tsc,
+   ESLint 0/0, Prettier, `vite build` all green.
+6. **Deferred to Step 2.2b:** footnote popover for `epub:type="noteref"`
+   instead of navigation — this Readium toolkit version has no built-in
+   footnote view, so it needs frame-injection work; tracked as its own
+   sub-step.
+
+## Phase 2 · Step 2.1 (R1+R2+R3 search quality) — completed this pass
+
+1. **Shared `htmlToText()`** (`src/lib/htmlToText.ts`): entity decode
+   (`&amp;`, `&nbsp;`, `&#8217;`…), block tags → spaces, script/style/head
+   skipped; single utility now used by search corpora, in-book occurrences and
+   the importer; fixture `tests/fixtures/htmlToText.json` + 15 tests.
+2. **Per-occurrence in-book search** (`src/search/occurrences.ts`,
+   `src/reader/readiumEngine.ts`, `src/screens/reader/useInBookSearch.ts`):
+   offset-preserving folded corpora cached per chapter; phrase-first then
+   all-words matching; every occurrence gets a text-anchored locator
+   (quote ±32 chars) that `goAnchored` resolves; caps 100/chapter, 300 total.
+   `InBookSearchPanel` groups hits by chapter with per-chapter counts, "2 of
+   41 matches" counter, stays open while stepping, Next/Prev buttons +
+   Enter/Shift+Enter/F3 (keyboard hook), active card highlight, temporary
+   active-match decoration painted via the engine and cleared on close; 2-char
+   minimum; failure notice keeps the panel usable. 6 panel tests + occurrence
+   unit tests.
+3. **MiniSearch upgrade** (`src/search/miniSearch.ts`, `editDistance.ts`,
+   `normalise.ts`): cached DFs, precomputed TFs, sorted vocabulary with
+   binary-search prefix expansion, offset-based snippets (exact accent/prefix/
+   fuzzy match spans via `occurrences`), quoted phrases as a hard constraint
+   (`docContainsPhrase`), BM25 scoring preserved (k1=1.2, b=0.7, title boost).
+   Round-trip `serialize()`/`fromPlain()` produces identical hits.
+4. **Library index in a Web Worker** (`src/search/libraryIndexWorker.ts`,
+   `src/search/libraryIndex.ts`): file reads stay on the main thread (Tauri
+   IPC); tokenization/postings run in a Vite-bundled module worker; snapshot
+   restored with `fromPlain()`; sync fallback when Worker is unavailable
+   (tests/restricted webviews) or the worker errors at runtime; request ids
+   match responses; "Indexing N of M documents…" progress row above the
+   search bar; rows-changed guard discards stale builds. 3 builder tests +
+   3 round-trip tests.
 
 ## Phase 2 · Step 2.0 (E2) — completed this pass
+
+`ReaderScreen.tsx` split from 1,557 → ~870 lines into `src/screens/reader/`
+hooks (`useReaderEngine`, `useReaderChrome`, `useAnnotations`,
+`useReaderKeyboard`, `useInBookSearch` + `decorations.ts`, `keyGuards.ts`,
+`resumeTargets.ts`, `launchExternal.ts`); stale `isFocusMode` closure fixed
+via `isFocusModeRef`; all 16 `exhaustive-deps` warnings fixed by adding
+stable deps (refs/setters, `docId` guards — never the `doc` object, whose
+identity changes on every progress write); **zero `eslint-disable` remain
+for exhaustive-deps**. ESLint 9 flat config + Prettier added
+(`eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `pnpm lint` /
+`pnpm format` / `pnpm format:check`); lint passes with **0 errors / 0
+warnings**, Prettier formatted (121 files; hex pinned files excluded).
+Gates: `tsc -b` clean, **Vitest 331 / 331 (45 files)**, `vite build` green,
+`prettier --check` clean. **Committed as `203f237` and pushed to
+`origin/main` (2026-11-13, user-authorized).** Windows runtime verification
+(grant flows, full Tauri `cargo test`, installer, focus-mode/keyboard
+visual parity) remains blocked.
 
 1. **Hook extraction** (behaviour-preserving; engine/chrome hook order and
    coordinator/modal-stack/mutex patterns kept): `useInBookSearch.ts`,
@@ -51,7 +179,7 @@ focus-mode/keyboard visual parity) remains blocked.
 ## Phase 1 — completed earlier in this session
 
 1. **P0-4 handled failures:** `handleError(error, {context, userMessage?,
-   details?})` + `describeError()` in `errorLog.ts`; swept user-facing catches
+details?})` + `describeError()` in `errorLog.ts`; swept user-facing catches
    in ReaderScreen (annotations/highlight/clipboard/bookmark/TOC callbacks —
    dialogs stay open with drafts on failure), NotesScreen, CollectionsScreen,
    LibraryScreen, SettingsScreen, libraryUi.ts, TocPanel, InBookSearchPanel,
@@ -99,19 +227,18 @@ focus-mode/keyboard visual parity) remains blocked.
 
 ## Exact next action
 
-1. Phase 2 **Step 2.1 (R1+R2+R3 search quality)** per the plan
-   (`~/.opencode/plan/folio-production-readiness.md` lines ~125–167): shared
-   `htmlToText()` utility (entity decode, block→space, skip script/style/head)
-   with fixture coverage (`&amp;`, `&nbsp;`, `&#8217;`); per-occurrence
-   in-book search with text-anchored locators and Next/Prev; MiniSearch
-   upgrade (real `minisearch` package or cached DFs/precomputed TFs/prefix
-   binary search, Web Worker, library indexing with progress).
-2. Committing: Phase 1 + Step 2.0 committed as `203f237` and pushed to
-   `origin/main` (2026-11-13, user-authorized). Continue committing per phase
-   milestone with explicit authorization.
-3. Windows-only proof still pending after Phases 1–2.0: real dialog/drop
+1. Phase 2 **Step 2.3 (R5 interactive highlights)** per the plan
+   (`~/.opencode/plan/folio-production-readiness.md` lines ~148–166):
+   subscribe to decoration activation (DecorableNavigator) for highlight
+   popovers — change colour, note, copy, delete with Undo (uses the toast
+   `action` field from 2.2a).
+2. Committing: Phase 1 + Step 2.0 are committed and pushed (`203f237`,
+   user-authorized). **Steps 2.1, 2.2a and 2.2b are uncommitted** — commit at
+   the next milestone with explicit authorization.
+3. Windows-only proof still pending after Phases 1–2.2b: real dialog/drop
    grant flows, full `cargo test --all-targets` for the Tauri crate,
-   installer, focus-mode + keyboard visual parity after the refactor.
+   installer, focus-mode + keyboard visual parity, in-book search webview
+   feel, Alt+Left + Back toast in the webview, noteref popover interaction.
 
 ---
 

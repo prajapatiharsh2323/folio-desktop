@@ -9,6 +9,7 @@ import {
 } from "@readium/shared";
 import type {
   DecorationSpec,
+  NoterefActivation,
   ReaderClickInfo,
   ReaderEngine,
   ReaderLocator,
@@ -19,13 +20,34 @@ import type {
 } from "./ReaderEngine";
 import { strFromU8 } from "fflate";
 import type { ReadingPrefs } from "../model/types";
+import { htmlToText } from "../lib/htmlToText";
+import {
+  buildCorpus,
+  buildSnippet,
+  findOccurrences,
+  anchorFor,
+  type TextCorpus,
+} from "../search/occurrences";
+import { escapeHtml } from "../search/htmlEscape";
 import { resolveReaderTheme, toNavigatorPreferences } from "./readerThemes";
 import { openEpubFromBytes, type EpubPackage } from "./epubPublication";
 import { locatorForProgression, progressionForLocator } from "./positions";
 import { decodeLocation, encodeLocation, isCfiLocation } from "./locatorCodec";
+import {
+  createNoterefIntercept,
+  extractFootnote,
+  resolveNoterefTarget,
+  type NoterefIntercept,
+} from "./footnotes";
+import { handleError } from "../lib/errorLog";
 
 const XHTML = "application/xhtml+xml";
 import type { MiniSearch } from "../search/miniSearch";
+
+/** Occurrence caps for per-occurrence search (R2): one hit per match, capped
+ *  per chapter and in total so a common word cannot flood the panel. */
+const MAX_CHAPTER_OCCURRENCES = 100;
+const MAX_TOTAL_OCCURRENCES = 300;
 
 export class ReadiumEngine implements ReaderEngine {
   private navigator: EpubNavigator | null = null;
@@ -37,6 +59,15 @@ export class ReadiumEngine implements ReaderEngine {
   private locatorCbs = new Set<(loc: ReaderLocator) => void>();
   private selectionCbs = new Set<(sel: TextSelectionInfo | null) => void>();
   private linkCbs = new Set<(href: string) => boolean>();
+  /** In-content internal links (footnotes, cross-references), routed through the coordinator. */
+  private internalLinkCbs = new Set<(locator: string) => boolean>();
+  /** Noteref activations for the footnote popover (R4 2.2b). */
+  private noterefCbs = new Set<(activation: NoterefActivation | null) => void>();
+  /** Capture-phase interception hooks installed per frame document. */
+  private noterefHooks = new Set<{
+    doc: Document;
+    intercept: NoterefIntercept;
+  }>();
   private clickCbs = new Set<(info: ReaderClickInfo) => boolean>();
   private contextMenuCbs = new Set<(info: ReaderClickInfo) => boolean>();
   private pointerCbs = new Set<() => void>();
@@ -46,6 +77,8 @@ export class ReadiumEngine implements ReaderEngine {
   private systemDark = false;
   private searchIndex: MiniSearch | null = null;
   private searchIndexPromise: Promise<MiniSearch | null> | null = null;
+  /** per-chapter word-scan structures for occurrence lookup (R2) */
+  private searchCorpora = new Map<string, TextCorpus>();
 
   constructor(
     private epubBytes: Uint8Array,
@@ -70,6 +103,10 @@ export class ReadiumEngine implements ReaderEngine {
         // The content frame swallows hover; re-emit it for the chrome.
         this.frameWindows.add(wnd);
         wnd.addEventListener("pointermove", this.framePointerMove, { passive: true });
+        // Noteref interception runs in-frame (see footnotes.ts): capture-phase
+        // on the frame document beats the toolkit's bubble-phase Peripherals
+        // handler, which would otherwise navigate to the footnote anchor.
+        this.hookNoteref(wnd);
       },
       positionChanged: (locator) => this.onPositionChanged(locator),
       viewportChanged: () => {},
@@ -136,11 +173,23 @@ export class ReadiumEngine implements ReaderEngine {
     this.locatorCbs.clear();
     this.selectionCbs.clear();
     this.linkCbs.clear();
+    this.internalLinkCbs.clear();
+    this.noterefCbs.clear();
+    for (const hook of this.noterefHooks) {
+      try {
+        hook.doc.removeEventListener("pointerup", hook.intercept.onPointerUp, true);
+        hook.doc.removeEventListener("click", hook.intercept.onClick, true);
+      } catch {
+        /* frame already gone */
+      }
+    }
+    this.noterefHooks.clear();
     this.clickCbs.clear();
     this.contextMenuCbs.clear();
     this.pointerCbs.clear();
     this.searchIndex = null;
     this.searchIndexPromise = null;
+    this.searchCorpora.clear();
     await this.navigator?.destroy();
     this.opened?.close();
     this.navigator = null;
@@ -227,7 +276,7 @@ export class ReadiumEngine implements ReaderEngine {
     return this.lastLocator?.progression ?? null;
   }
 
-  async applyDecorations(decorations: DecorationSpec[]): Promise<void> {
+  async applyDecorations(decorations: DecorationSpec[], group = "highlights"): Promise<void> {
     const nav = this.navigator;
     if (!nav) return;
     // A decoration whose locator cannot be resolved is skipped rather than
@@ -242,7 +291,7 @@ export class ReadiumEngine implements ReaderEngine {
       .filter(
         (d): d is { id: string; locator: Locator; style: string; color: string } => d !== null,
       );
-    nav.applyDecorations(locators as never, "highlights");
+    nav.applyDecorations(locators as never, group);
   }
 
   private async getSearchIndex(): Promise<MiniSearch | null> {
@@ -259,7 +308,7 @@ export class ReadiumEngine implements ReaderEngine {
         let text = "";
         try {
           const bytes = await pub.get(link).read();
-          if (bytes) text = stripHtml(strFromU8(bytes));
+          if (bytes) text = htmlToText(strFromU8(bytes));
         } catch {
           text = "";
         }
@@ -271,6 +320,7 @@ export class ReadiumEngine implements ReaderEngine {
           href: link.href,
           chapterTitle: link.title ?? link.href,
         });
+        this.searchCorpora.set(link.href, buildCorpus(text));
       }
       this.searchIndex = idx;
       return idx;
@@ -286,15 +336,31 @@ export class ReadiumEngine implements ReaderEngine {
   }
 
   async search(query: string): Promise<SearchHit[]> {
-    if (!query.trim() || !this.pub) return [];
+    // R2: two characters minimum, one result per occurrence.
+    if (query.trim().length < 2 || !this.pub) return [];
     const idx = await this.getSearchIndex();
     if (!idx || !this.pub) return [];
-    const hits = idx.search(query, 50);
-    return hits.map((h) => ({
-      chapterTitle: h.chapterTitle ?? "",
-      snippetHtml: h.snippet,
-      locator: h.href ?? h.id,
-    }));
+    const matches = idx.search(query, 50);
+
+    const hits: SearchHit[] = [];
+    let budget = MAX_TOTAL_OCCURRENCES;
+    for (const m of matches) {
+      if (budget <= 0) break;
+      const corpus = this.searchCorpora.get(m.href ?? m.id);
+      if (!corpus) continue;
+      const spans = findOccurrences(corpus, query, { limit: MAX_CHAPTER_OCCURRENCES });
+      for (const span of spans) {
+        if (budget <= 0) break;
+        budget -= 1;
+        hits.push({
+          chapterTitle: m.chapterTitle ?? "",
+          snippetHtml: buildSnippet(corpus.raw, [span], escapeHtml),
+          locator: m.href ?? m.id,
+          anchor: anchorFor(corpus.raw, span),
+        });
+      }
+    }
+    return hits;
   }
 
   toc(): TocEntry[] {
@@ -323,6 +389,111 @@ export class ReadiumEngine implements ReaderEngine {
   onLink(cb: (href: string) => boolean): () => void {
     this.linkCbs.add(cb);
     return () => this.linkCbs.delete(cb);
+  }
+
+  /**
+   * Subscribe to in-content internal link activations. The handler receives
+   * the link's locator as a resumable location string and returns true when it
+   * routed the move (through the navigation coordinator). Without any handler,
+   * internal links fall back to the navigator's own move (old behaviour).
+   */
+  onInternalLink(cb: (locator: string) => boolean): () => void {
+    this.internalLinkCbs.add(cb);
+    return () => this.internalLinkCbs.delete(cb);
+  }
+
+  onNoteref(cb: (activation: NoterefActivation | null) => void): () => void {
+    this.noterefCbs.add(cb);
+    return () => this.noterefCbs.delete(cb);
+  }
+
+  /**
+   * Install the noteref interception pair on a frame document. Guarded by a
+   * marker so a reloaded frame document cannot be hooked twice.
+   */
+  private hookNoteref(wnd: Window): void {
+    const doc = wnd.document;
+    if (!doc) return;
+    // Evicted pool frames leave dead documents behind; drop their hooks.
+    for (const hook of this.noterefHooks) {
+      if (!hook.doc.defaultView) this.noterefHooks.delete(hook);
+      else if (hook.doc === doc) return; // already hooked
+    }
+    const intercept = createNoterefIntercept({
+      hasSelection: () => Boolean(wnd.getSelection()?.toString()),
+      onActivate: (anchor, ev) => this.handleNoterefActivation(anchor, ev, wnd),
+    });
+    doc.addEventListener("pointerup", intercept.onPointerUp, true);
+    doc.addEventListener("click", intercept.onClick, true);
+    this.noterefHooks.add({ doc, intercept });
+  }
+
+  /**
+   * A noteref was activated in a frame: resolve its target against the open
+   * chapter, pull the footnote body from the zip, sanitize it, and hand the
+   * activation to the host. Never navigates.
+   */
+  private handleNoterefActivation(
+    anchor: HTMLAnchorElement,
+    ev: PointerEvent | MouseEvent,
+    wnd: Window,
+  ): void {
+    if (!this.opened || !this.pub) return;
+    const chapterHref = this.lastLocator?.chapterHref;
+    const linkHref = anchor.getAttribute("href") ?? "";
+    const target = chapterHref ? resolveNoterefTarget(chapterHref, linkHref) : null;
+    if (!target) {
+      handleError(new Error(`Unresolvable noteref href: ${linkHref || "(empty)"}`), {
+        context: "reader.noteref",
+      });
+      this.noterefCbs.forEach((cb) => cb(null));
+      return;
+    }
+    const point = this.noterefPoint(anchor, ev, wnd);
+    void extractFootnote(this.opened.zip, target)
+      .then((body) => {
+        if (!body) {
+          handleError(new Error(`Footnote body not found: ${target}`), {
+            context: "reader.noteref",
+          });
+          this.noterefCbs.forEach((cb) => cb(null));
+          return;
+        }
+        const activation: NoterefActivation = {
+          x: point.x,
+          y: point.y,
+          html: body.html,
+          text: body.text,
+          source: target,
+        };
+        this.noterefCbs.forEach((cb) => cb(activation));
+      })
+      .catch((error) => {
+        handleError(error, { context: "reader.noteref" });
+        this.noterefCbs.forEach((cb) => cb(null));
+      });
+  }
+
+  /** Host-relative CSS px for the popover, from the click (or the anchor). */
+  private noterefPoint(
+    anchor: Element,
+    ev: { clientX?: number; clientY?: number },
+    wnd: Window,
+  ): { x: number; y: number } {
+    let cx = ev.clientX ?? 0;
+    let cy = ev.clientY ?? 0;
+    if (!cx && !cy) {
+      const rect = anchor.getBoundingClientRect();
+      cx = rect.left + rect.width / 2;
+      cy = rect.top + rect.height / 2;
+    }
+    // Frame viewport coords → host container coords (frames are 1:1, same-origin).
+    const frame = wnd.frameElement?.getBoundingClientRect();
+    const cr = this.container?.getBoundingClientRect();
+    return {
+      x: cx + (frame?.left ?? 0) - (cr?.left ?? 0),
+      y: cy + (frame?.top ?? 0) - (cr?.top ?? 0),
+    };
   }
 
   onClick(cb: (info: ReaderClickInfo) => boolean): () => void {
@@ -374,8 +545,34 @@ export class ReadiumEngine implements ReaderEngine {
       for (const cb of this.linkCbs) if (cb(href)) return true;
       return false;
     }
+    // Internal links (footnotes, cross-references) are routed through the
+    // navigation coordinator so they land in the position history; the
+    // navigator's own move stays as a fallback when no handler is registered.
+    const asString = this.internalLinkLocatorString(locator);
+    if (asString) {
+      for (const cb of this.internalLinkCbs) {
+        if (cb(asString)) return true;
+      }
+    }
     this.navigator?.go(locator, true, () => {});
     return true;
+  }
+
+  /** Internal link locator as a resumable location string (null = unroutable). */
+  private internalLinkLocatorString(locator: Locator): string | null {
+    if (locator.href.split("#")[0]) return this.locatorToString(locator);
+    // Same-document anchor: resolve against the chapter currently open.
+    const base = this.currentBaseLocator();
+    if (!base) return null;
+    return this.locatorToString(
+      new Locator({
+        href: base.href,
+        type: base.type,
+        title: base.title,
+        locations: locator.locations,
+        text: locator.text,
+      }),
+    );
   }
 
   private handleContextMenu(e: {
@@ -565,15 +762,6 @@ export class ReadiumEngine implements ReaderEngine {
       rect: { top: y, left: x, bottom: y + height, right: x + width },
     };
   }
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 /** Percent-decoded href without its fragment, for tolerant href comparison. */

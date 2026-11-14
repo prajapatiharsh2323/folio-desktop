@@ -13,7 +13,11 @@ export type NavigationOrigin =
   | "search"
   | "slider"
   | "bookmark"
-  | "annotation";
+  | "annotation"
+  /** Followed an in-content internal link (footnote, cross-reference). */
+  | "link"
+  /** Returning to a recorded position (Alt+Left / Back action). */
+  | "back";
 
 /**
  * Result of one coordinated move.
@@ -34,6 +38,12 @@ export interface AnnotationTarget {
   anchor?: { quote: string; prefix: string; suffix: string } | null;
 }
 
+/** A search result destination: chapter href + optional text anchor. */
+export interface SearchTarget {
+  locator: string;
+  anchor?: { quote: string; prefix: string; suffix: string } | null;
+}
+
 /**
  * Hooks the coordinator uses to integrate with reader-side state without
  * knowing how that state works. See ReaderScreen for the concrete wiring.
@@ -48,6 +58,12 @@ export interface ReaderNavigationHooks {
   onSeekingChanged: (seeking: boolean) => void;
   /** Newest, non-superseded failure — used for user-facing notices. */
   onOutcome?: (outcome: NavigationOutcome, origin: NavigationOrigin) => void;
+  /**
+   * Current position as a resumable location string, read just before an
+   * absolute move is queued so the position the user is leaving can be
+   * recorded for back navigation.
+   */
+  getCurrentLocation?: () => string | null;
 }
 
 interface Task {
@@ -61,6 +77,9 @@ interface Task {
 }
 
 const FAILED_MOVE = "The reader could not complete that move.";
+
+/** History depth cap: far more than a reader session needs, bounded memory. */
+const MAX_HISTORY = 50;
 
 /**
  * Single coordination point for user-initiated navigation (04 §5): buttons,
@@ -93,6 +112,8 @@ export class ReaderNavigationCoordinator {
   private pending: Task | null = null;
   private running = false;
   private seeking = false;
+  /** Positions the user left behind through absolute moves, newest last. */
+  private history: string[] = [];
 
   constructor(
     private readonly engine: ReaderEngine,
@@ -123,7 +144,7 @@ export class ReaderNavigationCoordinator {
         reason: "That section has no destination.",
       });
     }
-    return this.enqueueAbsolute(origin, () => this.engine.go(href));
+    return this.enqueueAbsolute(origin, () => this.engine.go(href), href);
   }
 
   /** Progress jump: scrub release, Home/End. Clamped to 0..100. */
@@ -157,18 +178,59 @@ export class ReaderNavigationCoordinator {
       });
     }
     const anchor = target.anchor;
-    return this.enqueueAbsolute(origin, async () => {
-      const landed = await this.engine.go(location);
-      if (!landed) return false;
-      if (anchor?.quote?.trim() && this.engine.goAnchored) {
-        try {
-          await this.engine.goAnchored(anchor.quote, anchor.prefix ?? "", anchor.suffix ?? "");
-        } catch {
-          /* the chapter landing already succeeded */
+    return this.enqueueAbsolute(
+      origin,
+      async () => {
+        const landed = await this.engine.go(location);
+        if (!landed) return false;
+        if (anchor?.quote?.trim() && this.engine.goAnchored) {
+          try {
+            await this.engine.goAnchored(anchor.quote, anchor.prefix ?? "", anchor.suffix ?? "");
+          } catch {
+            /* the chapter landing already succeeded */
+          }
         }
-      }
-      return true;
-    });
+        return true;
+      },
+      location,
+    );
+  }
+
+  /**
+   * Search hit jump. Lands on the chapter first, then makes a best-effort
+   * anchored jump to the match text. A failed anchor is not a failed
+   * navigation — the chapter position is still the right place (mirrors
+   * goToAnnotation).
+   */
+  goToSearchHit(
+    target: SearchTarget,
+    origin: NavigationOrigin = "search",
+  ): Promise<NavigationOutcome> {
+    const location = target.locator;
+    if (!location) {
+      return Promise.resolve({
+        ok: false,
+        superseded: false,
+        reason: "That match has no destination.",
+      });
+    }
+    const anchor = target.anchor;
+    return this.enqueueAbsolute(
+      origin,
+      async () => {
+        const landed = await this.engine.go(location);
+        if (!landed) return false;
+        if (anchor?.quote?.trim() && this.engine.goAnchored) {
+          try {
+            await this.engine.goAnchored(anchor.quote, anchor.prefix ?? "", anchor.suffix ?? "");
+          } catch {
+            /* the chapter landing already succeeded */
+          }
+        }
+        return true;
+      },
+      location,
+    );
   }
 
   private enqueuePageTurn(
@@ -181,17 +243,22 @@ export class ReaderNavigationCoordinator {
   private enqueueAbsolute(
     origin: NavigationOrigin,
     move: () => Promise<boolean>,
+    destination?: string,
   ): Promise<NavigationOutcome> {
-    return this.enqueue({ origin, absolute: true, move });
+    return this.enqueue({ origin, absolute: true, move, destination });
   }
 
   private enqueue(request: {
     origin: NavigationOrigin;
     absolute: boolean;
     move: () => Promise<boolean>;
+    destination?: string;
   }): Promise<NavigationOutcome> {
     this.assertEngine();
     const id = ++this.seq;
+    if (request.absolute && this.recordsHistory(request.origin)) {
+      this.recordHistory(request.destination);
+    }
     let resolve!: (outcome: NavigationOutcome) => void;
     const task: Task = {
       id,
@@ -218,6 +285,52 @@ export class ReaderNavigationCoordinator {
 
     void this.drain();
     return promise;
+  }
+
+  /**
+   * Which absolute origins record back-history. Scrubbing is a seek, not a
+   * place the reader chose to leave; a back move must never record itself.
+   */
+  private recordsHistory(origin: NavigationOrigin): boolean {
+    return origin !== "slider" && origin !== "back";
+  }
+
+  /**
+   * Record the position an absolute move is leaving behind. Only the first
+   * destination of a coalesced chain records (replacements share the same
+   * starting position), and a no-op jump to the current spot records nothing.
+   */
+  private recordHistory(destination?: string): void {
+    const from = this.hooks.getCurrentLocation?.() ?? null;
+    if (!from) return;
+    if (destination && from === destination) return;
+    if (this.pending) return;
+    const newest = this.history[this.history.length - 1];
+    if (newest === from) return;
+    this.history.push(from);
+    if (this.history.length > MAX_HISTORY) this.history.shift();
+  }
+
+  /** Can Alt+Left / the Back action return to a recorded position? */
+  canGoBack(): boolean {
+    return this.history.length > 0;
+  }
+
+  /**
+   * Return to the most recently recorded position. The return move itself is
+   * absolute but never recorded — going back does not erase the position it
+   * lands on; it simply ends the history chain at that point.
+   */
+  goBack(): Promise<NavigationOutcome> {
+    const target = this.history.pop();
+    if (!target) {
+      return Promise.resolve({
+        ok: false,
+        superseded: false,
+        reason: "No earlier position to go back to.",
+      });
+    }
+    return this.enqueueAbsolute("back", () => this.engine.go(target));
   }
 
   private drop(task: Task): void {

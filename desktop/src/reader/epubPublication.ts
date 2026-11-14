@@ -90,7 +90,8 @@ function normalizePath(path: string): string {
   return out.join("/");
 }
 
-function dirname(path: string): string {
+/** Directory part of a zip-absolute path ("OEBPS/text/" from "OEBPS/text/ch1.xhtml"). */
+export function dirname(path: string): string {
   const i = path.lastIndexOf("/");
   return i === -1 ? "" : path.slice(0, i + 1);
 }
@@ -108,7 +109,8 @@ export function resolveEpubHref(baseDir: string, href: string): string {
   return absolute + fragment;
 }
 
-function zipEntry(zip: Record<string, Uint8Array>, href: string): Uint8Array | undefined {
+/** Zip bytes for a resource path (tolerates fragments, encoding, case of separators). */
+export function zipEntry(zip: Record<string, Uint8Array>, href: string): Uint8Array | undefined {
   const bare = href.split("#")[0];
   return (
     zip[bare] ??

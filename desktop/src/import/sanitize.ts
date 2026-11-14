@@ -1,6 +1,7 @@
 // HTML sanitizer: Folio article allow-list (02 §6, HtmlImporter behavior).
 // Drops scripts/styles/forms/frames wholesale; strips non-safe attributes;
 // extracts up to 40 inline data-URI images to hash-named files.
+import { htmlToText } from "../lib/htmlToText";
 
 export interface ExtractedImage {
   /** sha256-hex filename stem */
@@ -179,12 +180,7 @@ export async function sanitizeHtml(input: string): Promise<SanitizeResult> {
 
 /** Plain text from sanitized article HTML (per-spine text extraction reuse). */
 export function textFromHtml(html: string): string {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  doc.querySelectorAll("script,style").forEach((el) => el.remove());
-  return (doc.body?.textContent ?? "")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return htmlToText(html);
 }
 
 /** Split article paragraphs into 3–5 chapters (02 §6 EpubBuilder nav). */

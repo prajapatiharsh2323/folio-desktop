@@ -13,39 +13,75 @@ interface InBookSearchPanelProps {
   open: boolean;
   query: string;
   results: SearchHit[];
+  /** index of the match the panel is currently on (-1 = none yet) */
+  activeIndex: number;
   isSearching: boolean;
   searchError?: string | null;
   onQueryChange: (query: string) => void;
   onClear: () => void;
   onClose: () => void;
-  onSelectResult: (locator: string) => Promise<unknown> | void;
+  onSelectResult: (hit: SearchHit, index: number) => Promise<unknown> | void;
+  onNext: () => void;
+  onPrev: () => void;
+}
+
+/** One chapter group: consecutive hits sharing the same chapter. */
+interface ChapterGroup {
+  title: string;
+  locator: string;
+  first: number;
+  hits: Array<{ hit: SearchHit; index: number }>;
+}
+
+function groupByChapter(results: SearchHit[]): ChapterGroup[] {
+  const groups: ChapterGroup[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const hit = results[i];
+    const last = groups[groups.length - 1];
+    if (last && last.title === hit.chapterTitle) {
+      last.hits.push({ hit, index: i });
+    } else {
+      groups.push({
+        title: hit.chapterTitle,
+        locator: hit.locator,
+        first: i,
+        hits: [{ hit, index: i }],
+      });
+    }
+  }
+  return groups;
 }
 
 /**
  * In-Book Search Panel:
- * Fast, debounced text search across EPUB chapters with highlighted snippets,
- * result counts, keyboard navigation, and coordinated jump execution.
+ * Fast, debounced text search across EPUB chapters with per-occurrence
+ * results grouped by chapter, a "current of total" counter, Next/Prev
+ * (Enter/Shift+Enter/F3), and a panel that stays open so the user can step
+ * through matches.
  */
 export function InBookSearchPanel({
   open,
   query,
   results,
+  activeIndex,
   isSearching,
   searchError = null,
   onQueryChange,
   onClear,
   onClose,
   onSelectResult,
+  onNext,
+  onPrev,
 }: InBookSearchPanelProps) {
-  const [resolvingLocator, setResolvingLocator] = useState<string | null>(null);
+  const [resolvingIndex, setResolvingIndex] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSelect = async (locator: string) => {
-    if (resolvingLocator) return;
-    setResolvingLocator(locator);
+  const handleSelect = async (hit: SearchHit, index: number) => {
+    if (resolvingIndex !== null) return;
+    setResolvingIndex(index);
     setErrorMessage(null);
     try {
-      const outcome = await onSelectResult(locator);
+      const outcome = await onSelectResult(hit, index);
       if (
         outcome &&
         typeof outcome === "object" &&
@@ -54,18 +90,19 @@ export function InBookSearchPanel({
         !("superseded" in outcome && (outcome as { superseded: boolean }).superseded)
       ) {
         setErrorMessage("Couldn't reach that search location.");
-      } else {
-        onClose();
       }
+      // Success keeps the panel open: the user steps through matches.
     } catch (e) {
       handleError(e, { context: "reader.search.navigate" });
       setErrorMessage("Couldn't reach that search location.");
     } finally {
-      setResolvingLocator(null);
+      setResolvingIndex(null);
     }
   };
 
   const hasQuery = query.trim().length > 0;
+  const groups = groupByChapter(results);
+  const current = activeIndex >= 0 && activeIndex < results.length ? activeIndex + 1 : null;
 
   return (
     <FolioPanel open={open} onClose={onClose} title="Search in Book" width={400}>
@@ -81,6 +118,17 @@ export function InBookSearchPanel({
             onChange={(e) => {
               setErrorMessage(null);
               onQueryChange(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (e.shiftKey) onPrev();
+                else onNext();
+              } else if (e.key === "F3") {
+                e.preventDefault();
+                if (e.shiftKey) onPrev();
+                else onNext();
+              }
             }}
             autoFocus
             data-autofocus
@@ -108,10 +156,36 @@ export function InBookSearchPanel({
               />
               <span>Searching in book…</span>
             </div>
+          ) : hasQuery && results.length > 0 ? (
+            <div className="folio-inbook-search-panel__count">
+              <span>
+                {current
+                  ? `${current} of ${results.length} matches`
+                  : results.length === 1
+                    ? "1 match found"
+                    : `${results.length} matches found`}
+              </span>
+              <button
+                type="button"
+                className="folio-inbook-search-panel__step"
+                aria-label="Previous match (Shift+F3)"
+                disabled={current === null}
+                onClick={onPrev}
+              >
+                <FolioIcons.ChevronUp size="sm" />
+              </button>
+              <button
+                type="button"
+                className="folio-inbook-search-panel__step"
+                aria-label="Next match (F3)"
+                disabled={current === null}
+                onClick={onNext}
+              >
+                <FolioIcons.ChevronDown size="sm" />
+              </button>
+            </div>
           ) : hasQuery ? (
-            <span className="folio-inbook-search-panel__count">
-              {results.length === 1 ? "1 match found" : `${results.length} matches found`}
-            </span>
+            <span className="folio-inbook-search-panel__count">No matches</span>
           ) : (
             <span className="folio-inbook-search-panel__hint">
               Enter at least 2 characters to search across all chapters.
@@ -134,7 +208,7 @@ export function InBookSearchPanel({
           </div>
         )}
 
-        {/* Results list */}
+        {/* Results list, grouped by chapter with per-chapter counts */}
         {hasQuery && !isSearching && results.length === 0 ? (
           <div className="folio-workspace__empty">
             <FolioIcons.Search size="md" />
@@ -145,33 +219,45 @@ export function InBookSearchPanel({
           </div>
         ) : (
           <ul className="folio-inbook-search-panel__results">
-            {results.map((hit, index) => {
-              const isResolving = resolvingLocator === hit.locator;
-              return (
-                <li key={`${hit.locator}-${index}`} className="folio-inbook-search-panel__item">
-                  <button
-                    type="button"
-                    className={`folio-inbook-search-panel__card${isResolving ? " is-resolving" : ""}`}
-                    disabled={resolvingLocator !== null}
-                    onClick={() => void handleSelect(hit.locator)}
-                  >
-                    <div className="folio-inbook-search-panel__chapter">
-                      <FolioIcons.Toc size="sm" />
-                      <span>{hit.chapterTitle}</span>
-                    </div>
-                    <div
-                      className="folio-inbook-search-panel__snippet"
-                      dangerouslySetInnerHTML={{ __html: hit.snippetHtml }}
-                    />
-                    {isResolving && (
-                      <div className="folio-inbook-search-panel__resolving">
-                        <span>Navigating…</span>
-                      </div>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
+            {groups.map((group) => (
+              <li
+                key={`${group.locator}-${group.first}`}
+                className="folio-inbook-search-panel__item"
+              >
+                <div className="folio-inbook-search-panel__chapter">
+                  <FolioIcons.Toc size="sm" />
+                  <span>{group.title}</span>
+                  {group.hits.length > 1 && (
+                    <span className="folio-inbook-search-panel__chapter-count">
+                      {group.hits.length}
+                    </span>
+                  )}
+                </div>
+                {group.hits.map(({ hit, index }) => {
+                  const isResolving = resolvingIndex === index;
+                  const isActive = index === activeIndex;
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      className={`folio-inbook-search-panel__card${isResolving ? " is-resolving" : ""}${isActive ? " is-active" : ""}`}
+                      disabled={resolvingIndex !== null}
+                      onClick={() => void handleSelect(hit, index)}
+                    >
+                      <div
+                        className="folio-inbook-search-panel__snippet"
+                        dangerouslySetInnerHTML={{ __html: hit.snippetHtml }}
+                      />
+                      {isResolving && (
+                        <div className="folio-inbook-search-panel__resolving">
+                          <span>Navigating…</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </li>
+            ))}
           </ul>
         )}
       </div>

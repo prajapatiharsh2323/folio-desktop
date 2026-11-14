@@ -8,7 +8,9 @@ import { FolioDialog } from "../components/FolioDialog";
 import { useLibraryUi, getLibraryFs, getLibraryManager } from "../store/libraryUi";
 import { useRouteStore } from "../store/routeStore";
 import { onDroppedFiles, pickImportFiles, filesFromDataTransfer } from "../lib/fileSource";
-import { MiniSearch } from "../search/miniSearch";
+import { MiniSearch, type SearchDoc } from "../search/miniSearch";
+import { buildLibraryIndex } from "../search/libraryIndex";
+import { reportError } from "../lib/errorLog";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { readStorage, writeStorage } from "../lib/storage";
 import { visibleRowIds } from "../lib/libraryView";
@@ -20,6 +22,8 @@ import { handleError } from "../lib/errorLog";
 /** Library screen (03 §5.2) wired to the schema-1 library via LibraryManager. */
 export function LibraryScreen() {
   const rows = useLibraryUi((s) => s.rows);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
   const loading = useLibraryUi((s) => s.loading);
   const loadError = useLibraryUi((s) => s.error);
   const recovery = useLibraryUi((s) => s.recovery);
@@ -57,6 +61,7 @@ export function LibraryScreen() {
   >([]);
   const searchIndexRef = useRef<{ signature: string; index: MiniSearch } | null>(null);
   const [searchIndexVersion, setSearchIndexVersion] = useState(0);
+  const [indexProgress, setIndexProgress] = useState<{ done: number; total: number } | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buildSearchIndex = useCallback(async () => {
@@ -65,8 +70,11 @@ export function LibraryScreen() {
     if (cached && cached.signature === signature) return;
 
     const lm = getLibraryManager();
-    const idx = new MiniSearch();
-    for (const row of rows) {
+    const docs: SearchDoc[] = [];
+    let failed = 0;
+    setIndexProgress({ done: 0, total: rows.length });
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       try {
         const raw = await getLibraryFs().readText(L.indexText(lm.root, row.id));
         const parsed = JSON.parse(raw) as {
@@ -84,7 +92,7 @@ export function LibraryScreen() {
           }
         }
         for (const ch of parsed.chapters ?? []) {
-          idx.add({
+          docs.push({
             id: `${row.id}::${ch.id}`,
             title: row.title,
             docTitle: row.title,
@@ -96,11 +104,25 @@ export function LibraryScreen() {
         }
       } catch {
         /* no index yet */
+        failed += 1;
       }
+      setIndexProgress({ done: i + 1, total: rows.length });
     }
-    searchIndexRef.current = { signature, index: idx };
+
+    // Tokenization + posting construction run in a worker when available.
+    const built = await buildLibraryIndex(docs);
+    if (failed > 0) {
+      reportError(
+        `${failed} document${failed === 1 ? "" : "s"} had no search index`,
+        "library.searchIndex",
+      );
+    }
+    // Rows changed while building: discard, the next effect run rebuilds.
+    if (searchSignature(rowsRef.current) !== signature) return;
+    searchIndexRef.current = { signature, index: built.index };
     // Results typed while the index was building must run against it.
     setSearchIndexVersion((v) => v + 1);
+    setIndexProgress(null);
   }, [rows]);
 
   const runSearch = useCallback((q: string) => {
@@ -349,6 +371,19 @@ export function LibraryScreen() {
             }}
             autoFocus
           />
+        </div>
+      )}
+
+      {searchOpen && indexProgress && indexProgress.done < indexProgress.total && (
+        <div className="folio-searchbar__progress" role="status">
+          <span
+            className="folio-reader-spinner"
+            style={{ width: 14, height: 14, borderWidth: 2 }}
+          />
+          <span>
+            Indexing {indexProgress.done} of {indexProgress.total} document
+            {indexProgress.total === 1 ? "" : "s"}…
+          </span>
         </div>
       )}
 
