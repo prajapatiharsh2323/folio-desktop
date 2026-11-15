@@ -56,7 +56,7 @@ function button(label: string): HTMLButtonElement {
 beforeEach(() => {
   memory.clear();
   resetModalStack();
-  useToasts.setState({ toast: null });
+  useToasts.setState({ toasts: [] });
   useOnboarding.setState({ stage: "done", tourOpen: true });
   useRouteStore.setState({ route: "library", readerRequest: null, readerOrigin: null });
 });
@@ -82,7 +82,7 @@ describe("welcome tour", () => {
     expect(useOnboarding.getState().stage).toBe("done");
     expect(useOnboarding.getState().tourOpen).toBe(false);
     expect(memory.get(TOUR_COMPLETE_KEY)).toBeUndefined();
-    expect(useToasts.getState().toast?.tone).toBe("info");
+    expect(useToasts.getState().toasts[0]?.tone).toBe("info");
   });
 
   it("completes only from the deliberate finish actions", () => {

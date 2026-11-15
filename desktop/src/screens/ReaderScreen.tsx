@@ -9,19 +9,27 @@ import { InBookSearchPanel } from "../components/InBookSearchPanel";
 import { ReadingSessionDialog } from "../components/ReadingSessionDialog";
 import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
 import { SelectionToolbar } from "../components/SelectionToolbar";
+import { AnnotationPopover } from "../components/AnnotationPopover";
 import { QuoteCard } from "../components/QuoteCard";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioButton } from "../components/FolioButton";
 import { tintIndexFromHash } from "../import/cover";
-import type { NoterefActivation, TextSelectionInfo } from "../reader/ReaderEngine";
+import type {
+  NoterefActivation,
+  HighlightActivation,
+  TextSelectionInfo,
+} from "../reader/ReaderEngine";
 import { useReaderStore } from "../store/readerStore";
 import { useRouteStore } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
 import { pushToast } from "../shell/toasts";
 import { describeError, handleError } from "../lib/errorLog";
-import { DEFAULT_READING_PREFS } from "../model/defaults";
+import { DEFAULT_READING_PREFS, clampFontSize } from "../model/defaults";
+import type { TextSizeAction } from "./reader/useReaderKeyboard";
 import type { ReadingPrefs, Annotation } from "../model/types";
 import { nowIso } from "../model/ids";
+import { findOverlappingHighlight } from "./reader/annotationOverlap";
+import { citationFor } from "./reader/citation";
 import type { ReaderEngine } from "../reader/ReaderEngine";
 import { ChromeStateMachine, type ChromeHold } from "../reader/chrome";
 import type {
@@ -30,7 +38,7 @@ import type {
   ReaderNavigationCoordinator,
 } from "../reader/navigation";
 import { flushAndClose } from "../lib/lifecycle";
-import { formatTimeLeft } from "../reader/pace";
+import { formatTimeLeft, formatChapterTimeLeft } from "../reader/pace";
 import { hrefOf, sameLocation } from "../reader/locatorCodec";
 import { resolveReaderTheme, scrimAlpha } from "../reader/readerThemes";
 import { isTauri, KeepAwakeController } from "../reader/keepAwake";
@@ -119,6 +127,12 @@ export function ReaderScreen() {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   /** Noteref footnote popover content (R4 2.2b); null closes it. */
   const [footnote, setFootnote] = useState<NoterefActivation | null>(null);
+  /** Highlight popover target (R5): the annotation + its activation point. */
+  const [highlightPop, setHighlightPop] = useState<{
+    annotation: Annotation;
+    x: number;
+    y: number;
+  } | null>(null);
   /** Latest context-menu launcher, so engine events (long-lived lifecycle) never
    *  act on stale state (07 §3). */
   const contextMenuRef = useRef<(x: number, y: number) => void>(() => {});
@@ -137,13 +151,13 @@ export function ReaderScreen() {
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
   const [quoteCardOpen, setQuoteCardOpen] = useState(false);
+  /** R11: end-of-book card — raised when the reading position reaches 100%. */
+  const [endCardOpen, setEndCardOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingSelection, setPendingSelection] = useState<TextSelectionInfo | null>(null);
   const [sessionInfoOpen, setSessionInfoOpen] = useState(false);
   const [shortcutsGuideOpen, setShortcutsGuideOpen] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
-  const [navNotice, setNavNotice] = useState<string | null>(null);
-  const navNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [systemDark, setSystemDark] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -156,11 +170,11 @@ export function ReaderScreen() {
   // chrome, panels and search float over the full window unmoved.
   const readingWidth = activePrefs.maxWidth > 0 ? activePrefs.maxWidth : null;
 
-  /** A failed navigation is surfaced once, from the call site that asked. */
+  /** A failed navigation is surfaced once, from the call site that asked.
+   *  R14: this is a keyed info toast in the global host (stacked, shown once
+   *  even when the same message fires twice, auto-dismissed after 4 s). */
   const showNavNotice = useCallback((message: string) => {
-    if (navNoticeTimerRef.current) clearTimeout(navNoticeTimerRef.current);
-    setNavNotice(message);
-    navNoticeTimerRef.current = setTimeout(() => setNavNotice(null), 4000);
+    pushToast({ tone: "info", key: message, text: message });
   }, []);
 
   const reportNavigation = useCallback(
@@ -222,12 +236,10 @@ export function ReaderScreen() {
     [doc],
   );
 
-  // ---- in-book search (extracted hook) --------------------------------------
-  const search = useInBookSearch({ engineRef, navRef });
-
-  /** Holds owned outside the chrome hook: dialogs, search, selection and the
-   *  context menu (which contributes to the menu hold). Memoized so the
-   *  chrome hook's sync effect only runs when one of them actually changes. */
+  /** Holds owned outside the chrome hook: dialogs, selection and the
+   *  context menu (which contributes to the menu hold). Search is covered by
+   *  the panel hold since its open state lives in the chrome (R8). Memoized
+   *  so the chrome hook's sync effect only runs when one actually changes. */
   const holds = useMemo(
     () => [
       { reason: "menu" as ChromeHold, active: ctxMenu !== null },
@@ -235,18 +247,9 @@ export function ReaderScreen() {
         reason: "dialog" as ChromeHold,
         active: noteEditorOpen || quoteCardOpen || sessionInfoOpen || shortcutsGuideOpen,
       },
-      { reason: "search" as ChromeHold, active: search.open },
       { reason: "selection" as ChromeHold, active: selection !== null },
     ],
-    [
-      ctxMenu,
-      noteEditorOpen,
-      quoteCardOpen,
-      sessionInfoOpen,
-      shortcutsGuideOpen,
-      search.open,
-      selection,
-    ],
+    [ctxMenu, noteEditorOpen, quoteCardOpen, sessionInfoOpen, shortcutsGuideOpen, selection],
   );
 
   /** Engine events outlive renders; they read focus mode through this ref so a
@@ -260,6 +263,8 @@ export function ReaderScreen() {
     refreshAnnotations,
     createAnnotation,
     toggleHighlight,
+    updateAnnotation,
+    deleteAnnotation,
     handleBookmarkToggle,
     bookmarkToggleRef,
   } = useAnnotations({
@@ -268,12 +273,32 @@ export function ReaderScreen() {
     resolveChapterId,
     showNavNotice,
     clearSelection: () => setSelection(null),
+    systemDark,
   });
 
-  /** New selection from the engine; quote keeps the last selection for Share. */
+  /** The engine's highlight-activation callback outlives renders; it reads
+   *  the current annotations through this ref (E2 stale-closure pattern). */
+  const annotationsRef = useRef<Annotation[]>([]);
+  useEffect(() => {
+    annotationsRef.current = annotations;
+  }, [annotations]);
+
+  /** New selection from the engine. R6: the quote follows the *live*
+   *  selection — a selection end (null) clears it too, so Share never acts
+   *  on stale text. */
   const handleEngineSelection = useCallback((sel: TextSelectionInfo | null) => {
     setSelection(sel);
-    if (sel) setQuoteSelection(sel);
+    setQuoteSelection(sel);
+  }, []);
+
+  /** Highlight click (R5): open the annotation popover at the click point. */
+  const onHighlightActivation = useCallback((activation: HighlightActivation) => {
+    const annotation = annotationsRef.current.find(
+      (a) => a.id === activation.id && a.kind === "highlight",
+    );
+    if (!annotation) return false; // stale/unpainted decoration: default click
+    setHighlightPop({ annotation, x: activation.x, y: activation.y });
+    return true;
   }, []);
 
   const engine = useReaderEngine({
@@ -295,12 +320,14 @@ export function ReaderScreen() {
     reportNavigation,
     onInternalLinkMoved,
     onNoterefActivation,
+    onHighlightActivation,
     refreshAnnotations,
     persistProgress,
   });
   const {
     splash,
     setSplash,
+    splashProgress,
     engineError,
     setEngineError,
     locator,
@@ -331,13 +358,27 @@ export function ReaderScreen() {
 
   const { closePanel, exitFocusMode } = chrome;
 
+  // ---- in-book search (extracted hook) ---------------------------------------
+  // Open state lives in the chrome's single panel slot (R8): search, TOC and
+  // Appearance are mutually exclusive, and the panel hold pins the chrome.
+  const isSearchOpen = chrome.panel === "search";
+  const search = useInBookSearch({
+    engineRef,
+    navRef,
+    open: isSearchOpen,
+    onOpenChange: (next) => (next ? chrome.openPanel("search") : chrome.closePanel()),
+    systemDark,
+  });
+
   useEffect(() => {
     isFocusModeRef.current = chrome.isFocusMode;
   }, [chrome.isFocusMode]);
 
-  // A move makes the footnote popover's anchor point stale (R4 2.2b).
+  // A move makes the footnote popover's anchor point stale (R4 2.2b), and the
+  // highlight popover likewise (R5).
   useEffect(() => {
     setFootnote(null);
+    setHighlightPop(null);
   }, [locator]);
 
   useEffect(() => {
@@ -352,15 +393,20 @@ export function ReaderScreen() {
     if (request) void load(request);
   }, [request, load]);
 
-  // ---- OS theme changes (theme === "system") -------------------------------
+  // ---- OS theme changes (theme === "system", R9) -----------------------------
+  // The host chrome re-themes via the systemDark state, and the engine is
+  // told to re-submit prefs so the book canvas repaints too.
   useEffect(() => {
     if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      const onChange = () => setSystemDark(mq.matches);
+      const onChange = () => {
+        setSystemDark(mq.matches);
+        void engineRef.current?.setSystemDark(mq.matches);
+      };
       mq.addEventListener?.("change", onChange);
       return () => mq.removeEventListener?.("change", onChange);
     }
-  }, []);
+  }, [engineRef]);
 
   // ---- adopt the doc's resolved prefs on load -------------------------------
   // Runs on doc identity changes: progress writes replace the doc object, but
@@ -389,6 +435,9 @@ export function ReaderScreen() {
     setSessionInfoOpen(false);
     setShortcutsGuideOpen(false);
     setEditingAnnotation(null);
+    setPendingSelection(null);
+    setQuoteSelection(null);
+    setEndCardOpen(false);
     sessionStartTsRef.current = Date.now();
     previousPercentRef.current = null;
   }, [
@@ -479,12 +528,6 @@ export function ReaderScreen() {
     };
   }, [docId, writerRef, keepAwakeRef]);
 
-  useEffect(() => {
-    return () => {
-      if (navNoticeTimerRef.current) clearTimeout(navNoticeTimerRef.current);
-    };
-  }, []);
-
   const handleBack = useCallback(async () => {
     if (disposedRef.current) return;
     disposedRef.current = true;
@@ -514,6 +557,51 @@ export function ReaderScreen() {
     void engineRef.current?.applyPrefs(next);
   }, []);
 
+  /** R13: Ctrl+=/−/0 size this book's text up, down, or back to default. */
+  const adjustTextSize = useCallback(
+    (action: TextSizeAction) => {
+      const current = activePrefs.fontSize;
+      const next =
+        action === "reset"
+          ? DEFAULT_READING_PREFS.fontSize
+          : clampFontSize(current + (action === "larger" ? 1 : -1));
+      if (action !== "reset" && next === current) return;
+      handlePrefsChange({ ...activePrefs, fontSize: next });
+      showNavNotice(action === "reset" ? "Text size reset." : `Text size ${next}px.`);
+    },
+    [activePrefs, handlePrefsChange, showNavNotice],
+  );
+
+  /** R13: `[` / `]` step chapter by chapter in the TOC order; adjacent
+   *  TOC entries sharing the current chapter's href count as one stop. */
+  const stepChapter = useCallback(
+    (direction: "next" | "previous") => {
+      const nav = navRef.current;
+      if (!nav || toc.length === 0) return;
+      const currentHref = locator?.chapterHref ?? null;
+      const index = currentHref
+        ? toc.findIndex((entry) => hrefMatches(entry.href, currentHref))
+        : -1;
+      if (index === -1) return;
+      const step = direction === "next" ? 1 : -1;
+      let target = -1;
+      for (let i = index + step; i >= 0 && i < toc.length; i += step) {
+        if (!hrefMatches(toc[i].href, currentHref)) {
+          target = i;
+          break;
+        }
+      }
+      if (target === -1) return; // already at the first/last chapter
+      reportNavigation(
+        nav.goToHref(toc[target].href, "keyboard"),
+        direction === "next"
+          ? "Couldn't move to the next chapter."
+          : "Couldn't move to the previous chapter.",
+      );
+    },
+    [toc, locator, navRef, reportNavigation],
+  );
+
   const handleReset = useCallback(async () => {
     await resetPrefs();
     const next = useReaderStore.getState().doc?.prefs;
@@ -540,25 +628,15 @@ export function ReaderScreen() {
     togglePanel: chrome.togglePanel,
     menuOpenRef: chrome.menuOpenRef,
     setMenu: chrome.setMenu,
-    searchOpen: search.open,
-    setSearchOpen: search.setOpen,
+    toggleSearch: search.toggle,
     searchNext: search.moveNext,
     searchPrev: search.movePrev,
     goBack: goBackInHistory,
+    onTextSize: adjustTextSize,
+    stepChapter,
     clearSelection: () => setSelection(null),
     ctxMenu,
     clearCtxMenu: () => setCtxMenu(null),
-    noteEditorOpen,
-    closeNoteEditor: () => {
-      setNoteEditorOpen(false);
-      setEditingAnnotation(null);
-      setPendingSelection(null);
-    },
-    quoteCardOpen,
-    setQuoteCardOpen,
-    sessionInfoOpen,
-    setSessionInfoOpen,
-    shortcutsGuideOpen,
     setShortcutsGuideOpen,
     reportNavigation,
     showNavNotice,
@@ -578,8 +656,22 @@ export function ReaderScreen() {
         });
       }
       setSelection(null);
+      setQuoteSelection(null); // R6: the quote never outlives the selection
     },
     [showNavNotice],
+  );
+
+  /** R6: quote plus a citation line (title, author when present). */
+  const handleCopyCitation = useCallback(
+    async (sel: TextSelectionInfo) => {
+      const citation = citationFor(
+        sel.quote,
+        doc?.title ?? (request ? "Opening book…" : "Reader"),
+        doc?.author ?? null,
+      );
+      await handleCopySelection(citation);
+    },
+    [doc, request, handleCopySelection],
   );
 
   const openNoteEditor = useCallback((sel: TextSelectionInfo) => {
@@ -692,6 +784,13 @@ export function ReaderScreen() {
     (locator?.progression !== undefined
       ? locator.progression * 100
       : (doc?.progress?.percent ?? 0));
+  const finished = percent >= 100;
+
+  // R11: reaching the end of the book raises the end-of-book card once per
+  // visit; dismissing it keeps it closed until the position leaves 100%.
+  useEffect(() => {
+    if (finished) setEndCardOpen(true);
+  }, [finished]);
   const timeLeft = useMemo(
     () => {
       // paceVersion is the reactive invalidation token for the ref read below.
@@ -701,6 +800,44 @@ export function ReaderScreen() {
     // paceRef is the live (non-reactive) value.
     [paceVersion, percent, paceRef],
   );
+
+  // ---- R11: chapter ticks + per-chapter time -------------------------------
+  /** Start percent of each TOC chapter, in reading order, for slider ticks
+   *  and the scrub tooltip. Computed once per loaded book from the engine's
+   *  positions; chapters absent from the TOC get no tick. */
+  const chapterMarks = useMemo(() => {
+    if (!doc || status !== "ready") return [];
+    const raw = engineRef.current?.chapterMarks() ?? [];
+    const out: { percent: number; title: string }[] = [];
+    for (const mark of raw) {
+      const chapter = doc.meta.chapters.find((c) => hrefMatches(c.href, mark.href));
+      if (!chapter) continue;
+      // Adjacent TOC entries can share a spine href — keep the first title.
+      if (out.length > 0 && Math.abs(out[out.length - 1].percent - mark.percent) < 0.05) continue;
+      out.push({ percent: mark.percent, title: chapter.title });
+    }
+    return out;
+  }, [doc, status, engineRef]);
+
+  /** "≈ N min left in chapter": the pace applied to the remainder of the
+   *  current chapter (from its start mark to the next one). */
+  const chapterTimeLeft = useMemo(() => {
+    if (finished || !locator) return null;
+    void paceVersion;
+    const pace = paceRef.current;
+    if (!pace) return null;
+    // Index of the chapter the position is in: last mark ≤ percent.
+    let index = -1;
+    for (let i = 0; i < chapterMarks.length; i++) {
+      if (chapterMarks[i].percent <= percent + 0.05) index = i;
+      else break;
+    }
+    if (index === -1) return null;
+    const start = chapterMarks[index].percent;
+    const end = index + 1 < chapterMarks.length ? chapterMarks[index + 1].percent : 100;
+    if (end <= start) return null;
+    return formatChapterTimeLeft(pace.minutesForFraction((end - percent) / 100));
+  }, [paceVersion, percent, locator, chapterMarks, finished, paceRef]);
   const backLabel = backLabelFor(readerOrigin?.route);
   const bookmarked = useMemo(
     () =>
@@ -708,6 +845,14 @@ export function ReaderScreen() {
       annotations.some((a) => a.kind === "bookmark" && sameLocation(a.location, locator.location)),
     [annotations, locator],
   );
+
+  /** Colour of the highlight the current selection overlaps, if any (R5). */
+  const activeHighlightColor = useMemo(() => {
+    if (!selection) return null;
+    return (
+      findOverlappingHighlight(annotations, selection.location, selection.quote)?.color ?? null
+    );
+  }, [selection, annotations]);
 
   const tint = doc?.meta.contentHash ? tintIndexFromHash(doc.meta.contentHash) : 0;
   const splashPhase: SplashPhase = status === "error" || splash === "error" ? "error" : splash;
@@ -751,6 +896,9 @@ export function ReaderScreen() {
             chapterTitle={chapterTitle}
             percent={percent}
             timeLeft={timeLeft}
+            chapterTimeLeft={chapterTimeLeft}
+            chapterMarks={chapterMarks}
+            finished={finished}
             scrubValue={chrome.scrubValue}
             seeking={seeking}
             bookmarked={bookmarked}
@@ -759,11 +907,7 @@ export function ReaderScreen() {
             onBack={() => void handleBack()}
             onAppearance={() => chrome.openPanel("appearance")}
             onContents={() => chrome.openPanel("toc")}
-            onSearch={() => {
-              search.setOpen((v) => !v);
-              chromeRef.current?.onActivity();
-              setChromeVisible(true);
-            }}
+            onSearch={() => search.toggle()}
             onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
             onShareQuote={() => setQuoteCardOpen(true)}
             shareEnabled={!!quoteSelection}
@@ -781,7 +925,7 @@ export function ReaderScreen() {
           />
 
           <InBookSearchPanel
-            open={search.open}
+            open={isSearchOpen}
             query={search.query}
             results={search.results}
             activeIndex={search.activeIndex}
@@ -813,6 +957,7 @@ export function ReaderScreen() {
 
           <AppearancePanel
             open={chrome.panel === "appearance"}
+            modal={false}
             prefs={activePrefs}
             onClose={chrome.closePanel}
             onChange={handlePrefsChange}
@@ -885,12 +1030,75 @@ export function ReaderScreen() {
             author={doc?.author ?? null}
           />
 
+          <FolioDialog
+            open={endCardOpen}
+            onClose={() => setEndCardOpen(false)}
+            title="You've finished this book"
+            actions={
+              <>
+                <FolioButton
+                  variant="secondary"
+                  onClick={() => {
+                    setEndCardOpen(false);
+                    const nav = navRef.current;
+                    if (nav) {
+                      reportNavigation(nav.goToPercent(0, "button"), "Couldn't jump to the start.");
+                    }
+                  }}
+                >
+                  Back to start
+                </FolioButton>
+                <FolioButton onClick={() => setEndCardOpen(false)}>Done</FolioButton>
+              </>
+            }
+          >
+            <div className="folio-end-card">
+              <div className="folio-end-card__title">{title}</div>
+              {doc?.author && <div className="folio-end-card__author">{doc.author}</div>}
+              <p className="folio-end-card__text">
+                That was the last page. Your highlights and notes stay with the book.
+              </p>
+            </div>
+          </FolioDialog>
+
           {selection && (
             <SelectionToolbar
               rect={selection.rect}
+              activeColor={activeHighlightColor}
               onHighlight={(color) => void toggleHighlight(color, selection)}
               onNote={() => openNoteEditor(selection)}
               onCopy={() => void handleCopySelection(selection.quote)}
+              onCopyCitation={() => void handleCopyCitation(selection)}
+              onShare={() => setQuoteCardOpen(true)}
+            />
+          )}
+
+          {highlightPop && (
+            <AnnotationPopover
+              annotation={highlightPop.annotation}
+              x={highlightPop.x}
+              y={highlightPop.y}
+              onClose={() => setHighlightPop(null)}
+              onChangeColor={(color) => {
+                const { annotation } = highlightPop;
+                void updateAnnotation(annotation.id, { color: color as Annotation["color"] });
+                setHighlightPop({
+                  ...highlightPop,
+                  annotation: { ...annotation, color: color as Annotation["color"] },
+                });
+              }}
+              onEditNote={() => {
+                setHighlightPop(null);
+                setEditingAnnotation(highlightPop.annotation);
+                setNoteDraft(highlightPop.annotation.note ?? "");
+                setNoteEditorOpen(true);
+              }}
+              onDelete={() => {
+                const { annotation } = highlightPop;
+                setHighlightPop(null);
+                void deleteAnnotation(annotation);
+              }}
+              onCopy={() => void handleCopySelection(highlightPop.annotation.quote)}
             />
           )}
 
@@ -938,18 +1146,13 @@ export function ReaderScreen() {
         </>
       )}
 
-      {navNotice && (
-        <div className="folio-snackbar folio-snackbar--warn" role="status">
-          {navNotice}
-        </div>
-      )}
-
       <ReaderSplash
         phase={splashPhase}
         title={title}
         author={doc?.author ?? null}
         coverUrl={doc?.coverUrl ?? null}
         tint={tint}
+        progress={splashProgress}
         errorMessage={engineError ?? loadError}
         onRetry={handleRetry}
         onBack={() => void handleBack()}

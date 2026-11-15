@@ -66,7 +66,7 @@ describe("local error log", () => {
 
 describe("handleError", () => {
   beforeEach(() => {
-    useToasts.setState({ toast: null });
+    useToasts.setState({ toasts: [] });
   });
 
   it("always logs, and toasts with the given user message", () => {
@@ -77,7 +77,7 @@ describe("handleError", () => {
     });
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(invokeMock.mock.calls[0][0]).toBe("log_error");
-    expect(useToasts.getState().toast).toMatchObject({
+    expect(useToasts.getState().toasts[0]).toMatchObject({
       tone: "error",
       text: "The note could not be saved.",
     });
@@ -87,7 +87,7 @@ describe("handleError", () => {
     setTauri(true);
     handleError(new Error("silent path"), { context: "reader.paint" });
     expect(invokeMock).toHaveBeenCalledTimes(1);
-    expect(useToasts.getState().toast).toBeNull();
+    expect(useToasts.getState().toasts).toEqual([]);
   });
 
   it("passes detail lines through to the toast", () => {
@@ -96,7 +96,7 @@ describe("handleError", () => {
       userMessage: "Some files could not be imported.",
       details: ["a.epub: too large"],
     });
-    expect(useToasts.getState().toast?.details).toEqual(["a.epub: too large"]);
+    expect(useToasts.getState().toasts[0]?.details).toEqual(["a.epub: too large"]);
   });
 
   it("still logs when the toast host is unavailable", () => {

@@ -137,38 +137,55 @@ export interface SnippetOptions {
   plainLength?: number;
 }
 
+/** One rendered piece of a snippet: match spans render as `<mark>`. */
+export interface SnippetPart {
+  text: string;
+  mark: boolean;
+}
+
+/** L9: snippet as structured text parts — UIs render real React nodes, no
+ * `dangerouslySetInnerHTML`. `head`/`tail` are the leading/trailing "…". */
+export interface SnippetParts {
+  parts: SnippetPart[];
+  head: boolean;
+  tail: boolean;
+}
+
 /**
  * Snippet around the first occurrence with every matching span inside the
- * window wrapped in <mark>. Text is HTML-escaped by the caller's helper.
+ * window marked. Same windowing rules as the previous HTML builder, but the
+ * result is unescaped raw text — the caller renders it as React nodes.
  */
-export function buildSnippet(
+export function buildSnippetParts(
   raw: string,
   spans: Occurrence[],
-  escape: (value: string) => string,
   opts: SnippetOptions = {},
-): string {
+): SnippetParts {
   const window = opts.window ?? 40;
   if (spans.length === 0) {
     const head = raw.slice(0, opts.plainLength ?? 120);
-    return escape(head) + (head.length < raw.length ? "…" : "");
+    return {
+      parts: head ? [{ text: head, mark: false }] : [],
+      head: false,
+      tail: head.length < raw.length,
+    };
   }
   const first = spans[0];
   const start = Math.max(0, first.start - window);
   const end = Math.min(raw.length, first.end + window);
-  let out = start > 0 ? "…" : "";
+  const parts: SnippetPart[] = [];
   let cursor = start;
   for (const span of spans) {
     if (span.end <= start || span.start >= end) continue;
     const s = Math.max(span.start, start);
     const e = Math.min(span.end, end);
     if (s < cursor) continue; // overlapping marks are not representable
-    out += escape(raw.slice(cursor, s));
-    out += `<mark>${escape(raw.slice(s, e))}</mark>`;
+    if (s > cursor) parts.push({ text: raw.slice(cursor, s), mark: false });
+    parts.push({ text: raw.slice(s, e), mark: true });
     cursor = e;
   }
-  out += escape(raw.slice(cursor, end));
-  if (end < raw.length) out += "…";
-  return out;
+  if (cursor < end) parts.push({ text: raw.slice(cursor, end), mark: false });
+  return { parts, head: start > 0, tail: end < raw.length };
 }
 
 /**

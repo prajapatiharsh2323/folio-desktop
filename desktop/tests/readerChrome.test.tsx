@@ -27,6 +27,9 @@ function chromeProps(overrides: Partial<React.ComponentProps<typeof ReaderChrome
     chapterTitle: "Chapter 1",
     percent: 42,
     timeLeft: null,
+    chapterTimeLeft: null,
+    chapterMarks: [],
+    finished: false,
     scrubValue: null,
     seeking: false,
     bookmarked: false,
@@ -233,6 +236,8 @@ describe("ReaderDock", () => {
   });
 
   it("supports keyboard scrubbing with one commit on key release", () => {
+    // R11: arrow nudges fire the change immediately on keydown (whole-point
+    // steps over the 0.1% slider), keyup commits exactly once.
     const calls: string[] = [];
     render(
       <ReaderChrome
@@ -249,12 +254,18 @@ describe("ReaderDock", () => {
     act(() => {
       slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     });
-    act(() => setRangeValue(slider, "43"));
     act(() => {
-      slider.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight", bubbles: true }));
+      slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    });
+    act(() => {
+      slider.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowLeft", bubbles: true }));
+    });
+    // A stray blur after the key release must not commit a second time.
+    act(() => {
+      slider.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
     });
 
-    expect(calls).toEqual(["start", "change:43", "end:43"]);
+    expect(calls).toEqual(["start", "change:43", "change:42", "end:42"]);
   });
 
   it("shows seeking feedback while a jump resolves", () => {
@@ -263,6 +274,54 @@ describe("ReaderDock", () => {
     expect(document.querySelector(".folio-reader-dock__slider")?.getAttribute("aria-busy")).toBe(
       "true",
     );
+  });
+
+  it("draws a tick per chapter mark and shows the scrub tooltip (R11)", () => {
+    const marks = [
+      { percent: 0, title: "Chapter 1" },
+      { percent: 40, title: "Chapter 2" },
+      { percent: 75, title: "Chapter 3" },
+    ];
+    render(
+      <ReaderChrome
+        {...chromeProps({
+          percent: 10,
+          chapterMarks: marks,
+          scrubValue: 55,
+        })}
+      />,
+    );
+    const ticks = document.querySelectorAll(".folio-reader-dock__tick");
+    expect(ticks.length).toBe(3);
+
+    const tooltip = document.querySelector(".folio-reader-dock__tooltip");
+    expect(tooltip?.textContent).toContain("55%");
+    expect(tooltip?.textContent).toContain("Chapter 2"); // last mark ≤ 55
+    expect(
+      document.querySelector(".folio-reader-dock__slider")?.getAttribute("aria-valuetext"),
+    ).toBe("55 percent, Chapter 2");
+  });
+
+  it("hides the tooltip when not scrubbing and floors the percent label (R11)", () => {
+    render(
+      <ReaderChrome
+        {...chromeProps({ percent: 37.6, chapterMarks: [{ percent: 0, title: "Chapter 1" }] })}
+      />,
+    );
+    expect(document.querySelector(".folio-reader-dock__tooltip")).toBeNull();
+    expect(document.querySelector(".folio-reader-dock__percent")?.textContent).toBe("37%");
+  });
+
+  it("replaces the percent label with Finished at the end of the book (R11)", () => {
+    render(
+      <ReaderChrome {...chromeProps({ percent: 100, finished: true, timeLeft: "≈ 2 h left" })} />,
+    );
+    const percent = document.querySelector(".folio-reader-dock__percent");
+    expect(percent?.textContent).toBe("Finished");
+    expect(percent?.className).toContain("folio-reader-dock__percent--finished");
+    // No time estimates once the book is finished.
+    expect(document.querySelector(".folio-reader-dock__time")).toBeNull();
+    expect(document.querySelector(".folio-reader-dock__chaptertime")).toBeNull();
   });
 });
 

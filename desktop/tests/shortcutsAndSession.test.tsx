@@ -86,7 +86,7 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
     document.body.innerHTML = "";
   });
 
-  it("renders Focus Mode exit button when isFocusMode is true", () => {
+  it("renders Distraction-free exit button when isFocusMode is true", () => {
     let exited = false;
     render(
       <ReaderChrome
@@ -96,6 +96,9 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
         chapterTitle="Chapter"
         percent={50}
         timeLeft={null}
+        chapterTimeLeft={null}
+        chapterMarks={[]}
+        finished={false}
         scrubValue={null}
         seeking={false}
         bookmarked={false}
@@ -121,7 +124,7 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
 
     const exitBtn = document.querySelector(".folio-reader-focus-exit__btn") as HTMLButtonElement;
     expect(exitBtn).not.toBeNull();
-    expect(exitBtn.textContent).toContain("Exit Focus Mode");
+    expect(exitBtn.textContent).toContain("Exit Distraction-free");
 
     act(() => {
       exitBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -129,7 +132,7 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
     expect(exited).toBe(true);
   });
 
-  it("exposes Focus Mode, Reading Session, and Shortcuts in More menu", () => {
+  it("exposes Distraction-free, Reading Session, and Shortcuts in More menu", () => {
     let focusClicked = false;
     let sessionClicked = false;
     let shortcutsClicked = false;
@@ -142,6 +145,9 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
         chapterTitle="Chapter"
         percent={50}
         timeLeft={null}
+        chapterTimeLeft={null}
+        chapterMarks={[]}
+        finished={false}
         scrubValue={null}
         seeking={false}
         bookmarked={false}
@@ -173,7 +179,7 @@ describe("ReaderChrome Focus Mode & Menu Items", () => {
     const menuItems = Array.from(
       document.querySelectorAll("[role='menuitem']"),
     ) as HTMLButtonElement[];
-    const focusItem = menuItems.find((b) => b.textContent?.includes("Focus mode"));
+    const focusItem = menuItems.find((b) => b.textContent?.includes("Distraction-free"));
     const sessionItem = menuItems.find((b) => b.textContent?.includes("Reading session"));
     const shortcutsItem = menuItems.find((b) => b.textContent?.includes("Keyboard shortcuts"));
 

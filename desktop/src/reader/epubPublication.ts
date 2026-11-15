@@ -7,6 +7,14 @@
 // positions list the navigator needs (see positions.ts).
 import { strFromU8, unzipSync } from "fflate";
 import {
+  entryWithinCap,
+  MAX_ENTRY_UNCOMPRESSED,
+  MAX_TOTAL_UNCOMPRESSED,
+  MAX_ZIP_ENTRIES,
+  unzipLimited,
+  ZipLimitError,
+} from "../import/zipLimits";
+import {
   Contributor,
   Contributors,
   Layout,
@@ -21,7 +29,7 @@ import {
   ReadingProgression,
   Resource,
 } from "@readium/shared";
-import { generatePositions } from "./positions";
+import { generatePositions, generatePositionsAsync } from "./positions";
 
 export interface EpubPackage {
   publication: Publication;
@@ -494,9 +502,93 @@ function identifierOf(doc: Document): string | undefined {
   return first && textOf(first) ? textOf(first) : undefined;
 }
 
-export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
-  const zip = unzipSync(bytes);
+/**
+ * Lazy zip map (R12): a `Record<string, Uint8Array>` that decompresses each
+ * entry on first access instead of inflating the whole archive up front.
+ * Entry names come from one central-directory walk (fflate's filter runs per
+ * entry without decompressing), and every read inflates only that entry,
+ * cached. Direct property reads, `in`, and `Object.keys` all behave like the
+ * eager map, so ZipFetcher/AssetResolver consumers need no changes.
+ */
+class LazyZip {
+  readonly names: string[];
+  readonly nameSet: Set<string>;
+  private readonly cache = new Map<string, Uint8Array>();
 
+  constructor(private readonly bytes: Uint8Array) {
+    // One directory walk with a never-matching filter: names only, no inflate.
+    // The declared sizes are checked here so a hostile archive is refused
+    // before any entry is ever inflated (Step 3.2, Rust zip.rs parity).
+    const names: string[] = [];
+    let total = 0;
+    unzipSync(bytes, {
+      filter: (file) => {
+        names.push(file.name);
+        total += file.originalSize;
+        if (names.length > MAX_ZIP_ENTRIES) throw new ZipLimitError("too-many-entries");
+        if (file.originalSize > MAX_ENTRY_UNCOMPRESSED) throw new ZipLimitError("entry-too-large");
+        if (total > MAX_TOTAL_UNCOMPRESSED) throw new ZipLimitError("archive-too-large");
+        return false;
+      },
+    });
+    this.names = names;
+    this.nameSet = new Set(names);
+  }
+
+  entry(name: string): Uint8Array | undefined {
+    const cached = this.cache.get(name);
+    if (cached) return cached;
+    if (!this.nameSet.has(name)) return undefined;
+    const hit = unzipSync(this.bytes, {
+      filter: (file) => file.name === name && entryWithinCap(file.originalSize),
+    });
+    const data = hit[name];
+    if (data) this.cache.set(name, data);
+    return data;
+  }
+}
+
+/** Wrap a LazyZip in the eager-map shape the rest of the pipeline expects. */
+function lazyZipMap(bytes: Uint8Array): Record<string, Uint8Array> {
+  const lazy = new LazyZip(bytes);
+  const map = new Map<string, Uint8Array>();
+  return new Proxy(map, {
+    get(_target, key) {
+      if (typeof key !== "string") return undefined;
+      return lazy.entry(key);
+    },
+    has(_target, key) {
+      return typeof key === "string" && lazy.nameSet.has(key);
+    },
+    ownKeys() {
+      return [...lazy.names];
+    },
+    getOwnPropertyDescriptor(_target, key) {
+      if (typeof key !== "string" || !lazy.nameSet.has(key)) return undefined;
+      // Data descriptor so Object.keys/entries enumerate; values still flow
+      // through the `get` trap above (decompress-on-access).
+      return { configurable: true, enumerable: true, writable: true, value: undefined };
+    },
+    set() {
+      return false; // the archive is read-only
+    },
+    deleteProperty() {
+      return false;
+    },
+  }) as unknown as Record<string, Uint8Array>;
+}
+
+export interface EpubCore {
+  publication: Publication;
+  zip: Record<string, Uint8Array>;
+  opfPath: string;
+  /** Revokes the blob URLs created for author assets. */
+  close: () => void;
+}
+
+/** Container → OPF → metadata/manifest/spine/TOC → Publication. Sync; cheap
+ *  relative to decompression, so both open paths share it. */
+function buildEpubCore(zip: Record<string, Uint8Array>): EpubCore {
   const containerBytes = zip["META-INF/container.xml"];
   if (!containerBytes) throw new Error("Not an EPUB: missing META-INF/container.xml");
   const container = parseXml(strFromU8(containerBytes), "META-INF/container.xml");
@@ -621,9 +713,83 @@ export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
 
   return {
     publication,
-    positions: generatePositions(publication, zip),
     zip,
     opfPath,
     close: () => fetcher.close(),
   };
+}
+
+/** Eager open: inflate the whole archive, parse, synthesize the positions
+ *  list in one synchronous pass (tests and small books). */
+export function openEpubFromBytes(bytes: Uint8Array): EpubPackage {
+  const zip = unzipLimited(bytes) as Record<string, Uint8Array>;
+  const core = buildEpubCore(zip);
+  return {
+    ...core,
+    positions: generatePositions(core.publication, zip),
+  };
+}
+
+/** Progress reported while a book opens (R12): "unpack" is indeterminate
+ *  (lazy decompression has no overall total), "prepare" walks the spine and
+ *  carries a 0..1 fraction for the splash bar. */
+export interface OpenProgress {
+  stage: "unpack" | "prepare";
+  fraction: number | null;
+}
+
+/**
+ * Additive position cache hook (Step 3.2): the first open measures the spine
+ * and stores the generated list; later opens skip generation entirely. The
+ * store is an additive cache file — no schema-1 field is touched, and a
+ * failed read/write only costs a regeneration.
+ */
+export interface PositionsCacheHook {
+  /** Serialized cached positions, or null on miss/damage/version mismatch. */
+  load(): Promise<unknown | null>;
+  /** Fire-and-forget persist of the freshly generated list. */
+  save(positions: Locator[]): Promise<void>;
+}
+
+/** Revive serialized locators; null when anything is malformed. */
+export function deserializeCachedPositions(raw: unknown): Locator[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: Locator[] = [];
+  for (const item of raw) {
+    const locator = Locator.deserialize(item);
+    if (!locator?.href || !locator.locations) return null;
+    out.push(locator);
+  }
+  return out;
+}
+
+/**
+ * Async open (R12): lazily decompressed entries, the position list built one
+ * spine resource at a time with yields to the event loop, and progress
+ * reported for the splash. Keeps large books off a single blocking task.
+ * When a cache hook is supplied, a valid cached list replaces generation.
+ */
+export async function openEpubFromBytesAsync(
+  bytes: Uint8Array,
+  onProgress?: (progress: OpenProgress) => void,
+  cache?: PositionsCacheHook,
+): Promise<EpubPackage> {
+  onProgress?.({ stage: "unpack", fraction: null });
+  const zip = lazyZipMap(bytes);
+  const core = buildEpubCore(zip);
+  if (cache) {
+    try {
+      const cached = deserializeCachedPositions(await cache.load());
+      if (cached) return { ...core, positions: cached };
+    } catch {
+      /* damaged cache → regenerate below */
+    }
+  }
+  onProgress?.({ stage: "prepare", fraction: 0 });
+  const positions = await generatePositionsAsync(core.publication, zip, (done, total) =>
+    onProgress?.({ stage: "prepare", fraction: total > 0 ? done / total : 1 }),
+  );
+  // Persist for the next open; a write failure never blocks this session.
+  if (cache) void cache.save(positions).catch(() => undefined);
+  return { ...core, positions };
 }

@@ -9,15 +9,18 @@
 import { normalizeQuery } from "./normalise";
 import { editDistance, fuzzyMaxDist } from "./editDistance";
 import {
-  buildCorpus,
-  buildSnippet,
+  buildSnippetParts,
   findOccurrences,
   wordMatches,
+  type SnippetParts,
   type TextCorpus,
 } from "./occurrences";
-import { escapeHtml } from "./htmlEscape";
 
-export { escapeHtml };
+/** Fallback for docs with no text corpus (kept out of the index when empty). */
+function plainSnippet(text: string): SnippetParts {
+  const head = text.slice(0, 120);
+  return { parts: head ? [{ text: head, mark: false }] : [], head: false, tail: text.length > 120 };
+}
 
 export interface SearchDoc {
   id: string;
@@ -35,8 +38,8 @@ export interface SearchDoc {
 export interface SearchHit {
   id: string;
   score: number;
-  /** highlighted snippet with matched terms wrapped in <mark>; text is HTML-escaped */
-  snippet: string;
+  /** L9: structured snippet — UIs render `<mark>` React nodes for marked parts. */
+  snippet: SnippetParts;
   docId?: string;
   docTitle?: string;
   href?: string;
@@ -263,8 +266,8 @@ export class MiniSearch {
         id: entry.doc.id,
         score,
         snippet: corpus
-          ? buildSnippet(corpus.raw, spans, escapeHtml)
-          : escapeHtml(entry.doc.text.slice(0, 120)),
+          ? buildSnippetParts(corpus.raw, spans)
+          : plainSnippet(entry.doc.text),
         docId: entry.doc.docId,
         docTitle: entry.doc.docTitle,
         href: entry.doc.href,

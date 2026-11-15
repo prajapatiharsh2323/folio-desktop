@@ -1,8 +1,8 @@
 import { createReadiumEngine } from "../src/reader/readiumEngine";
 import { DEFAULT_READING_PREFS } from "../src/model/defaults";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { strToU8, unzipSync, zipSync } from "fflate";
-import { openEpubFromBytes } from "../src/reader/epubPublication";
+import { openEpubFromBytes, openEpubFromBytesAsync } from "../src/reader/epubPublication";
 import {
   generatePositions,
   progressionForLocator,
@@ -10,7 +10,7 @@ import {
   POSITION_LENGTH,
 } from "../src/reader/positions";
 import { resumePlan, isCfi } from "../src/reader/resume";
-import { ReadingPaceStats, formatTimeLeft } from "../src/reader/pace";
+import { ReadingPaceStats, formatTimeLeft, formatChapterTimeLeft } from "../src/reader/pace";
 import { ProgressWriter } from "../src/reader/progress";
 import {
   ChromeStateMachine,
@@ -109,6 +109,62 @@ describe("epubPublication", () => {
     );
     const pkg = openEpubFromBytes(zipSync(entries));
     expect(pkg.publication.metadata.title.translations.und).toBe("Encoded");
+    pkg.close();
+  });
+
+  it("async open reports unpack then ascending prepare progress (R12)", async () => {
+    const bytes = makeEpub("Async", [
+      { id: "a", title: "A", body: "alpha text ".repeat(600) },
+      { id: "b", title: "B", body: "beta text ".repeat(600) },
+    ]);
+    const seen: { stage: string; fraction: number | null }[] = [];
+    const pkg = await openEpubFromBytesAsync(bytes, (p) => seen.push({ ...p }));
+    expect(seen[0]).toEqual({ stage: "unpack", fraction: null });
+    expect(seen[1]).toEqual({ stage: "prepare", fraction: 0 });
+    const prepares = seen.slice(1);
+    expect(prepares[prepares.length - 1].fraction).toBe(1);
+    // Fractions never regress and stay in 0..1.
+    for (let i = 1; i < prepares.length; i++) {
+      expect(prepares[i].fraction!).toBeGreaterThan(prepares[i - 1].fraction!);
+    }
+    pkg.close();
+  });
+
+  it("async open produces the identical positions list to the sync path (R12)", async () => {
+    const bytes = makeEpub("Parity", [
+      { id: "a", title: "A", body: "alpha text ".repeat(400) },
+      { id: "b", title: "B", body: "beta text ".repeat(400) },
+      { id: "c", title: "C", body: "gamma text ".repeat(400) },
+    ]);
+    const syncPkg = openEpubFromBytes(bytes);
+    const asyncPkg = await openEpubFromBytesAsync(bytes);
+    expect(asyncPkg.positions.length).toBe(syncPkg.positions.length);
+    expect(asyncPkg.opfPath).toBe(syncPkg.opfPath);
+    expect(asyncPkg.publication.metadata.title.translations.und).toBe(
+      syncPkg.publication.metadata.title.translations.und,
+    );
+    const syncKeys = syncPkg.positions.map((p) => `${p.href}@${p.locations.position}`);
+    const asyncKeys = asyncPkg.positions.map((p) => `${p.href}@${p.locations.position}`);
+    expect(asyncKeys).toEqual(syncKeys);
+    syncPkg.close();
+    asyncPkg.close();
+  });
+
+  it("the lazy zip map behaves like the eager map (R12)", async () => {
+    const bytes = makeEpub("Lazy", [{ id: "a", title: "A", body: "alpha" }]);
+    const pkg = await openEpubFromBytesAsync(bytes);
+    const eager = unzipSync(bytes);
+
+    // Object.keys lists every archive entry without decompressing them all.
+    expect(new Set(Object.keys(pkg.zip))).toEqual(new Set(Object.keys(eager)));
+    // Entry reads decompress on demand and match the eager bytes.
+    for (const key of Object.keys(eager)) {
+      expect(Buffer.from(pkg.zip[key])).toEqual(Buffer.from(eager[key]));
+    }
+    // `in` membership matches too.
+    expect("META-INF/container.xml" in pkg.zip).toBe(true);
+    expect("missing-file.xhtml" in pkg.zip).toBe(false);
+    expect(pkg.zip["missing-file.xhtml"]).toBeUndefined();
     pkg.close();
   });
 });
@@ -260,7 +316,25 @@ describe("ReadingPaceStats", () => {
     expect(formatTimeLeft(null)).toBeNull();
     expect(formatTimeLeft(0.5)).toBeNull();
     expect(formatTimeLeft(12)).toBe("≈ 12 min left");
+    // R11: hours carry a minute part ("1 h 25 min left").
+    expect(formatTimeLeft(85)).toBe("≈ 1 h 25 min left");
     expect(formatTimeLeft(120)).toBe("≈ 2 h left");
+    expect(formatTimeLeft(119.6)).toBe("≈ 2 h left");
+  });
+
+  it("minutesForFraction scales the observed pace onto a book fraction", () => {
+    const pace = new ReadingPaceStats({ sessionsMs: 60_000, percentRead: 50 });
+    // 1 minute spent per 50% → 0.1 of the book costs 0.2 minutes.
+    expect(pace.minutesForFraction(0.1)).toBeCloseTo(0.2, 5);
+    expect(pace.minutesForFraction(0)).toBeNull();
+    // No observed pace yet — nothing to extrapolate from.
+    expect(new ReadingPaceStats(null).minutesForFraction(0.5)).toBeNull();
+  });
+
+  it("formatChapterTimeLeft hides sub-minute estimates (R11)", () => {
+    expect(formatChapterTimeLeft(null)).toBeNull();
+    expect(formatChapterTimeLeft(0.4)).toBeNull();
+    expect(formatChapterTimeLeft(12.4)).toBe("≈ 12 min left in chapter");
   });
 });
 
@@ -621,6 +695,89 @@ describe("ReadiumEngine search and lifecycle", () => {
     const hits = await engine.search("quick");
     expect(hits).toHaveLength(1);
     expect(hits[0].chapterTitle).toBe("OEBPS/c1.xhtml");
+
+    await engine.destroy();
+    document.body.removeChild(container);
+  });
+
+  it("re-submits prefs with resolved colours when the OS dark flag flips (R9)", async () => {
+    if (!globalThis.ResizeObserver) {
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+    }
+    const epubBytes = makeEpub("SystemTheme", [
+      { id: "c1", title: "Chapter 1", body: "Theme flip test." },
+    ]);
+    const engine = createReadiumEngine({
+      epubBytes,
+      prefs: { ...DEFAULT_READING_PREFS, theme: "system" },
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await engine.open(container);
+
+    const internals = engine as unknown as {
+      navigator: { submitPreferences: (p: unknown) => Promise<void> } | null;
+      systemDark: boolean;
+    };
+    const submit = vi.spyOn(internals.navigator!, "submitPreferences");
+    const backgrounds = () =>
+      submit.mock.calls.map((call) => (call[0] as { backgroundColor: string }).backgroundColor);
+    const dark = internals.systemDark;
+    const count = submit.mock.calls.length;
+
+    // Flipping the OS flag re-submits prefs with the other system palette.
+    await engine.setSystemDark(!dark);
+    expect(submit.mock.calls.length).toBe(count + 1);
+    expect(backgrounds()[backgrounds().length - 1]).not.toBe(backgrounds()[count - 1]);
+
+    // Same flag again: the guard skips the redundant re-submit.
+    await engine.setSystemDark(!dark);
+    expect(submit.mock.calls.length).toBe(count + 1);
+
+    // Flipping back works too.
+    await engine.setSystemDark(dark);
+    expect(submit.mock.calls.length).toBe(count + 2);
+
+    await engine.destroy();
+    document.body.removeChild(container);
+  });
+
+  it("reports chapter start marks from the positions list (R11)", async () => {
+    if (!globalThis.ResizeObserver) {
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+    }
+    const epubBytes = makeEpub("ChapterMarks", [
+      {
+        id: "c1",
+        title: "Chapter 1",
+        body: "First chapter with a fair amount of text to read through slowly.",
+      },
+      {
+        id: "c2",
+        title: "Chapter 2",
+        body: "Second chapter also carrying some body text of its own.",
+      },
+    ]);
+    const engine = createReadiumEngine({ epubBytes, prefs: DEFAULT_READING_PREFS });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await engine.open(container);
+
+    const marks = engine.chapterMarks();
+    // One mark per spine resource, in reading order, first at 0.
+    expect(marks.length).toBe(2);
+    expect(marks[0].percent).toBe(0);
+    expect(marks[1].percent).toBeGreaterThan(0);
+    // Cached: a second call returns the same list.
+    expect(engine.chapterMarks()).toBe(marks);
 
     await engine.destroy();
     document.body.removeChild(container);

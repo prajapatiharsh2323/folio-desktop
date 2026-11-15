@@ -17,6 +17,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     items: [
       { keys: ["→", "PageDown", "Space", "↓"], description: "Turn to next page" },
       { keys: ["←", "PageUp", "Shift + Space", "↑"], description: "Turn to previous page" },
+      { keys: ["["], description: "Previous chapter" },
+      { keys: ["]"], description: "Next chapter" },
       { keys: ["Home"], description: "Jump to start of book" },
       { keys: ["End"], description: "Jump to end of book" },
       { keys: ["Alt", "←"], description: "Go back to the previous position" },
@@ -30,13 +32,14 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["T"], description: "Open Table of Contents & Workspace" },
       { keys: ["Ctrl", "F"], description: "Search in book" },
       { keys: ["Ctrl", "B"], description: "Toggle bookmark at current position" },
+      { keys: ["Ctrl", "="], description: "Larger text (Ctrl+− smaller · Ctrl+0 reset)" },
     ],
   },
   {
     title: "View & Controls",
     items: [
       { keys: ["M"], description: "Toggle reading controls (toolbar & dock)" },
-      { keys: ["F"], description: "Toggle Focus Mode (distraction-free reading)" },
+      { keys: ["F"], description: "Toggle Distraction-free reading" },
       { keys: ["?"], description: "Open this keyboard shortcuts guide" },
       { keys: ["Escape"], description: "Dismiss open menu, panel, dialog, or search" },
     ],

@@ -80,7 +80,7 @@ async function render() {
 
 beforeEach(() => {
   resetModalStack();
-  useToasts.setState({ toast: null });
+  useToasts.setState({ toasts: [] });
   useRouteStore.setState({ route: "notes", readerRequest: null, readerOrigin: null });
   h.load.mockReset();
   h.list.mockReset();
@@ -118,8 +118,8 @@ describe("Notes screen write safety", () => {
     });
 
     expect(h.update).toHaveBeenCalledTimes(1);
-    expect(useToasts.getState().toast?.tone).toBe("error");
-    expect(useToasts.getState().toast?.text).toContain("read-only");
+    expect(useToasts.getState().toasts[0]?.tone).toBe("error");
+    expect(useToasts.getState().toasts[0]?.text).toContain("read-only");
     expect(container!.querySelector("textarea")).toBe(textarea);
     expect(document.body.textContent).toContain("Edit note");
   });
@@ -134,7 +134,7 @@ describe("Notes screen write safety", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(useToasts.getState().toast?.tone).toBe("error");
+    expect(useToasts.getState().toasts[0]?.tone).toBe("error");
 
     await act(async () => {
       button("Save").click();
@@ -144,7 +144,7 @@ describe("Notes screen write safety", () => {
 
     expect(h.update).toHaveBeenCalledTimes(2);
     expect(container!.querySelector("textarea")).toBeNull();
-    expect(useToasts.getState().toast?.tone).toBe("error");
+    expect(useToasts.getState().toasts[0]?.tone).toBe("error");
   });
 
   it("keeps the delete confirmation open when deleting fails", async () => {
@@ -161,7 +161,7 @@ describe("Notes screen write safety", () => {
     });
 
     expect(h.remove).toHaveBeenCalledWith("a1");
-    expect(useToasts.getState().toast?.tone).toBe("error");
+    expect(useToasts.getState().toasts[0]?.tone).toBe("error");
     expect(document.body.textContent).toContain("Delete this note?");
   });
 });

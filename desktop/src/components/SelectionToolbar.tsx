@@ -9,15 +9,31 @@ const SWATCHES: { color: string; label: string; css: string }[] = [
 
 export interface SelectionToolbarProps {
   rect: { top: number; left: number; bottom: number; right: number };
+  /** Colour of an existing highlight the selection overlaps (R5): the swatch
+   *  shows as active, and clicking it toggles the highlight off. */
+  activeColor?: string | null;
   onHighlight: (color: string) => void;
   onNote: () => void;
   onCopy: () => void;
+  /** R6: Share acts on the live selection — opens the quote card. */
+  onShare: () => void;
+  /** R6: copy the quote with a citation line (title/author). */
+  onCopyCitation: () => void;
 }
 
-/** Floating selection toolbar (04 §7): 4 swatches, Add note, Copy. */
-export function SelectionToolbar({ rect, onHighlight, onNote, onCopy }: SelectionToolbarProps) {
+/** Floating selection toolbar (04 §7): 4 swatches, Add note, Copy,
+ *  Copy with citation, Share. */
+export function SelectionToolbar({
+  rect,
+  activeColor,
+  onHighlight,
+  onNote,
+  onCopy,
+  onShare,
+  onCopyCitation,
+}: SelectionToolbarProps) {
   const top = Math.max(8, rect.top - 48);
-  const left = Math.min(window.innerWidth - 260, Math.max(8, (rect.left + rect.right) / 2 - 130));
+  const left = Math.min(window.innerWidth - 340, Math.max(8, (rect.left + rect.right) / 2 - 170));
   return (
     <div
       className="folio-selection-toolbar"
@@ -29,9 +45,12 @@ export function SelectionToolbar({ rect, onHighlight, onNote, onCopy }: Selectio
         <button
           key={s.color}
           type="button"
-          className="folio-selection-swatch"
+          className={`folio-selection-swatch${
+            activeColor === s.color ? " folio-selection-swatch--active" : ""
+          }`}
           style={{ background: s.css }}
           aria-label={`Highlight ${s.label}`}
+          aria-pressed={activeColor === s.color}
           title={`Highlight ${s.label}`}
           onClick={() => onHighlight(s.color)}
         />
@@ -53,6 +72,24 @@ export function SelectionToolbar({ rect, onHighlight, onNote, onCopy }: Selectio
         onClick={onCopy}
       >
         <FolioIcons.Copy size="sm" />
+      </button>
+      <button
+        type="button"
+        className="folio-selection-btn"
+        aria-label="Copy with citation"
+        title="Copy with citation"
+        onClick={onCopyCitation}
+      >
+        <FolioIcons.Book size="sm" />
+      </button>
+      <button
+        type="button"
+        className="folio-selection-btn"
+        aria-label="Share as image"
+        title="Share as image"
+        onClick={onShare}
+      >
+        <FolioIcons.Share size="sm" />
       </button>
     </div>
   );

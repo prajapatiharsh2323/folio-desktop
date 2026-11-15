@@ -10,7 +10,13 @@ import { invoke } from "@tauri-apps/api/core";
 
 export interface PickedFile {
   name: string;
-  bytes: Uint8Array;
+  /** Declared size in bytes when known up front (stat/File.size), else null. */
+  size: number | null;
+  /**
+   * Step 3.2: bytes are read lazily, one file at a time, right before that
+   * file is imported — a multi-file pick no longer holds every book in memory.
+   */
+  read: () => Promise<Uint8Array>;
 }
 
 function isTauri(): boolean {
@@ -32,8 +38,10 @@ export async function pickImportFiles(): Promise<PickedFile[]> {
     const paths = await invoke<string[]>("pick_import_files");
     const out: PickedFile[] = [];
     for (const p of paths) {
-      const arr = await invoke<number[]>("fs_read", { path: p });
-      out.push({ name: baseName(p), bytes: new Uint8Array(arr) });
+      // Stat up front so an oversized pick is refused before its bytes are
+      // ever read; the bytes themselves stay lazy (one file at a time).
+      const stat = await invoke<{ size: number } | null>("fs_stat", { path: p });
+      out.push(lazyPickedFile(p, stat?.size ?? null));
     }
     return out;
   }
@@ -47,12 +55,28 @@ export async function pickImportFiles(): Promise<PickedFile[]> {
       const files = Array.from(input.files ?? []);
       const out: PickedFile[] = [];
       for (const f of files)
-        out.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
+        out.push({
+          name: f.name,
+          size: f.size,
+          read: async () => new Uint8Array(await f.arrayBuffer()),
+        });
       resolve(out);
     };
     input.oncancel = () => resolve([]);
     input.click();
   });
+}
+
+/** One granted path → a lazily-read file (E1: raw IPC body, ArrayBuffer). */
+function lazyPickedFile(path: string, size: number | null): PickedFile {
+  return {
+    name: baseName(path),
+    size,
+    read: async () => {
+      const buf = await invoke<ArrayBuffer>("fs_read", { path });
+      return new Uint8Array(buf);
+    },
+  };
 }
 
 /** Native save dialog for the backup archive. Returns null when cancelled. */
@@ -73,22 +97,32 @@ export async function pickImageDestPath(defaultName: string): Promise<string | n
   return await invoke<string | null>("pick_image_dest", { defaultName });
 }
 
-/** HTML5 drop → bytes (browser mode). */
+/** Native save dialog for a text export (Markdown/CSV). N1. */
+export async function pickExportDestPath(defaultName: string): Promise<string | null> {
+  if (!isTauri()) return null;
+  return await invoke<string | null>("pick_export_dest", { defaultName });
+}
+
+/** HTML5 drop → lazily-read files (browser mode). */
 export async function filesFromDataTransfer(dt: DataTransfer): Promise<PickedFile[]> {
   const out: PickedFile[] = [];
   for (const f of Array.from(dt.files)) {
-    out.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
+    out.push({
+      name: f.name,
+      size: f.size,
+      read: async () => new Uint8Array(await f.arrayBuffer()),
+    });
   }
   return out;
 }
 
-/** Granted drop/launch paths → bytes. Returns null when not in Tauri. */
+/** Granted drop/launch paths → lazily-read files. Null when not in Tauri. */
 export async function filesFromTauriDrop(paths: string[]): Promise<PickedFile[] | null> {
   if (!isTauri()) return null;
   const out: PickedFile[] = [];
   for (const p of paths) {
-    const arr = await invoke<number[]>("fs_read", { path: p });
-    out.push({ name: baseName(p), bytes: new Uint8Array(arr) });
+    const stat = await invoke<{ size: number } | null>("fs_stat", { path: p });
+    out.push(lazyPickedFile(p, stat?.size ?? null));
   }
   return out;
 }

@@ -38,6 +38,11 @@ const WIDTH_PRESETS: { label: string; value: number }[] = [
 
 interface AppearancePanelProps {
   open: boolean;
+  /**
+   * Non-modal by default from R8: docked without a scrim so the user sees
+   * type/theme changes applied to the canvas behind the panel while tuning.
+   */
+  modal?: boolean;
   prefs: ReadingPrefs;
   onClose: () => void;
   onChange: (next: ReadingPrefs) => void;
@@ -50,7 +55,14 @@ interface AppearancePanelProps {
  * Provides quick appearance controls (font size steppers, theme swatches,
  * width presets), live typography preview, and fine-grained advanced controls.
  */
-export function AppearancePanel({ open, prefs, onClose, onChange, onReset }: AppearancePanelProps) {
+export function AppearancePanel({
+  open,
+  modal = false,
+  prefs,
+  onClose,
+  onChange,
+  onReset,
+}: AppearancePanelProps) {
   const patch = (part: Partial<ReadingPrefs>) => onChange({ ...prefs, ...part });
 
   const activeFont =
@@ -77,7 +89,7 @@ export function AppearancePanel({ open, prefs, onClose, onChange, onReset }: App
         )?.value.toString() ?? "");
 
   return (
-    <FolioPanel open={open} onClose={onClose} title="Appearance" width={400}>
+    <FolioPanel open={open} onClose={onClose} title="Appearance" width={400} modal={modal}>
       <div className="folio-appearance">
         {/* Quick Appearance Area */}
         <div className="folio-appearance__quick-card">

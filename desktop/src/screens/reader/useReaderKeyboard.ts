@@ -1,7 +1,13 @@
-// The reader keyboard matrix (07 §1): page turns, jumps, panels, bookmark,
-// chrome toggle, Ctrl+F, focus mode, shortcuts guide and the Escape ladder.
-// Everything is injected so the hook stays a pure input→intent mapping; all
-// navigation still flows through the coordinator via `reportNavigation`.
+// The reader keyboard matrix (07 §1, R13): page turns, jumps, chapters,
+// panels, bookmark, chrome toggle, Ctrl+F, text size, distraction-free mode,
+// shortcuts guide and the Escape ladder. Everything is injected so the hook
+// stays a pure input→intent mapping; all navigation still flows through the
+// coordinator via `reportNavigation`.
+//
+// Modal Escape never reaches this hook: FolioDialog/FolioPanel close
+// themselves through the modal stack (capture-phase, stopPropagation), so
+// the ladder below only owns non-modal surfaces (menu, context menu, panel,
+// distraction-free, selection).
 import { useEffect } from "react";
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from "react";
 import type { ReaderDoc } from "../../store/readerStore";
@@ -11,6 +17,9 @@ import type { ReaderNavigationCoordinator, NavigationOutcome } from "../../reade
 import type { BookmarkResult } from "./useAnnotations";
 import type { ReaderPanel } from "./useReaderChrome";
 import { isTextEntryTarget, isActivatableTarget } from "./keyGuards";
+
+/** Text-size intents driven by Ctrl+=/−/0 (R13). */
+export type TextSizeAction = "larger" | "smaller" | "reset";
 
 interface UseReaderKeyboardOptions {
   doc: ReaderDoc | null;
@@ -30,25 +39,25 @@ interface UseReaderKeyboardOptions {
   setMenu: (open: boolean) => void;
 
   // In-book search (from useInBookSearch)
-  searchOpen: boolean;
-  setSearchOpen: Dispatch<SetStateAction<boolean>>;
+  /** Ctrl+F: toggle the search panel through the chrome's single panel slot. */
+  toggleSearch: () => void;
   /** Next/Prev match (F3 / Shift+F3); no-ops when nothing to step through. */
   searchNext: () => void;
   searchPrev: () => void;
   /** Return through the position history (Alt+Left, R4). */
   goBack: () => void;
 
+  // Reading prefs and chapters (R13)
+  /** Ctrl+= / Ctrl+− / Ctrl+0: larger / smaller / reset this book's text. */
+  onTextSize: (action: TextSizeAction) => void;
+  /** `[` / `]`: previous / next chapter in the TOC order. */
+  stepChapter: (direction: "next" | "previous") => void;
+
   // Interactions owned by the screen
   clearSelection: () => void;
   ctxMenu: { x: number; y: number } | null;
   clearCtxMenu: () => void;
-  noteEditorOpen: boolean;
-  closeNoteEditor: () => void;
-  quoteCardOpen: boolean;
-  setQuoteCardOpen: Dispatch<SetStateAction<boolean>>;
-  sessionInfoOpen: boolean;
-  setSessionInfoOpen: Dispatch<SetStateAction<boolean>>;
-  shortcutsGuideOpen: boolean;
+  /** `?`: toggle the shortcuts guide (the dialog closes itself on Escape). */
   setShortcutsGuideOpen: Dispatch<SetStateAction<boolean>>;
 
   reportNavigation: (pending: Promise<NavigationOutcome>, message: string) => void;
@@ -71,21 +80,15 @@ export function useReaderKeyboard({
   togglePanel,
   menuOpenRef,
   setMenu,
-  searchOpen,
-  setSearchOpen,
+  toggleSearch,
   searchNext,
   searchPrev,
   goBack,
+  onTextSize,
+  stepChapter,
   clearSelection,
   ctxMenu,
   clearCtxMenu,
-  noteEditorOpen,
-  closeNoteEditor,
-  quoteCardOpen,
-  setQuoteCardOpen,
-  sessionInfoOpen,
-  setSessionInfoOpen,
-  shortcutsGuideOpen,
   setShortcutsGuideOpen,
   reportNavigation,
   showNavNotice,
@@ -99,6 +102,12 @@ export function useReaderKeyboard({
       if (event.key === " " && isActivatableTarget(event.target)) return;
       const engine = engineRef.current;
       if (!engine) return;
+
+      // Bare letters must not fire when the user is running a browser or app
+      // combo through them (R13): no Ctrl/Meta/Alt. Shift is allowed — `?`
+      // IS Shift+/, and `T` covers Caps/Shift typing.
+      const bare = !event.ctrlKey && !event.metaKey && !event.altKey;
+      const menu = event.ctrlKey || event.metaKey;
 
       const turn = (direction: "next" | "previous") => {
         const nav = navRef.current;
@@ -153,8 +162,38 @@ export function useReaderKeyboard({
           event.preventDefault();
           turn("previous");
           break;
+        case "[":
+          event.preventDefault();
+          stepChapter("previous");
+          break;
+        case "]":
+          event.preventDefault();
+          stepChapter("next");
+          break;
+        case "=":
+        case "+":
+          if (menu) {
+            // Browser zoom lives on Ctrl+= too; the reader owns it here.
+            event.preventDefault();
+            onTextSize("larger");
+          }
+          break;
+        case "-":
+        case "_":
+          if (menu) {
+            event.preventDefault();
+            onTextSize("smaller");
+          }
+          break;
+        case "0":
+          if (menu) {
+            event.preventDefault();
+            onTextSize("reset");
+          }
+          break;
         case "t":
         case "T":
+          if (!bare) break;
           event.preventDefault();
           togglePanel("toc");
           break;
@@ -167,19 +206,18 @@ export function useReaderKeyboard({
           break;
         case "m":
         case "M":
+          if (!bare) break;
           event.preventDefault();
           chromeRef.current?.toggle();
           setChromeVisible(chromeRef.current?.visible ?? false);
           break;
         case "f":
         case "F":
-          if (event.ctrlKey || event.metaKey) {
+          if (menu) {
             event.preventDefault();
-            setSearchOpen((open) => !open);
-            chromeRef.current?.onActivity();
-            setChromeVisible(true);
-          } else {
-            // Unmodified 'f' toggles focus mode
+            toggleSearch();
+          } else if (bare) {
+            // Unmodified 'f' toggles Distraction-free reading (R13 naming).
             event.preventDefault();
             toggleFocusMode();
           }
@@ -191,32 +229,24 @@ export function useReaderKeyboard({
           else searchNext();
           break;
         case "?":
+          if (!bare) break;
           event.preventDefault();
           setShortcutsGuideOpen((open) => !open);
           break;
         case "Escape":
-          // Close topmost interaction:
-          // Menu → Shortcuts → Session info → Note editor → Quote card → Ctx menu → Panel → Search → Focus mode → Selection
+          // Close topmost non-modal interaction (modals close themselves via
+          // the modal stack): Menu → Ctx menu → Panel (incl. Search) →
+          // Distraction-free → Selection
           if (menuOpenRef.current) {
             setMenu(false);
             document.getElementById("folio-reader-more")?.focus();
-          } else if (shortcutsGuideOpen) {
-            setShortcutsGuideOpen(false);
-          } else if (sessionInfoOpen) {
-            setSessionInfoOpen(false);
-          } else if (noteEditorOpen) {
-            closeNoteEditor();
-          } else if (quoteCardOpen) {
-            setQuoteCardOpen(false);
           } else if (ctxMenu) {
             clearCtxMenu();
           } else if (panel) {
             closePanel();
-          } else if (searchOpen) {
-            setSearchOpen(false);
           } else if (isFocusMode) {
             exitFocusMode();
-            showNavNotice("Exited focus mode.");
+            showNavNotice("Exited distraction-free mode.");
           } else {
             clearSelection();
           }
@@ -230,13 +260,9 @@ export function useReaderKeyboard({
   }, [
     doc,
     panel,
-    searchOpen,
+    toggleSearch,
     ctxMenu,
     isFocusMode,
-    shortcutsGuideOpen,
-    sessionInfoOpen,
-    noteEditorOpen,
-    quoteCardOpen,
     engineRef,
     navRef,
     chromeRef,
@@ -247,16 +273,14 @@ export function useReaderKeyboard({
     closePanel,
     togglePanel,
     setMenu,
-    setSearchOpen,
+    onTextSize,
+    stepChapter,
+    setShortcutsGuideOpen,
     searchNext,
     searchPrev,
     goBack,
     clearSelection,
     clearCtxMenu,
-    closeNoteEditor,
-    setQuoteCardOpen,
-    setSessionInfoOpen,
-    setShortcutsGuideOpen,
     reportNavigation,
     showNavNotice,
     announceBookmark,

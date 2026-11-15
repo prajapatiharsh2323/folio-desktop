@@ -14,8 +14,14 @@ import { ToastHost } from "../src/components/ToastHost";
 import { useLibraryUi } from "../src/store/libraryUi";
 import { useToasts } from "../src/shell/toasts";
 
+/** Newest toast on the stack (the one a single push produces). */
+function lastToast() {
+  const { toasts } = useToasts.getState();
+  return toasts[toasts.length - 1] ?? null;
+}
+
 function resetUi() {
-  useToasts.setState({ toast: null });
+  useToasts.setState({ toasts: [] });
   useLibraryUi.setState({
     rows: [],
     loading: false,
@@ -27,7 +33,11 @@ function resetUi() {
 }
 
 function file(name: string) {
-  return { name, bytes: new Uint8Array([1]) };
+  return {
+    name,
+    size: 1,
+    read: async () => new Uint8Array([1]),
+  };
 }
 
 describe("import queue", () => {
@@ -61,7 +71,7 @@ describe("import queue", () => {
 
     await useLibraryUi.getState().importPicked([file("broken.epub")]);
 
-    const toast = useToasts.getState().toast;
+    const toast = lastToast();
     expect(toast?.tone).toBe("error");
     expect(toast?.text).toBe("Import failed");
     expect(toast?.details?.join(" ")).toContain("disk full");
@@ -81,7 +91,7 @@ describe("import queue", () => {
       .getState()
       .importPicked([file("a.epub"), file("b.epub"), file("c.epub"), file("bad.epub")]);
 
-    const toast = useToasts.getState().toast;
+    const toast = lastToast();
     expect(toast?.tone).toBe("error");
     expect(toast?.text).toBe("Imported 2, skipped 1, 1 failed");
     expect(toast?.details?.join(" ")).toContain("bad.epub");
@@ -117,7 +127,7 @@ describe("toast host", () => {
       vi.advanceTimersByTime(4000);
     });
 
-    expect(useToasts.getState().toast).toBeNull();
+    expect(useToasts.getState().toasts).toEqual([]);
   });
 
   it("keeps an error until it is dismissed", () => {
@@ -129,14 +139,14 @@ describe("toast host", () => {
       vi.advanceTimersByTime(30000);
     });
 
-    expect(useToasts.getState().toast?.tone).toBe("error");
+    expect(useToasts.getState().toasts.map((t) => t.tone)).toEqual(["error"]);
 
     const close = container.querySelector<HTMLButtonElement>(".folio-snackbar__close");
     expect(close).not.toBeNull();
     act(() => {
       close!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    expect(useToasts.getState().toast).toBeNull();
+    expect(useToasts.getState().toasts).toEqual([]);
   });
 
   it("runs a toast action and dismisses the toast (R4 Back)", () => {
@@ -156,7 +166,7 @@ describe("toast host", () => {
       action!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(ran).toBe(true);
-    expect(useToasts.getState().toast).toBeNull();
+    expect(useToasts.getState().toasts).toEqual([]);
   });
 
   it("does not render an action on busy toasts", () => {

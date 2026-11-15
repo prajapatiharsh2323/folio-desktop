@@ -66,19 +66,38 @@ export class ReadingPaceStats {
   timeLeftMinutes(percent: number): number | null {
     const p = Math.min(100, Math.max(0, percent));
     if (this.percentRead <= 0 || p >= 100) return null;
+    return this.minutesForFraction((100 - p) / 100);
+  }
+
+  /** Minutes to read a fraction of the book (0..1) at the observed pace. */
+  minutesForFraction(fraction: number): number | null {
+    const f = Math.min(1, Math.max(0, fraction));
+    if (this.percentRead <= 0 || f <= 0) return null;
     const readFraction = this.percentRead / 100;
     if (readFraction <= 0) return null;
-    const remainingFraction = (100 - p) / 100;
-    const minutes = (this.sessionsMs / 1000 / 60) * (remainingFraction / readFraction);
+    const minutes = (this.sessionsMs / 1000 / 60) * (f / readFraction);
     if (!Number.isFinite(minutes) || minutes < 0) return null;
     return minutes;
   }
 }
 
-/** Pillar display: "≈ N min left" (N<60) / "≈ N h left" / hidden (04 §9). */
+/** Pillar display (R11): "≈ N min left" under an hour, "≈ H h M min left"
+ *  beyond it (the minute part is dropped on the exact hour), hidden below a
+ *  minute. */
 export function formatTimeLeft(minutes: number | null): string | null {
   if (minutes === null) return null;
   if (minutes < 1) return null;
   if (minutes < 60) return `≈ ${Math.max(1, Math.round(minutes))} min left`;
-  return `≈ ${Math.round(minutes / 60)} h left`;
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes - hours * 60);
+  if (mins === 0) return `≈ ${hours} h left`;
+  if (mins === 60) return `≈ ${hours + 1} h left`;
+  return `≈ ${hours} h ${mins} min left`;
+}
+
+/** Per-chapter display (R11): "≈ N min left in chapter" / null under a minute. */
+export function formatChapterTimeLeft(minutes: number | null): string | null {
+  if (minutes === null) return null;
+  if (minutes < 1) return null;
+  return `≈ ${Math.round(minutes)} min left in chapter`;
 }

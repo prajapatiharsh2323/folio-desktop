@@ -539,11 +539,24 @@
 }
 
 /* ---- Snackbar (import progress/result) ---- */
-.folio-snackbar {
+/* Toast stack (R14): up to three global messages, newest last, bottom-centre.
+   The container is positioned; individual snackbars are static children. */
+.folio-toast-stack {
   position: fixed;
   left: 50%;
   bottom: var(--folio-space-6);
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--folio-space-2);
+  z-index: var(--folio-z-dialog);
+  pointer-events: none;
+  max-width: min(560px, calc(100vw - 96px));
+}
+
+.folio-snackbar {
+  position: static;
   display: flex;
   align-items: center;
   gap: var(--folio-space-3);
@@ -556,8 +569,8 @@
   font-weight: var(--folio-type-label-weight);
   box-shadow: 0 8px 24px rgba(20, 23, 19, 0.25);
   animation: folio-snackbar-in var(--folio-motion-panel) var(--folio-motion-panel-ease);
-  z-index: var(--folio-z-dialog);
-  max-width: min(560px, calc(100vw - 96px));
+  pointer-events: auto;
+  max-width: 100%;
 }
 
 .folio-snackbar__text {
@@ -623,11 +636,11 @@
 
 @keyframes folio-snackbar-in {
   from {
-    transform: translate(-50%, 12px);
+    transform: translateY(12px);
     opacity: 0;
   }
   to {
-    transform: translate(-50%, 0);
+    transform: translateY(0);
     opacity: 1;
   }
 }
@@ -1096,6 +1109,49 @@
   display: flex;
   align-items: center;
   gap: var(--folio-space-3);
+}
+
+/* L3: freshly imported/updated rows glow briefly (state clears via timeout). */
+.folio-library-row--new {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: -2px;
+  border-radius: var(--folio-radius-control);
+}
+
+/* L1: subtle refresh indicator over a non-empty shelf (no blank overlay). */
+.folio-refresh-bar {
+  position: relative;
+  height: 2px;
+  margin: 0 0 var(--folio-space-2);
+  border-radius: var(--folio-radius-pill);
+  background: var(--folio-border);
+  overflow: hidden;
+}
+
+.folio-refresh-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: var(--folio-accent);
+  animation: folio-refresh-sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes folio-refresh-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folio-refresh-bar::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
 }
 
 .folio-library-row__check {

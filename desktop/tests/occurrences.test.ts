@@ -2,11 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   buildCorpus,
   findOccurrences,
-  buildSnippet,
+  buildSnippetParts,
   anchorFor,
   wordMatches,
 } from "../src/search/occurrences";
-import { escapeHtml } from "../src/search/miniSearch";
 
 const text = "Sherlock Holmes sat in the café. Sherlock Holmes spoke again. Déjà vu struck.";
 
@@ -76,35 +75,35 @@ describe("wordMatches", () => {
   });
 });
 
-describe("buildSnippet", () => {
-  it("marks all spans inside the window and escapes text", () => {
+describe("buildSnippetParts", () => {
+  it("marks all spans inside the window as parts", () => {
     const c = buildCorpus(text);
     const occ = findOccurrences(c, "sherlock");
-    const snip = buildSnippet(text, occ, escapeHtml);
+    const snip = buildSnippetParts(text, occ);
     // both occurrences inside the ±40 window are marked
-    expect(snip.match(/<mark>/g)?.length).toBe(2);
-    expect(snip).toContain("<mark>Sherlock</mark> Holmes…");
-    expect(snip.startsWith("…")).toBe(false);
+    expect(snip.parts.filter((p) => p.mark).length).toBe(2);
+    expect(snip.tail).toBe(true);
+    expect(snip.head).toBe(false);
+    const tail = snip.parts.at(-1);
+    expect(tail && tail.text.includes("Holmes")).toBe(true);
   });
 
-  it("wraps the raw casing inside <mark> and adds ellipses", () => {
-    const c = buildCorpus("Intro sentence. The middle has Déjà in it. Tail sentence here.");
+  it("keeps the raw casing of the matched term and the ellipsis flags", () => {
+    const raw = "Intro sentence. The middle has Déjà in it. Tail sentence here.";
+    const c = buildCorpus(raw);
     const occ = findOccurrences(c, "deja");
-    const snip = buildSnippet(
-      "Intro sentence. The middle has Déjà in it. Tail sentence here.",
-      occ,
-      escapeHtml,
-      {
-        window: 10,
-      },
-    );
-    expect(snip).toContain("<mark>Déjà</mark>");
-    expect(snip).toContain("…");
+    const snip = buildSnippetParts(raw, occ, { window: 10 });
+    expect(snip.head).toBe(true);
+    expect(snip.tail).toBe(true);
+    const marked = snip.parts.filter((p) => p.mark).map((p) => p.text).join("");
+    expect(marked).toBe("Déjà");
   });
 
-  it("falls back to a plain escaped head without matches", () => {
-    expect(buildSnippet("Plain text here", [], escapeHtml)).toBe("Plain text here");
-    expect(buildSnippet("A".repeat(200), [], escapeHtml)).toMatch(/…$/);
+  it("falls back to a plain head without matches", () => {
+    expect(buildSnippetParts("Plain text here", []).parts).toEqual([
+      { text: "Plain text here", mark: false },
+    ]);
+    expect(buildSnippetParts("A".repeat(200), []).tail).toBe(true);
   });
 });
 

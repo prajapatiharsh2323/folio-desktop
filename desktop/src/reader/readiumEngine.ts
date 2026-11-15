@@ -1,5 +1,6 @@
 // Readium web toolkit engine adapter (ReaderEngine impl over EpubNavigator).
 import { EpubNavigator, EpubPreferences, type EpubNavigatorListeners } from "@readium/navigator";
+import type { DecorationObserver, OnDecorationActivatedEvent } from "@readium/navigator";
 import {
   Locator,
   LocatorLocations,
@@ -9,6 +10,8 @@ import {
 } from "@readium/shared";
 import type {
   DecorationSpec,
+  EngineOpenProgress,
+  HighlightActivation,
   NoterefActivation,
   ReaderClickInfo,
   ReaderEngine,
@@ -23,14 +26,17 @@ import type { ReadingPrefs } from "../model/types";
 import { htmlToText } from "../lib/htmlToText";
 import {
   buildCorpus,
-  buildSnippet,
+  buildSnippetParts,
   findOccurrences,
   anchorFor,
   type TextCorpus,
 } from "../search/occurrences";
-import { escapeHtml } from "../search/htmlEscape";
 import { resolveReaderTheme, toNavigatorPreferences } from "./readerThemes";
-import { openEpubFromBytes, type EpubPackage } from "./epubPublication";
+import {
+  openEpubFromBytesAsync,
+  type EpubPackage,
+  type PositionsCacheHook,
+} from "./epubPublication";
 import { locatorForProgression, progressionForLocator } from "./positions";
 import { decodeLocation, encodeLocation, isCfiLocation } from "./locatorCodec";
 import {
@@ -63,6 +69,10 @@ export class ReadiumEngine implements ReaderEngine {
   private internalLinkCbs = new Set<(locator: string) => boolean>();
   /** Noteref activations for the footnote popover (R4 2.2b). */
   private noterefCbs = new Set<(activation: NoterefActivation | null) => void>();
+  /** Highlight decoration activations for the annotation popover (R5). */
+  private highlightCbs = new Set<(activation: HighlightActivation) => boolean>();
+  /** Registered highlight decoration observer (unregistered on destroy). */
+  private decorationObserver: DecorationObserver | null = null;
   /** Capture-phase interception hooks installed per frame document. */
   private noterefHooks = new Set<{
     doc: Document;
@@ -74,6 +84,7 @@ export class ReadiumEngine implements ReaderEngine {
   private frameWindows = new Set<Window>();
   private lastPointerEmit = 0;
   private lastLocator: ReaderLocator | null = null;
+  private chapterMarksCache: { href: string; percent: number }[] | null = null;
   private systemDark = false;
   private searchIndex: MiniSearch | null = null;
   private searchIndexPromise: Promise<MiniSearch | null> | null = null;
@@ -84,14 +95,18 @@ export class ReadiumEngine implements ReaderEngine {
     private epubBytes: Uint8Array,
     private prefs: ReadingPrefs,
     private initial: ReaderOpenTarget | null = null,
+    private positionsCache?: PositionsCacheHook,
   ) {
     if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
       this.systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     }
   }
 
-  async open(container: HTMLElement): Promise<void> {
-    const opened = openEpubFromBytes(this.epubBytes);
+  async open(
+    container: HTMLElement,
+    onProgress?: (progress: EngineOpenProgress) => void,
+  ): Promise<void> {
+    const opened = await openEpubFromBytesAsync(this.epubBytes, onProgress, this.positionsCache);
     this.opened = opened;
     this.pub = opened.publication;
     this.positions = opened.positions;
@@ -159,6 +174,13 @@ export class ReadiumEngine implements ReaderEngine {
     }
     // Re-apply after load for engines that initialize layout before preferences.
     await this.applyPrefs(this.prefs);
+    // Highlight activation (R5): registering the observer also switches the
+    // toolkit's in-frame activation on for the "highlights" group; new frames
+    // replay the state on connect.
+    this.decorationObserver = {
+      onDecorationActivated: (event) => this.handleHighlightActivated(event),
+    };
+    nav.registerDecorationObserver("highlights", this.decorationObserver);
   }
 
   async destroy(): Promise<void> {
@@ -175,6 +197,15 @@ export class ReadiumEngine implements ReaderEngine {
     this.linkCbs.clear();
     this.internalLinkCbs.clear();
     this.noterefCbs.clear();
+    this.highlightCbs.clear();
+    try {
+      if (this.decorationObserver) {
+        this.navigator?.unregisterDecorationObserver(this.decorationObserver);
+      }
+    } catch {
+      /* navigator already gone */
+    }
+    this.decorationObserver = null;
     for (const hook of this.noterefHooks) {
       try {
         hook.doc.removeEventListener("pointerup", hook.intercept.onPointerUp, true);
@@ -198,6 +229,7 @@ export class ReadiumEngine implements ReaderEngine {
     this.container = null;
     this.positions = [];
     this.lastLocator = null;
+    this.chapterMarksCache = null;
   }
 
   async applyPrefs(prefs: ReadingPrefs): Promise<void> {
@@ -220,6 +252,15 @@ export class ReadiumEngine implements ReaderEngine {
         columnCount: mapped.columnCount ?? null,
       }),
     );
+  }
+
+  /** OS dark-mode flag changed (R9): "system" themes resolve differently, so
+   *  re-submit the current prefs to repaint the canvas. When the navigator
+   *  is not mounted yet the flag is simply recorded for open(). */
+  async setSystemDark(dark: boolean): Promise<void> {
+    if (this.systemDark === dark) return;
+    this.systemDark = dark;
+    await this.applyPrefs(this.prefs);
   }
 
   async go(locator: string | { percent: number }, animated = true): Promise<boolean> {
@@ -274,6 +315,26 @@ export class ReadiumEngine implements ReaderEngine {
 
   totalProgression(): number | null {
     return this.lastLocator?.progression ?? null;
+  }
+
+  /** Start percent of each spine resource (R11), cached over the positions
+   *  list: the first position of a resource carries its start progression. */
+  chapterMarks(): { href: string; percent: number }[] {
+    if (this.chapterMarksCache) return this.chapterMarksCache;
+    if (this.positions.length === 0) return [];
+    const marks: { href: string; percent: number }[] = [];
+    const seen = new Set<string>();
+    for (const loc of this.positions) {
+      const href = loc.href;
+      if (seen.has(href)) continue;
+      seen.add(href);
+      marks.push({
+        href,
+        percent: Math.round((loc.locations?.totalProgression ?? 0) * 1000) / 10,
+      });
+    }
+    this.chapterMarksCache = marks;
+    return marks;
   }
 
   async applyDecorations(decorations: DecorationSpec[], group = "highlights"): Promise<void> {
@@ -354,7 +415,7 @@ export class ReadiumEngine implements ReaderEngine {
         budget -= 1;
         hits.push({
           chapterTitle: m.chapterTitle ?? "",
-          snippetHtml: buildSnippet(corpus.raw, [span], escapeHtml),
+          snippet: buildSnippetParts(corpus.raw, [span]),
           locator: m.href ?? m.id,
           anchor: anchorFor(corpus.raw, span),
         });
@@ -405,6 +466,70 @@ export class ReadiumEngine implements ReaderEngine {
   onNoteref(cb: (activation: NoterefActivation | null) => void): () => void {
     this.noterefCbs.add(cb);
     return () => this.noterefCbs.delete(cb);
+  }
+
+  onHighlightActivated(cb: (activation: HighlightActivation) => boolean): () => void {
+    this.highlightCbs.add(cb);
+    return () => this.highlightCbs.delete(cb);
+  }
+
+  /**
+   * A highlight was clicked in a frame (R5). Comms coordinates are frame CSS
+   * px scaled by the device pixel ratio; resolve the frame by hit-test so a
+   * two-up spread still reports host-relative coordinates.
+   */
+  private handleHighlightActivated(event: OnDecorationActivatedEvent): boolean {
+    const id = event.decoration?.id;
+    if (!id) return false;
+    const point = this.hostPointFromFrame(event.point, event.rect);
+    let consumed = false;
+    for (const cb of this.highlightCbs) {
+      if (
+        cb({
+          id,
+          group: event.group ?? "highlights",
+          x: point.x,
+          y: point.y,
+        })
+      ) {
+        consumed = true;
+      }
+    }
+    return consumed;
+  }
+
+  /** Frame CSS px (already unscaled) → host-relative CSS px. */
+  private hostPointFromFrame(
+    point?: { x: number; y: number },
+    rect?: { top: number; left: number; width: number; height: number },
+  ): { x: number; y: number } {
+    const dpr = this.frameDpr || 1;
+    let fx: number;
+    let fy: number;
+    if (point && (point.x || point.y)) {
+      fx = point.x / dpr;
+      fy = point.y / dpr;
+    } else if (rect) {
+      fx = (rect.left + rect.width / 2) / dpr;
+      fy = (rect.top + rect.height / 2) / dpr;
+    } else {
+      fx = 0;
+      fy = 0;
+    }
+    const cr = this.container?.getBoundingClientRect();
+    for (const wnd of this.frameWindows) {
+      const fr = wnd.frameElement?.getBoundingClientRect();
+      if (!fr) continue;
+      if (fx >= 0 && fx <= fr.width && fy >= 0 && fy <= fr.height) {
+        return { x: fx + (fr.left - (cr?.left ?? 0)), y: fy + (fr.top - (cr?.top ?? 0)) };
+      }
+    }
+    // No containing frame (or none mounted): first frame offset as fallback.
+    const fr = this.frameWindows.values().next().value?.frameElement?.getBoundingClientRect();
+    return {
+      x: fx + (fr?.left ?? 0) - (cr?.left ?? 0),
+      y: fy + (fr?.top ?? 0) - (cr?.top ?? 0),
+    };
   }
 
   /**
@@ -777,6 +902,8 @@ export function createReadiumEngine(args: {
   epubBytes: Uint8Array;
   prefs: ReadingPrefs;
   initial?: ReaderOpenTarget | null;
+  /** Additive positions cache (Step 3.2); omit to always regenerate. */
+  positionsCache?: PositionsCacheHook;
 }): ReadiumEngine {
-  return new ReadiumEngine(args.epubBytes, args.prefs, args.initial ?? null);
+  return new ReadiumEngine(args.epubBytes, args.prefs, args.initial ?? null, args.positionsCache);
 }

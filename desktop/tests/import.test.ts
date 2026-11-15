@@ -7,7 +7,8 @@ import { buildEpub } from "../src/import/clip/epubBuilder";
 import { parseEpub } from "../src/import/epubImporter";
 import { sanitizeHtml } from "../src/import/sanitize";
 import { importTxt } from "../src/import/articleImporters";
-import { strToU8, zipSync, type Zippable } from "fflate";
+import { strToU8, strFromU8, zipSync, type Zippable } from "fflate";
+import { unzipLimited } from "../src/import/zipLimits";
 import type { DocMeta } from "../src/model/types";
 
 const ROOT = "/lib";
@@ -51,8 +52,8 @@ describe("import gates (fileDetector)", () => {
     }
   });
 
-  it("refuses >50MB", () => {
-    const bytes = new Uint8Array(50 * 1024 * 1024 + 1);
+  it("refuses >200MB", () => {
+    const bytes = new Uint8Array(200 * 1024 * 1024 + 1);
     expect(() => assertImportable("big.txt", bytes)).toThrowError(COPY.tooLarge);
   });
 
@@ -86,6 +87,26 @@ describe("import gates (fileDetector)", () => {
       "META-INF/rights.xml": [strToU8("<rights/>"), {}],
     });
     expect(() => assertImportable("book.epub", bytes)).toThrowError(COPY.drm);
+  });
+
+  it("refuses a corrupt zip with the damaged-file copy, not the DRM copy", () => {
+    // PK magic but a broken archive body: this is damage, not protection —
+    // the old copy wrongly blamed DRM here (Step 3.2).
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6, 7, 8]);
+    try {
+      assertImportable("book.epub", bytes);
+      expect.unreachable("assertImportable should have thrown");
+    } catch (e) {
+      expect((e as ImportError).code).toBe("unreadable");
+      expect((e as Error).message).toBe(COPY.corrupt);
+    }
+  });
+
+  it("unzipLimited decompresses ordinary archives and throws ZipLimitError past the caps", () => {
+    const zip = zipSync({ "a.txt": strToU8("hello"), "b.txt": strToU8("world") });
+    const out = unzipLimited(zip);
+    expect(strFromU8(out["a.txt"])).toBe("hello");
+    expect(strFromU8(out["b.txt"])).toBe("world");
   });
 
   it("detects language: Devanagari ratio > 0.3 → hi", () => {

@@ -28,6 +28,10 @@ pub fn run() {
             fs::fs_stat,
             fs::fs_list_dir,
             fs::fs_free_space,
+            fs::fs_dir_size,
+            fs::fs_read_many,
+            backup::backup_export,
+            backup::backup_inspect,
             hash::sha256_file,
             zip::zip_read,
             zip::zip_write,
@@ -42,6 +46,8 @@ pub fn run() {
             pick::pick_backup_source,
             pick::pick_backup_dest,
             pick::pick_image_dest,
+            pick::pick_export_dest,
+            pick::reveal_doc,
             open_files::take_pending_launch
         ])
         .setup(|app| {

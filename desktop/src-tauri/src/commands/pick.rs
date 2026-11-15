@@ -140,3 +140,36 @@ pub async fn pick_image_dest(
     )
     .await
 }
+
+/// Notes-export picker: where to write a Markdown/CSV text export.
+#[tauri::command]
+pub async fn pick_export_dest(
+    app: AppHandle,
+    default_name: String,
+) -> Result<Option<String>, String> {
+    save_file(
+        app,
+        "Export notes".to_string(),
+        default_name,
+        "Text".to_string(),
+        owned(&["md", "csv", "txt"]),
+    )
+    .await
+}
+
+/// Reveal a document's folder in the OS file manager (L4 "Show in folder").
+/// The path must live inside the app directory — the guard rejects anything
+/// else, and the opener only ever reveals, it never writes.
+#[tauri::command]
+pub async fn reveal_doc(app: AppHandle, slug: String) -> Result<(), String> {
+    let _ = app;
+    tauri::async_runtime::spawn_blocking(move || {
+        let safe_slug = slug.replace(['/', '\\'], "_");
+        let dir =
+            crate::guard::guard_sandboxed(&format!("/folio-library/library/docs/{safe_slug}"))
+                .map_err(|e| e.to_string())?;
+        tauri_plugin_opener::reveal_item_in_dir(dir).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("reveal failed: {e}"))?
+}

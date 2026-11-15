@@ -15,6 +15,7 @@ import type { LibraryManager } from "../store/libraryManager";
 import type { DocMeta, DocKind, SourceFormat } from "../model/types";
 import { nowIso, newUuid } from "../model/ids";
 import { libraryLayout as L } from "../lib/libraryPaths";
+import { makeCoverThumbnail } from "./cover";
 
 export type DuplicateResolution = "skip" | "keep" | "replace";
 
@@ -150,6 +151,27 @@ function filesMapFor(p: Awaited<ReturnType<typeof runPipeline>>): Record<string,
   return files;
 }
 
+/**
+ * L3: write a small shelf thumbnail as an additive cache file. Best-effort:
+ * the thumbnail is skipped entirely when the environment can't decode images
+ * (and the shelf falls back to the full cover).
+ */
+async function writeCoverThumbnail(
+  lm: LibraryManager,
+  slug: string,
+  coverBytes: Uint8Array,
+): Promise<void> {
+  try {
+    const thumb = await makeCoverThumbnail(coverBytes);
+    if (thumb) {
+      await lm.writeFileAtomic(`${L.docDir(lm.root, slug)}/cache/cover-thumb.jpg`, thumb);
+    }
+  } catch {
+    // Undecodable image or unsupported environment — the full cover remains
+    // the fallback, so a missing thumbnail is never an error.
+  }
+}
+
 async function writeIndex(
   lm: LibraryManager,
   docId: string,
@@ -224,6 +246,9 @@ export async function importFile(
     const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
     await writeIndex(lm, meta.id, p.chapters, textByChapter);
 
+    // L3: additive shelf thumbnail (after the commit point; unregistered).
+    if (p.cover) await writeCoverThumbnail(lm, meta.slug, p.cover.bytes);
+
     return { status: "imported", docId: meta.id, title: p.title };
   } catch (e) {
     if (e instanceof ImportError) {
@@ -286,6 +311,9 @@ export async function replaceDoc(
 
     const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
     await writeIndex(lm, meta.id, p.chapters, textByChapter);
+
+    // L3: additive shelf thumbnail (replaceDoc re-derives it too).
+    if (p.cover) await writeCoverThumbnail(lm, meta.slug, p.cover.bytes);
 
     return { status: "replaced", docId: meta.id, title: p.title };
   } catch (e) {

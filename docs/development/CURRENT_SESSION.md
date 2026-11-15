@@ -1,24 +1,352 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261113-01` — Production-readiness Phase 1 + Phase 2 Steps
-2.0–2.2b (P0 blockers, quick wins, the E2 reader refactor, search quality,
-back navigation and the noteref footnote popover from the 2026-11-12 report;
-plan at `~/.opencode/plan/folio-production-readiness.md`)
-**Updated:** 2026-11-14
-**Status:** Phase 1 complete; **Step 2.0 (E2 reader refactor) complete**;
-**Step 2.1 (R1+R2+R3 search quality) complete**; **Step 2.2a (R4 back
-navigation core) complete**; **Step 2.2b (noteref footnote popover)
-complete** — in-frame capture-phase noteref interception (no injectables;
-frames are same-origin), zip-backed sanitized footnote extraction,
-FootnotePopover (Escape/outside/close dismiss, no navigation). Gates:
-`tsc -b` clean, ESLint 0/0, **Vitest 414 / 414
-(51 files)**, `prettier --check` clean, `vite build` green.
+**Session:** `S-20261113-01` — Production-readiness Phases 1–3: Phase 1,
+Phase 2 (Steps 2.0–2.7), and Phase 3 Steps 3.1–3.4 (async IPC + streaming
+bytes; import/open decompression once, 200 MB cap, streaming imports +
+per-file progress with Cancel, zip caps, additive positions cache; library
+list performance — batched meta/cover reads, meta cache, import thumbnails,
+sorts, windowed rows, incremental post-import patches; Rust streaming backup
+export/inspect) — plan at `~/.opencode/plan/folio-production-readiness.md`
+**Updated:** 2026-11-15
+**Status:** Phase 1 complete; Phase 2 complete (Steps 2.0–2.7); **Phase 3
+Steps 3.1, 3.2, 3.3 and 3.4 complete**. Gates: `tsc -b` clean, ESLint 0/0,
+**Vitest 489 / 489 (61 files)**, `prettier --check` clean, `vite build`
+green, `perf.ts` budgets pass, `cargo fmt --all -- --check` clean.
 **Phase 1 + Step 2.0 committed as `203f237` and pushed to `origin/main`
-(2026-11-13, user-authorized). Steps 2.1, 2.2a and 2.2b are uncommitted**
-pending authorization.
-Windows runtime verification (grant flows, full Tauri `cargo test`, installer,
-focus-mode/keyboard visual parity, webview search + back-navigation feel,
-noteref popover interaction) remains blocked.
+(2026-11-13, user-authorized). Steps 2.1–2.2b committed as `435102a`
+(2026-11-14, user-authorized; not yet pushed). Steps 2.3–2.7 and Phase 3
+Steps 3.1–3.4 are uncommitted** pending authorization.
+Windows runtime verification (grant flows, full Tauri `cargo test`
+including the new backup unit tests, installer, webview feel of the new
+list/refresh/backup surfaces, 200 MB import + cancel, cached second open,
+streaming backup round-trip) remains blocked.
+
+**Exact next action:** Step 3.5 (L4–L11 + N1–N2) — per-book ⋯ menu,
+List/Grid toggle + filter chips + Continue-reading shelf + badges, inline
+"New collection…" + real `<form>`s, labelled checkboxes/Shift-click/soft
+delete with Undo, search listbox a11y + React-node snippets (removes both
+`dangerouslySetInnerHTML` uses), "Apply to all remaining" for duplicate
+imports + recovery "Remove all", notes grouping/search/export, and N2
+(disable Open for missing docs).
+
+## Phase 3 · Steps 3.3 + 3.4 — completed this pass
+
+1. **Step 3.3a — batched reads + caches.** `mapWithConcurrency(8)` bounds
+   parallel meta/cover reads; the per-doc meta cache is keyed by the
+   manifest's per-doc `updatedAt` (a test pins the staleness semantics:
+   entries re-read only after the manifest reports a newer touch); covers
+   resolve through a stat-keyed cache plus one batched `fs_read_many` for
+   misses (`cache/cover-thumb.jpg` preferred, full cover fallback).
+   `LibraryFs`/Memory store gained `readMany`.
+2. **Step 3.3b — import thumbnails + sorts.** `makeCoverThumbnail`
+   (`src/import/cover.ts`) decodes with createImageBitmap + OffscreenCanvas
+   to a ≤160 px JPEG (q 0.82) and writes it best-effort as an unregistered
+   additive file after the addDoc commit point (importFile + replaceDoc).
+   All row sorts now live in `sortLibraryRows` (`src/lib/libraryView.ts`,
+   `{numeric: true, sensitivity: "base"}`): Recent activity (default),
+   Date added, Progress, Title, Author.
+3. **Step 3.3c — library screen rendering.** Covers use native
+   `loading="lazy" decoding="async"` (IntersectionObserver dropped);
+   rows virtualize only above 120 (`VIRTUAL_THRESHOLD`, row pitch measured
+   from the first two rows with spacers); post-import patch is
+   `refreshDocs(docIds)` + `lastImportedIds` highlight/scroll (6 s clear),
+   a full state load happens only when rows are empty, otherwise a subtle
+   `.folio-refresh-bar` (static under reduced motion) shows.
+4. **Step 3.4 — Rust streaming backup (S2).** New `backup_export` /
+   `backup_inspect` commands (`commands/backup.rs`, registered in
+   `generate_handler`): export walks the library and streams each file
+   into the destination ZIP one entry at a time — no archive-sized buffer
+   in the webview — excludes the derived index/`.tmp`/OS junk/stale
+   `backup.json`, writes a v2 `backup.json` (schema, manifest sha256,
+   counts), and verifies the archive after the write (reopen + entry
+   count + manifest checksum) before reporting success; progress via
+   `folio://backup-progress` every 16 entries (`spawn_blocking` +
+   `tauri::Emitter`). Inspect reads only the central directory + metadata
+   (`by_index_raw`): future schemas refused, legacy v1 warned, declared
+   counts/bytes reconciled against contents, manifest checksum
+   recomputed. `SettingsScreen` rewired: Tauri path uses the Rust
+   commands (progress listener with unlisten; restore inspects by path
+   and reads bytes only at restore-confirm via new `restorePath` state),
+   browser dev keeps the TS `createBackup`/`inspectBackup`; the message
+   element is `role="status"`. Five Rust unit tests cover the round-trip,
+   no-manifest refusal, legacy/no-checksum warnings, non-Folio +
+   future-schema rejection and sandbox confinement — they run on Windows
+   (the shell crate needs gtk3 to compile on Linux; `cargo fmt` clean
+   here).
+5. **Tests:** +8 this pass (`tests/libraryRefresh.test.ts`: 5 sort cases,
+   meta-cache staleness, `refreshDocs` patch, `activityAt` keys). Suites:
+   **489 / 489 (61 files)**; tsc, ESLint 0/0, Prettier, `vite build`
+   green; `perf.ts` budgets within limits.
+
+## Phase 3 · Steps 3.1 + 3.2 — completed earlier in Phase 3
+
+1. **Step 3.1 (E1) — async IPC, raw byte bodies.** All Tauri
+   fs/zip/hash commands are now `async` and hop to
+   `tauri::async_runtime::spawn_blocking`, so a 200 MB read never stalls the
+   IPC thread. `fs_read` returns `tauri::ipc::Response` — the frontend
+   receives an `ArrayBuffer` instead of a JSON byte array. `fs_write_atomic`
+   takes a single `tauri::ipc::Request`: raw `Uint8Array` body with the path
+   riding the `x-folio-path` header (verified against the installed
+   `@tauri-apps/api` v2 `InvokeArgs`/`InvokeOptions` docs). Temp files are
+   unique per write (`{p}.{pid}-{nanos}-{counter}.tmp`, `.tmp` suffix kept)
+   so concurrent writes can no longer rename each other's bytes. New
+   commands: `fs_dir_size` (recursive, `symlink_metadata` — no symlink
+   following) and `fs_read_many` (`Vec<Option<Vec<u8>>>`; missing → `None`,
+   sandbox-guard failure → hard error) registered in `generate_handler`.
+   TS call sites updated: `fileStore.ts`, `fileSource.ts` (2),
+   `QuoteCard.tsx`, `SettingsScreen.tsx`. Rust unit tests keep exercising
+   the sync inner bodies directly (the async wrappers only add the blocking
+   pool hop); `cargo fmt` clean, shell-crate compile deferred to Windows.
+2. **Step 3.2a — zip caps on the fflate side.** New
+   `src/import/zipLimits.ts`: `unzipLimited()` enforces 20,000 entries /
+   4 GiB total / 2 GiB per entry from the central-directory sizes fflate's
+   `filter` exposes — _before_ inflating anything (a cap tripping mid-walk
+   aborts without allocating the bomb). `parseEpub`, `assertImportable` and
+   the sync open path use it; `LazyZip` enforces the same caps in its
+   directory walk plus a per-entry cap on lazy reads. Rust `zip.rs` already
+   enforced byte-verified equivalents.
+3. **Step 3.2b — import limits + copy fixes.** Import cap raised to
+   **200 MB** with a size-stating message ("files over 200 MB can't be
+   imported"); the >50 MB detector test moved to 200 MB. Corrupt-file copy
+   fixed: a zip-magic file that won't inflate (or a non-epub zip) now says
+   "may be damaged" instead of wrongly blaming DRM; DRM copy is reserved
+   for encryption.xml/rights.xml refusals.
+4. **Step 3.2c — streaming imports + progress dialog with Cancel.**
+   `PickedFile` is now `{ name, size, read() }` — bytes are read lazily,
+   one file at a time, right before that file's pipeline runs, so a
+   multi-file pick never holds every book in memory. Tauri picks/drops
+   `fs_stat` each path up front; oversized picks are refused before any
+   read. `runImportBatch` reports `importProgress` state
+   (`{index, total, name}`); `LibraryScreen` renders a `FolioDialog` with a
+   `role="progressbar"` bar and a Cancel button; `cancelImport()` stops the
+   batch **after** the file in flight (manifest stays consistent) and the
+   summary toast notes "cancelled". The per-file busy toasts are gone.
+   Onboarding's `importFiles` moved to the new shape.
+5. **Step 3.2d — additive positions cache.** New
+   `src/store/positionsCache.ts`: per-doc `docs/<slug>/cache/positions.json`
+   (`{schema: 1, contentHash, positions}` — purely additive, no schema-1
+   field). `openEpubFromBytesAsync(bytes, onProgress, cache?)` loads through
+   `PositionsCacheHook`; a valid cache (schema + hash match, every locator
+   deserializes via `Locator.deserialize`) skips spine measurement
+   entirely, otherwise the fresh list is serialized with
+   `Locator.serialize()` and written fire-and-forget. Read/write failures
+   degrade to the pre-cache behaviour. Wired `createReadiumEngine` →
+   `useReaderEngine` (hooks built per doc from slug + manifest
+   `contentHash`, so a replaced book invalidates its cache).
+6. **Tests:** +2 this pass (`import.test.ts`: corrupt-copy assertion,
+   `unzipLimited` round-trip; setupFlow/toastAndImport mocks moved to the
+   `PickedFile` shape). Suites: **481 / 481 (60 files)**; tsc, ESLint 0/0,
+   Prettier, `vite build` green; `perf.ts` budgets within limits.
+
+## Phase 2 · Step 2.7 (R9, R6, R16, R11, R12) — completed this pass — Phase 2 complete
+
+1. **R9 — OS theme flip repaints the open book.** `ReaderEngine` gains
+   `setSystemDark(dark)`: `readiumEngine` records the flag and re-submits the
+   current prefs via `applyPrefs`, so a "system" reader theme resolves to the
+   other palette on the canvas (a guard skips no-change flips). The screen's
+   OS-theme `matchMedia` listener now calls it alongside its own re-theme.
+   Test in `tests/reader.test.ts`: submitPreferences called with the other
+   backgroundColor on flip, skipped on same flag, works on flip-back.
+2. **R6 — Share acts on the live selection.** `SelectionToolbar` gains
+   "Share as image" (opens the QuoteCard) and "Copy with citation" buttons.
+   The quote now follows the live selection: `handleEngineSelection` clears
+   `quoteSelection` when the selection ends, copy actions clear it, and the
+   doc-reset effect clears it too — Share can never act on stale text. New
+   pure helper `src/screens/reader/citation.ts` (`citationFor`): curly-quoted
+   text + em-dash + title (author optional). `tests/citationShare.test.tsx`:
+   citation formatting (author present/absent) + toolbar buttons wired.
+3. **R16 — one theme-aware highlight palette.** New
+   `src/reader/highlightPalette.ts`: light + dark solid tints per colour name
+   (`highlightCss(name, systemDark)`) plus the in-book search active-match
+   colour (`searchActiveCss(systemDark)`, replacing `useInBookSearch`'s fixed
+   `#FFD27F`). `decorationsFor(annotations, systemDark)` resolves through it;
+   `useAnnotations` repaints existing highlights on an OS theme flip (ref-
+   guarded so paint callbacks stay stable) and `useInBookSearch` repaints the
+   active match. Chrome-side `--folio-swatch-*` tokens intentionally
+   unchanged (chrome surfaces don't flip with the canvas reader theme; token
+   fixture untouched). `tests/highlightPalette.test.ts` (4): palette mapping,
+   dark ≠ light per colour, WCAG ≥4.5:1 between every tint and its theme's
+   page text on all four reader themes (light #FFF3B0/#CDE8C2/#BFDFF7/
+   #F8CFE0; dark #55481C/#1E4630/#1D3A52/#552A3C; active #FFD27F/#5A4010),
+   and `decorationsFor` threading the flag.
+4. **R11 — scrub & progress UX.** `ReaderDock`: slider scrubs in **0.1%**
+   pointer steps (keyboard nudges whole points with preventDefault so it
+   stays usable; commit-once semantics unchanged); chapter **ticks** over the
+   track from new `ReaderEngine.chapterMarks()` (per-spine-resource start
+   percents, cached, from the positions list; ReaderScreen maps them onto TOC
+   titles); scrub **tooltip** "55% · Chapter 2" while dragging (also in
+   aria-valuetext); **floor** percent labels (never claims 100% early);
+   **Finished** label replaces the percent at 100% (time pills hidden);
+   **per-chapter time** "≈ N min left in chapter" via `pace.minutesForFraction`
+   between the current chapter's start mark and the next; `formatTimeLeft`
+   now says "≈ 1 h 25 min left" beyond the hour. End-of-book: an auto-raised,
+   dismissible `FolioDialog` card ("You've finished this book") with
+   Back-to-start / Done, reset per doc load.
+5. **R12 — async open, lazy resources, progress-aware splash.**
+   `openEpubFromBytesAsync(bytes, onProgress)` replaces the synchronous
+   `openEpubFromBytes` in the engine's open path (the sync entry point stays
+   for tests and small books). Three pieces:
+   - **Lazy resource decompression**: `LazyZip` walks the central directory
+     once with a never-matching fflate filter to list entry names without
+     inflating anything, then decompresses each entry on first access
+     (`unzipSync` with a per-entry filter), cached. A `Proxy` over it exposes
+     the exact eager-map shape (`get`/`has`/`ownKeys`/descriptor traps), so
+     ZipFetcher's `Object.keys` and every `zipEntry` consumer are unchanged.
+     Entries never touched are never inflated.
+   - **Lazy/cached position generation**: `generatePositionsAsync` measures
+     spine resources in 4-resource chunks, yielding to the event loop between
+     chunks and reporting (done, total). Pure `positionsFromMeasured` is
+     shared with the sync path, so both produce identical lists (pinned by a
+     parity test).
+   - **Progress-aware splash**: `ReaderEngine.open(container, onProgress)`
+     reports `{ stage: "unpack" | "prepare", fraction }` — indeterminate
+     while the archive is walked, 0..1 while pages are prepared.
+     `useReaderEngine` holds `splashProgress` (cleared on success, error,
+     failsafe, retry) and `ReaderSplash` renders a thin bar: shimmering
+     "Unpacking book…" then "Preparing pages… N%" (aria-valuenow tracks).
+     The 8 s splash failsafe stays as the backstop; no blob Worker is used
+     because the app CSP (`script-src 'self'`) would block it.
+6. **Tests:** +7 this step: reader.test.ts (async open unpack→ascending
+   prepare progress, sync/async positions parity, lazy-zip map equality with
+   the eager map via `Object.keys`/entry bytes/`in`), splashProgress.test.tsx
+   (4: no bar before progress, indeterminate unpack, determinate percent,
+   error state excludes the bar). Suites: **479 / 479 (60 files)**, tsc,
+   ESLint 0/0, Prettier, `vite build` green.
+
+## Phase 2 · Step 2.6 (R13 keyboard model) — completed this pass
+
+1. **Letters ignore modifier combos** (`useReaderKeyboard.ts`): bare-letter
+   shortcuts (`t`, `m`, `f`, `?`) require no Ctrl/Meta/Alt — Shift is
+   allowed (`?` IS Shift+/, `F` covers shift typing), so Ctrl+T/Alt+M-style
+   browser and app combos no longer trigger reader actions. Intentional
+   combos keep working: Ctrl+F search, Ctrl+B bookmark, Ctrl+=/−/0.
+2. **Modal Escape moved into the modal stack**: the keyboard ladder dropped
+   its four dialog branches (shortcuts guide, session info, note editor,
+   quote card) — every one is a `FolioDialog`, which already self-closes on
+   Escape through `modalStack` (capture-phase, `stopPropagation`), so the
+   hook's window listener never sees those presses. The ladder now owns only
+   non-modal surfaces: Menu → context menu → Panel (incl. Search) →
+   Distraction-free → Selection. Four hook props removed as dead code.
+3. **New shortcuts**: `Ctrl+=`/`Ctrl+−`/`Ctrl+0` size the book's text
+   larger/smaller/reset (browser-zoom keys reclaimed via `preventDefault`;
+   per-book prefs patch through `handlePrefsChange` with a 1px step and a
+   size toast), and `[` / `]` step chapter by chapter in TOC order —
+   adjacent TOC entries sharing the chapter's href count as one stop,
+   `goToHref` navigation via `reportNavigation`.
+4. **Focus mode renamed "Distraction-free"**: More-menu label, exit pill
+   (`Exit Distraction-free`, aria/title), toast ("Exited distraction-free
+   mode.") and the shortcuts dialog entry.
+5. **KeyboardShortcutsDialog updated**: `[`/`]` chapters, Ctrl+=/−/0 text
+   size, renamed F entry — all shortcuts documented.
+6. **Tests:** new `keyboardModel.test.tsx` (6): bare letters fire, modified
+   letters ignored, Ctrl+F/unmodified-F split, text-size matrix (incl. bare
+   `=` and Alt+`-` no-ops), `[`/`]` stepping, Escape ladder tail + menu
+   branch. `shortcutsAndSession.test.tsx` renamed assertions. Suites:
+   **458 / 458 (57 files)**, tsc, ESLint 0/0, Prettier, `vite build` green.
+
+## Phase 2 · Step 2.5 (R8 single active panel) — completed this pass
+
+1. **One panel slot** (`useReaderChrome.ts`): `ReaderPanel` widened to
+   `"appearance" | "toc" | "search"` — a single state field means opening
+   one panel closes the other. `openPanel`/`togglePanel` now set the TOC
+   workspace tab only for `"toc"` (Appearance/Search don't touch it). The
+   separate `search` chrome hold is gone: search's open state lives in the
+   panel slot, so the `panel` hold pins the chrome for all three.
+2. **Search state is controlled** (`useInBookSearch.ts`): the hook takes
+   `open` + `onOpenChange` from the chrome instead of owning the flag —
+   `toggle`/`close`/`reset` route through `onOpenChange`, so Ctrl+F, the
+   toolbar button and Escape all close TOC/Appearance first. The keyboard
+   hook gets `toggleSearch` (Escape's search branch folded into the panel
+   branch). Verified no production loop: ReaderScreen passes stable
+   `engineRef`/`navRef` refs (an inline-ref harness in the new test looped
+   the debounce effect — test artifact, documented in the test).
+3. **`FolioPanel` `modal` prop**: non-modal renders no scrim, no
+   `aria-modal`, no focus steal or modal-stack slot; Escape closes it only
+   while `modalDepth() === 0` (a dialog opened from a docked panel wins).
+   TOC keeps modal behaviour; **Appearance and Search render non-modal
+   docked** — appearance changes are visible unobscured on the canvas, and
+   search matches can be clicked behind the panel.
+4. **Tests:** new `activePanel.test.tsx` (7): chrome slot exclusivity
+   (toc→search→appearance→toggle-off), controlled search open routing,
+   FolioPanel modal vs non-modal rendering, non-modal Escape semantics with
+   and without a modal on top. Suites: **452 / 452 (56 files)**, tsc,
+   ESLint 0/0, Prettier, `vite build` all green.
+
+## Phase 2 · Step 2.4 (R14 unify notifications) — completed this pass
+
+1. **Toast store is a stack** (`src/shell/toasts.ts`): `toasts: Toast[]`
+   replaces the single `toast` field — at most **3** visible at once, newest
+   last, evicting the **oldest non-error** (never the toast being pushed;
+   when everything else is an error the oldest falls off). `Toast.key?`
+   gives collision-safe replacement: pushing with an identical key replaces
+   the existing toast **in place** with a fresh id, so a stale auto-dismiss
+   timer can never kill the replacement. `dismiss(id?)` keeps the old
+   semantics (no id = dismiss all).
+2. **ToastHost renders the stack** (`src/components/ToastHost.tsx`): a
+   `.folio-toast-stack` container (fixed bottom-centre, column) holding up to
+   three `.folio-snackbar` children, which are now **static** (positioning
+   moved to the container; the keyframe lost its `translate(-50%)`). Errors
+   are `role="alert"`/`aria-live="assertive"`, everything else
+   `status`/`polite`. Success/info auto-dismiss after 4 s; error/busy persist.
+   **Hovering the stack or focusing anything inside it pauses the timers;
+   leaving resumes with a fresh 4 s window.**
+3. **ReaderScreen `navNotice` removed** (state, timer ref, cleanup effect,
+   standalone warn snackbar render block): `showNavNotice` keeps its name and
+   signature for the hooks (`useAnnotations`, `useReaderKeyboard`,
+   `useReaderChrome`) but now pushes a **keyed info toast**
+   (`key: message`) — the same message fired twice shows once. ReaderScreen
+   renders no snackbars of its own any more.
+4. **Tests:** new `toastStack.test.tsx` (10: stacking, cap-3 eviction
+   including the errors-only case, keyed replacement in place,
+   `dismiss(id?)`, host rendering with per-tone roles, error vs
+   auto-dismiss, hover/focus pause + resume with a fresh window, keyed
+   replacement restarting the window). Existing consumers migrated to
+   `.toasts`: `toastAndImport.test.tsx`, `errorLog.test.ts`,
+   `tour.test.tsx`, `notesScreen.test.tsx`, `annotationActions.test.tsx`
+   (Undo still verified end-to-end). Suites: **445 / 445 (55 files)**, tsc,
+   ESLint 0/0, Prettier, `vite build` all green.
+
+## Phase 2 · Step 2.3 (R5 interactive highlights) — completed this pass
+
+1. **Decoration activation wired end-to-end** (`readiumEngine.ts` +
+   `ReaderEngine.ts`): the engine registers a `DecorationObserver` on the
+   navigator's "highlights" group after load (registration itself switches
+   the toolkit's in-frame activation on; new frames replay the state on
+   connect, verified in the navigator dist). `onHighlightActivated(cb)` hands
+   the host `{id, group, x, y}` — comms coordinates are frame CSS px × DPR
+   (verified in the injectables' Decorator `handleActivation`), so the engine
+   divides by DPR and hit-tests `frameWindows` to resolve host-relative
+   coordinates even in a two-up spread. Returning true consumes the
+   activation, which also suppresses the navigator's follow-up click (no
+   accidental page turn).
+2. **No overlapping duplicates** (`src/screens/reader/annotationOverlap.ts`,
+   pure + tested): `toggleHighlight` now classifies the selection against
+   existing same-chapter highlights by quote containment — same colour
+   toggles the existing annotation off, a different colour recolours it in
+   place, only disjoint spans create. Bookmarks/notes never match.
+3. **AnnotationPopover** (`src/components/AnnotationPopover.tsx` +
+   reader.css): opened by clicking a painted highlight (annotation resolved
+   from `annotationsRef`, the E2 stale-closure pattern); shows quote (+note),
+   four colour swatches with the active one ringed (`aria-pressed`), and
+   Add/Edit note (reuses the existing note-editor dialog flow), Copy, and
+   Delete. Escape/outside-press/close dismiss; closes on the next reader
+   move; the reader position never changes.
+4. **Delete with Undo**: `deleteAnnotation` removes, repaints, and pushes a
+   toast whose Undo action re-adds the exact record (same id and timestamps)
+   then repaints. Uses the toast `action` field from 2.2a; R14 (Step 2.4)
+   will give Undo a longer-lived home — the plan's "needed before R5's Undo
+   ships" is satisfied by the action mechanism itself.
+5. **Toolbar shows the active colour**: `SelectionToolbar` takes
+   `activeColor` (the highlight the current selection overlaps); that swatch
+   is ringed + `aria-pressed`, and clicking it toggles the highlight off via
+   the overlap logic. `updateAnnotation` helper added for in-place updates.
+6. **Tests:** 5 `annotationOverlap.test.ts` groups (chapter readout, quote
+   containment, same-chapter matching, action classification), 7
+   `annotationPopover.test.tsx` (render, active swatch, note-less state,
+   dismissal), 6 `annotationActions.test.tsx` (hook-level: recolour/toggle/
+   create, delete + Undo restore with the exact record, failed delete, update)
+   against a mocked library manager. Suites: **435 / 435 (54 files)**, tsc,
+   ESLint 0/0, Prettier, `vite build` all green.
 
 ## Phase 2 · Step 2.2b (noteref footnote popover) — completed this pass
 
@@ -227,20 +555,26 @@ details?})` + `describeError()` in `errorLog.ts`; swept user-facing catches
 
 ## Exact next action
 
-1. Phase 2 **Step 2.3 (R5 interactive highlights)** per the plan
-   (`~/.opencode/plan/folio-production-readiness.md` lines ~148–166):
-   subscribe to decoration activation (DecorableNavigator) for highlight
-   popovers — change colour, note, copy, delete with Undo (uses the toast
-   `action` field from 2.2a).
+1. Phase 3 Steps 3.1–3.4 are **complete**. Next: **Phase 3 · Step 3.5
+   (L4–L11 + N1–N2)** per the plan
+   (`~/.opencode/plan/folio-production-readiness.md` ~line 246): per-book ⋯
+   menu, List/Grid toggle + filter chips + Continue-reading shelf + badges,
+   inline "New collection…" + real `<form>`s, labelled checkboxes /
+   Shift-click / soft delete with Undo, search listbox a11y + React-node
+   snippets (remove both `dangerouslySetInnerHTML`), "Apply to all
+   remaining" for duplicate imports + recovery "Remove all", notes
+   grouping/search/export, disable Open for missing docs (N2).
 2. Committing: Phase 1 + Step 2.0 are committed and pushed (`203f237`,
-   user-authorized). **Steps 2.1, 2.2a and 2.2b are uncommitted** — commit at
-   the next milestone with explicit authorization.
-3. Windows-only proof still pending after Phases 1–2.2b: real dialog/drop
-   grant flows, full `cargo test --all-targets` for the Tauri crate,
-   installer, focus-mode + keyboard visual parity, in-book search webview
-   feel, Alt+Left + Back toast in the webview, noteref popover interaction.
-
----
+   user-authorized). Steps 2.1–2.2b are committed as `435102a` (not yet
+   pushed). **Steps 2.3–2.7 and Phase 3 Steps 3.1–3.4 are uncommitted** —
+   commit under explicit authorization.
+3. Windows-only proof still pending through Phase 3.4: real dialog/drop
+   grant flows, full `cargo test --all-targets` for the Tauri crate
+   (including the 5 backup unit tests), installer, keyboard matrix +
+   distraction-free on a real webview, docked panels, popovers, toast
+   stack, highlight tints, scrub ticks/tooltip, end-of-book card, open
+   progress splash, async IPC on devices, 200 MB import + cancel, cached
+   second open, virtualized list feel, streaming backup round-trip.
 
 ## Previous checkpoint — `S-20261109-01`
 

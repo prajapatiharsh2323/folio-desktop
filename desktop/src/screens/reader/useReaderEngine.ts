@@ -9,6 +9,7 @@ import type { ReaderDoc } from "../../store/readerStore";
 import type { ReaderOpenRequest } from "../../store/routeStore";
 import type { ReadingPrefs, Annotation } from "../../model/types";
 import type {
+  HighlightActivation,
   NoterefActivation,
   ReaderEngine,
   ReaderLocator,
@@ -26,10 +27,12 @@ import { ProgressWriter } from "../../reader/progress";
 import { ReadingPaceStats, type PaceState } from "../../reader/pace";
 import { resumePlan } from "../../reader/resume";
 import { createReadiumEngine } from "../../reader/readiumEngine";
+import { positionsCacheFor } from "../../store/positionsCache";
 import type { KeepAwakeController } from "../../reader/keepAwake";
 import { openExternal } from "./launchExternal";
 import { planTarget } from "./resumeTargets";
 import type { SplashPhase } from "../../components/ReaderSplash";
+import type { EngineOpenProgress } from "../../reader/ReaderEngine";
 
 const SPLASH_FADE_MS = 300;
 const SPLASH_FAILSAFE_MS = 8000;
@@ -65,6 +68,12 @@ interface UseReaderEngineOptions {
    * a notice when null (extraction failed). The reader position is unchanged.
    */
   onNoterefActivation: (activation: NoterefActivation | null) => void;
+  /**
+   * Highlight decoration activation (R5). The screen opens the annotation
+   * popover; return true when the activation was consumed (an annotation
+   * matched the decoration id).
+   */
+  onHighlightActivation: (activation: HighlightActivation) => boolean;
   refreshAnnotations: (docId: string) => Promise<Annotation[]>;
   persistProgress: (snapshot: {
     location: string;
@@ -92,6 +101,7 @@ export function useReaderEngine({
   reportNavigation,
   onInternalLinkMoved,
   onNoterefActivation,
+  onHighlightActivation,
   refreshAnnotations,
   persistProgress,
 }: UseReaderEngineOptions) {
@@ -109,6 +119,8 @@ export function useReaderEngine({
   const docId = doc?.docId;
 
   const [splash, setSplash] = useState<SplashPhase>("loading");
+  /** R12: open progress for the splash bar ("Unpacking…" / "Preparing pages…"). */
+  const [splashProgress, setSplashProgress] = useState<EngineOpenProgress | null>(null);
   const [engineError, setEngineError] = useState<string | null>(null);
   const [locator, setLocator] = useState<ReaderLocator | null>(null);
   const [toc, setToc] = useState<TocEntry[]>([]);
@@ -145,6 +157,10 @@ export function useReaderEngine({
       epubBytes: doc.epubBytes,
       prefs: prefsRef.current,
       initial: target,
+      positionsCache: positionsCacheFor({
+        slug: doc.slug,
+        contentHash: doc.meta?.contentHash ?? "",
+      }),
     });
     engineRef.current = engine;
 
@@ -181,6 +197,7 @@ export function useReaderEngine({
 
     const failsafe = setTimeout(() => {
       if (cancelled || firstLocatorSeen) return;
+      setSplashProgress(null);
       setEngineError("This book is taking longer than expected to open.");
       setSplash("error");
     }, SPLASH_FAILSAFE_MS);
@@ -264,6 +281,10 @@ export function useReaderEngine({
     });
     // Noteref activations (R4 2.2b): open the footnote popover, never navigate.
     const offNoteref = engine.onNoteref((activation) => onNoterefActivation(activation));
+    // Highlight activations (R5): open the annotation popover at the point.
+    const offHighlight = engine.onHighlightActivated((activation) =>
+      onHighlightActivation(activation),
+    );
     const offPointer = engine.onPointerActivity(() => {
       const chrome = chromeRef.current;
       if (!chrome || isFocusModeRef.current) return;
@@ -277,8 +298,11 @@ export function useReaderEngine({
 
     void (async () => {
       try {
-        await engine.open(canvas);
+        await engine.open(canvas, (progress) => {
+          if (!cancelled) setSplashProgress(progress);
+        });
         if (cancelled) return;
+        setSplashProgress(null);
         setToc(engine.toc());
         try {
           await refreshAnnotations(doc.docId);
@@ -288,6 +312,7 @@ export function useReaderEngine({
       } catch (error) {
         if (cancelled) return;
         clearTimeout(failsafe);
+        setSplashProgress(null);
         setEngineError(error instanceof Error ? error.message : "This book can't be opened");
         setSplash("error");
       }
@@ -302,6 +327,7 @@ export function useReaderEngine({
       offLink();
       offInternalLink();
       offNoteref();
+      offHighlight();
       offPointer();
       offCtxMenu();
       void writer.flush();
@@ -334,6 +360,7 @@ export function useReaderEngine({
     reportNavigation,
     onInternalLinkMoved,
     onNoterefActivation,
+    onHighlightActivation,
     refreshAnnotations,
     persistProgress,
   ]);
@@ -342,6 +369,7 @@ export function useReaderEngine({
   const resetForRetry = useCallback(() => {
     setEngineError(null);
     setLocator(null);
+    setSplashProgress(null);
     setSplash("loading");
   }, []);
 
@@ -356,6 +384,7 @@ export function useReaderEngine({
     disposedRef,
     splash,
     setSplash,
+    splashProgress,
     engineError,
     setEngineError,
     locator,

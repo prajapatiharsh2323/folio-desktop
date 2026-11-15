@@ -87,17 +87,39 @@ describe("InBookSearchPanel", () => {
         results={[
           {
             chapterTitle: "Chapter 1",
-            snippetHtml: "It was <mark>Sherlock</mark> Holmes who spoke.",
+            snippet: {
+            head: false,
+            tail: false,
+            parts: [
+              { text: "It was ", mark: false },
+              { text: "Sherlock", mark: true },
+              { text: " Holmes who spoke.", mark: false },
+            ],
+          },
             locator: "text/ch1.xhtml#p4",
           },
           {
             chapterTitle: "Chapter 1",
-            snippetHtml: "<mark>Sherlock</mark> closed the door.",
+            snippet: {
+            head: false,
+            tail: false,
+            parts: [
+              { text: "Sherlock", mark: true },
+              { text: " closed the door.", mark: false },
+            ],
+          },
             locator: "text/ch1.xhtml#p7",
           },
           {
             chapterTitle: "Chapter 2",
-            snippetHtml: "<mark>Sherlock</mark> smiled.",
+            snippet: {
+            head: false,
+            tail: false,
+            parts: [
+              { text: "Sherlock", mark: true },
+              { text: " smiled.", mark: false },
+            ],
+          },
             locator: "text/ch2.xhtml#p1",
           },
         ]}
@@ -166,12 +188,27 @@ describe("InBookSearchPanel", () => {
         results={[
           {
             chapterTitle: "Chapter 1",
-            snippetHtml: "It was <mark>Sherlock</mark> Holmes who spoke.",
+            snippet: {
+            head: false,
+            tail: false,
+            parts: [
+              { text: "It was ", mark: false },
+              { text: "Sherlock", mark: true },
+              { text: " Holmes who spoke.", mark: false },
+            ],
+          },
             locator: "text/ch1.xhtml#p4",
           },
           {
             chapterTitle: "Chapter 1",
-            snippetHtml: "<mark>Sherlock</mark> closed the door.",
+            snippet: {
+            head: false,
+            tail: false,
+            parts: [
+              { text: "Sherlock", mark: true },
+              { text: " closed the door.", mark: false },
+            ],
+          },
             locator: "text/ch1.xhtml#p7",
           },
         ]}
@@ -217,7 +254,15 @@ describe("InBookSearchPanel", () => {
         results={[
           {
             chapterTitle: "Chapter 1",
-            snippetHtml: "It was <mark>Sherlock</mark> Holmes who spoke.",
+            snippet: {
+            head: false,
+            tail: false,
+            parts: [
+              { text: "It was ", mark: false },
+              { text: "Sherlock", mark: true },
+              { text: " Holmes who spoke.", mark: false },
+            ],
+          },
             locator: "text/ch1.xhtml#p4",
           },
         ]}

@@ -3,6 +3,15 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{Read, Write};
 
+/// E1: blocking archive work runs on the async runtime's blocking pool.
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| format!("archive task failed: {e}"))?
+}
+
 /// Defence-in-depth against zip bombs: entry count and total uncompressed
 /// bytes are capped per archive. The backup contract (05 §5) holds ~50 files
 /// of JSON plus books; 4 GiB total is far above any real library.
@@ -19,64 +28,70 @@ pub struct ZipEntry {
 }
 
 #[tauri::command]
-pub fn zip_read(path: String) -> Result<Vec<ZipEntry>, String> {
-    let p = guard_sandboxed(&path).map_err(|e| e.to_string())?;
-    let file = File::open(&p).map_err(|e| e.to_string())?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-    if archive.len() > MAX_ENTRIES {
-        return Err("Archive has too many entries".to_string());
-    }
-    let mut out = Vec::new();
-    let mut total: u64 = 0;
-    for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-        let name = entry.name().to_string();
-        let size = entry.size();
-        if size > MAX_ENTRY_UNCOMPRESSED {
-            return Err("Archive entry is too large to read".to_string());
+pub async fn zip_read(path: String) -> Result<Vec<ZipEntry>, String> {
+    blocking(move || {
+        let p = guard_sandboxed(&path).map_err(|e| e.to_string())?;
+        let file = File::open(&p).map_err(|e| e.to_string())?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+        if archive.len() > MAX_ENTRIES {
+            return Err("Archive has too many entries".to_string());
         }
-        total = total.saturating_add(size);
-        if total > MAX_TOTAL_UNCOMPRESSED {
-            return Err("Archive is too large to read".to_string());
-        }
-        let mut data = Vec::new();
-        // Bounded read: a header may lie about sizes, so enforce the cap on
-        // the bytes actually decompressed instead of trusting `entry.size()`.
-        let mut chunk = [0u8; 65536];
-        let mut entry_total: u64 = 0;
-        loop {
-            let n = entry.read(&mut chunk).map_err(|e| e.to_string())?;
-            if n == 0 {
-                break;
+        let mut out = Vec::new();
+        let mut total: u64 = 0;
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+            let name = entry.name().to_string();
+            let size = entry.size();
+            if size > MAX_ENTRY_UNCOMPRESSED {
+                return Err("Archive entry is too large to read".to_string());
             }
-            entry_total += n as u64;
-            total += n as u64;
-            if entry_total > MAX_ENTRY_UNCOMPRESSED || total > MAX_TOTAL_UNCOMPRESSED {
+            total = total.saturating_add(size);
+            if total > MAX_TOTAL_UNCOMPRESSED {
                 return Err("Archive is too large to read".to_string());
             }
-            data.extend_from_slice(&chunk[..n]);
+            let mut data = Vec::new();
+            // Bounded read: a header may lie about sizes, so enforce the cap on
+            // the bytes actually decompressed instead of trusting `entry.size()`.
+            let mut chunk = [0u8; 65536];
+            let mut entry_total: u64 = 0;
+            loop {
+                let n = entry.read(&mut chunk).map_err(|e| e.to_string())?;
+                if n == 0 {
+                    break;
+                }
+                entry_total += n as u64;
+                total += n as u64;
+                if entry_total > MAX_ENTRY_UNCOMPRESSED || total > MAX_TOTAL_UNCOMPRESSED {
+                    return Err("Archive is too large to read".to_string());
+                }
+                data.extend_from_slice(&chunk[..n]);
+            }
+            out.push(ZipEntry { name, data });
         }
-        out.push(ZipEntry { name, data });
-    }
-    Ok(out)
+        Ok(out)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn zip_write(path: String, entries: Vec<ZipEntry>) -> Result<(), String> {
-    let p = guard_sandboxed(&path).map_err(|e| e.to_string())?;
-    if let Some(parent) = p.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let file = File::create(&p).map_err(|e| e.to_string())?;
-    let mut zw = zip::ZipWriter::new(file);
-    let opts = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
-    for e in entries {
-        zw.start_file(&e.name, opts).map_err(|er| er.to_string())?;
-        zw.write_all(&e.data).map_err(|er| er.to_string())?;
-    }
-    zw.finish().map_err(|e| e.to_string())?;
-    Ok(())
+pub async fn zip_write(path: String, entries: Vec<ZipEntry>) -> Result<(), String> {
+    blocking(move || {
+        let p = guard_sandboxed(&path).map_err(|e| e.to_string())?;
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let file = File::create(&p).map_err(|e| e.to_string())?;
+        let mut zw = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        for e in entries {
+            zw.start_file(&e.name, opts).map_err(|er| er.to_string())?;
+            zw.write_all(&e.data).map_err(|er| er.to_string())?;
+        }
+        zw.finish().map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
 }
 
 #[cfg(test)]

@@ -96,7 +96,9 @@ export function QuoteCard({ open, onClose, quote, title, author }: QuoteCardProp
       if (isTauri()) {
         const path = await pickImageDestPath("quote.png");
         if (!path) return;
-        await invoke("fs_write_atomic", { path, data: Array.from(bytes) });
+        await invoke("fs_write_atomic", bytes, {
+          headers: { "x-folio-path": path },
+        });
         setStatus("Saved");
       } else {
         const url = URL.createObjectURL(blob);

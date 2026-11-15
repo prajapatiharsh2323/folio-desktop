@@ -13,25 +13,37 @@ const TINT_VARS = [
 
 export type SplashPhase = "loading" | "fading" | "done" | "error";
 
+/** Open progress for the splash bar (R12). */
+export interface SplashProgress {
+  stage: "unpack" | "prepare";
+  /** 0..1 when known; null = indeterminate. */
+  fraction: number | null;
+}
+
 interface ReaderSplashProps {
   phase: SplashPhase;
   title: string;
   author: string | null;
   coverUrl: string | null;
   tint: number;
+  /** R12: live open progress; null once the book is open or failed. */
+  progress: SplashProgress | null;
   errorMessage: string | null;
   onRetry: () => void;
   onBack: () => void;
 }
 
 /** Splash (04 §1/§11): themed canvas, cover or generated tint art, spinner.
- * Error state replaces the spinner with Retry / Back (04 §1 step 2, §11). */
+ * Error state replaces the spinner with Retry / Back (04 §1 step 2, §11).
+ * R12: while the book opens, a progress bar shows the stage — indeterminate
+ * while unpacking the archive, a determinate percent while preparing pages. */
 export function ReaderSplash({
   phase,
   title,
   author,
   coverUrl,
   tint,
+  progress,
   errorMessage,
   onRetry,
   onBack,
@@ -85,7 +97,39 @@ export function ReaderSplash({
             </div>
           </div>
         ) : (
-          <div className="folio-reader-spinner" role="progressbar" aria-label="Opening book" />
+          <>
+            <div className="folio-reader-spinner" role="progressbar" aria-label="Opening book" />
+            {phase === "loading" && progress && (
+              <div className="folio-reader-splash__progress">
+                <div
+                  className={`folio-reader-splash__progressbar${progress.fraction === null ? " is-indeterminate" : ""}`}
+                  style={
+                    progress.fraction === null
+                      ? undefined
+                      : ({
+                          "--folio-progress": `${Math.round(progress.fraction * 100)}%`,
+                        } as React.CSSProperties)
+                  }
+                  role="progressbar"
+                  aria-label={progress.stage === "unpack" ? "Unpacking book" : "Preparing pages"}
+                  aria-valuemin={progress.fraction === null ? undefined : 0}
+                  aria-valuemax={progress.fraction === null ? undefined : 100}
+                  aria-valuenow={
+                    progress.fraction === null ? undefined : Math.round(progress.fraction * 100)
+                  }
+                >
+                  <span className="folio-reader-splash__progressfill" />
+                </div>
+                <span className="folio-reader-splash__progresslabel">
+                  {progress.stage === "unpack"
+                    ? "Unpacking book…"
+                    : progress.fraction === null
+                      ? "Preparing pages…"
+                      : `Preparing pages… ${Math.round(progress.fraction * 100)}%`}
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

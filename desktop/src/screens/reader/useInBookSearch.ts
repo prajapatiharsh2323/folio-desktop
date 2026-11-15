@@ -7,22 +7,35 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { ReaderEngine, SearchHit } from "../../reader/ReaderEngine";
 import type { ReaderNavigationCoordinator } from "../../reader/navigation";
 import { withAnchor } from "../../reader/locatorCodec";
+import { searchActiveCss } from "../../reader/highlightPalette";
 import { handleError } from "../../lib/errorLog";
 
 export type InBookSearchHit = SearchHit;
 
-/** Distinct fill for the match the panel is currently on. */
-const ACTIVE_COLOR = "#FFD27F";
 const ACTIVE_ID = "folio-search-active";
 
 interface UseInBookSearchOptions {
   engineRef: RefObject<ReaderEngine | null>;
   navRef: RefObject<ReaderNavigationCoordinator | null>;
+  /**
+   * Panel visibility is owned by the chrome's single panel slot (R8):
+   * `open` is controlled, `onOpenChange` routes open/close through the
+   * chrome so search, TOC and Appearance stay mutually exclusive.
+   */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** OS dark flag (R16): the active-match tint resolves per theme. */
+  systemDark: boolean;
 }
 
 /** Debounced in-book search lifecycle. */
-export function useInBookSearch({ engineRef, navRef }: UseInBookSearchOptions) {
-  const [inbookSearchOpen, setInbookSearchOpen] = useState(false);
+export function useInBookSearch({
+  engineRef,
+  navRef,
+  open,
+  onOpenChange,
+  systemDark,
+}: UseInBookSearchOptions) {
   const [inbookQuery, setInbookQuery] = useState("");
   const [inbookSearching, setInbookSearching] = useState(false);
   const [inbookError, setInbookError] = useState<string | null>(null);
@@ -34,12 +47,19 @@ export function useInBookSearch({ engineRef, navRef }: UseInBookSearchOptions) {
   resultsRef.current = inbookResults;
   /** Mirror of activeIndex so move()/select() stay pure w.r.t. React state. */
   const activeIndexRef = useRef(-1);
+  // Read through a ref so paintActive stays referentially stable (a theme
+  // flip must not re-run the debounced search effect).
+  const systemDarkRef = useRef(systemDark);
+  systemDarkRef.current = systemDark;
+  /** The hit currently painted as active, for repaints on theme flips (R16). */
+  const activeHitRef = useRef<InBookSearchHit | null>(null);
 
   /** Paint the active match; a skipped locator means no wrong-place highlight. */
   const paintActive = useCallback(
     async (hit: InBookSearchHit | null) => {
       const engine = engineRef.current;
       if (!engine) return;
+      activeHitRef.current = hit;
       try {
         if (hit?.anchor?.quote) {
           await engine.applyDecorations(
@@ -48,13 +68,14 @@ export function useInBookSearch({ engineRef, navRef }: UseInBookSearchOptions) {
                 id: ACTIVE_ID,
                 locator: withAnchor(hit.locator, hit.anchor),
                 style: "highlight",
-                color: ACTIVE_COLOR,
+                color: searchActiveCss(systemDarkRef.current),
                 group: "search",
               },
             ],
             "search",
           );
         } else {
+          activeHitRef.current = null;
           await engine.applyDecorations([], "search");
         }
       } catch (error) {
@@ -65,9 +86,17 @@ export function useInBookSearch({ engineRef, navRef }: UseInBookSearchOptions) {
     [engineRef],
   );
 
+  // R16: an OS theme flip repaints the active match in the other palette.
+  const lastDarkRef = useRef(systemDark);
+  useEffect(() => {
+    if (lastDarkRef.current === systemDark) return;
+    lastDarkRef.current = systemDark;
+    void paintActive(activeHitRef.current);
+  }, [systemDark, paintActive]);
+
   // Debounced in-book text search. Two characters minimum (R2).
   useEffect(() => {
-    if (!inbookSearchOpen) return;
+    if (!open) return;
     if (inbookTimerRef.current) clearTimeout(inbookTimerRef.current);
     if (inbookQuery.trim().length < 2) {
       setInbookResults([]);
@@ -110,23 +139,24 @@ export function useInBookSearch({ engineRef, navRef }: UseInBookSearchOptions) {
     return () => {
       if (inbookTimerRef.current) clearTimeout(inbookTimerRef.current);
     };
-  }, [inbookQuery, inbookSearchOpen, engineRef, paintActive]);
+  }, [inbookQuery, open, engineRef, paintActive]);
 
   /** Close paths (toggle, Escape, close button, doc reset) clear the active
    *  decoration; a single effect keeps that true regardless of caller. */
   useEffect(() => {
-    if (!inbookSearchOpen) void paintActive(null);
-  }, [inbookSearchOpen, paintActive]);
+    if (!open) void paintActive(null);
+  }, [open, paintActive]);
 
-  /** Ctrl+F: open (or close) the panel; opening focuses the field. */
+  /** Ctrl+F / toolbar search button: open (or close) the panel via the
+   *  chrome's single panel slot (R8); opening focuses the field. */
   const toggle = useCallback(() => {
-    setInbookSearchOpen((open) => !open);
-  }, []);
+    onOpenChange(!open);
+  }, [onOpenChange, open]);
 
   /** Escape / close button: close the panel (decoration cleared by the effect). */
   const close = useCallback(() => {
-    setInbookSearchOpen(false);
-  }, []);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   /** Clear the field and results but keep the panel open (panel Clear button). */
   const clear = useCallback(() => {
@@ -140,7 +170,7 @@ export function useInBookSearch({ engineRef, navRef }: UseInBookSearchOptions) {
 
   /** Clear results and reset the query (used when the doc changes). */
   const reset = useCallback(() => {
-    setInbookSearchOpen(false);
+    onOpenChange(false);
     setInbookQuery("");
     setInbookResults([]);
     setInbookSearching(false);
@@ -148,7 +178,7 @@ export function useInBookSearch({ engineRef, navRef }: UseInBookSearchOptions) {
     activeIndexRef.current = -1;
     setActiveIndex(-1);
     void paintActive(null);
-  }, [paintActive]);
+  }, [onOpenChange, paintActive]);
 
   /**
    * Navigate to a hit (result click or Next/Prev): lands on the chapter, then
@@ -198,13 +228,12 @@ export function useInBookSearch({ engineRef, navRef }: UseInBookSearchOptions) {
   const movePrev = useCallback(() => void move(-1), [move]);
 
   return {
-    open: inbookSearchOpen,
+    open,
     query: inbookQuery,
     searching: inbookSearching,
     error: inbookError,
     results: inbookResults,
     activeIndex,
-    setOpen: setInbookSearchOpen as Dispatch<SetStateAction<boolean>>,
     setQuery: setInbookQuery as Dispatch<SetStateAction<string>>,
     toggle,
     clear,

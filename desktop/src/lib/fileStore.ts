@@ -14,6 +14,8 @@ export interface Stat {
 export interface FileStore {
   readText(path: string): Promise<string>;
   readBytes(path: string): Promise<Uint8Array>;
+  /** Batched reads (E1/L1): one round trip per call, missing → null. */
+  readMany(paths: string[]): Promise<(Uint8Array | null)[]>;
   writeTextAtomic(path: string, data: string): Promise<void>;
   writeBytesAtomic(path: string, data: Uint8Array): Promise<void>;
   /** Rename a file or directory tree (same volume). */
@@ -55,6 +57,16 @@ export class MemoryFileStore implements FileStore {
       const node = this.nodes.get(n);
       if (!node || node.isDir) throw new Error(`ENOENT: ${path}`);
       return new Uint8Array(node.data);
+    });
+  }
+
+  async readMany(paths: string[]): Promise<(Uint8Array | null)[]> {
+    return globalMutex.run(paths.join("|"), async () => {
+      return paths.map((p) => {
+        const node = this.nodes.get(this.norm(p));
+        if (!node || node.isDir) return null;
+        return new Uint8Array(node.data);
+      });
     });
   }
 
@@ -169,16 +181,26 @@ export class TauriFileStore implements FileStore {
   }
   async readBytes(path: string): Promise<Uint8Array> {
     return globalMutex.run(path, async () => {
-      const arr = await invoke<number[]>("fs_read", { path });
-      return new Uint8Array(arr);
+      // E1: fs_read answers with a raw IPC body (ArrayBuffer), not JSON.
+      const buf = await invoke<ArrayBuffer>("fs_read", { path });
+      return new Uint8Array(buf);
     });
+  }
+  async readMany(paths: string[]): Promise<(Uint8Array | null)[]> {
+    // L1: one IPC round trip for the batch; missing files come back null.
+    const out = await invoke<(ArrayBuffer | null)[]>("fs_read_many", { paths });
+    return out.map((b) => (b === null ? null : new Uint8Array(b)));
   }
   async writeTextAtomic(path: string, data: string): Promise<void> {
     await this.writeBytesAtomic(path, new TextEncoder().encode(data));
   }
   async writeBytesAtomic(path: string, data: Uint8Array): Promise<void> {
     await globalMutex.run(path, async () => {
-      await invoke("fs_write_atomic", { path, data: Array.from(data) });
+      // E1: raw request body — the path rides a header so the payload stays
+      // binary instead of a JSON byte array.
+      await invoke("fs_write_atomic", new Uint8Array(data), {
+        headers: { "x-folio-path": path },
+      });
     });
   }
   async move(from: string, to: string): Promise<void> {

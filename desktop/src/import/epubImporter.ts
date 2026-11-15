@@ -1,7 +1,8 @@
 // EPUB import: container.xml → OPF → spine order → per-spine-item plain text;
 // cover from properties="cover-image" (EPUB3) or EPUB2 meta heuristic (02 §6).
-import { unzipSync, strFromU8 } from "fflate";
+import { strFromU8 } from "fflate";
 import { textFromHtml } from "./sanitize";
+import { unzipLimited } from "./zipLimits";
 
 export interface EpubChapterText {
   id: string;
@@ -24,7 +25,7 @@ function esc(s: string): string {
 }
 
 export function parseEpub(bytes: Uint8Array): EpubParseResult {
-  const zip = unzipSync(bytes);
+  const zip = unzipLimited(bytes) as Record<string, Uint8Array>;
   const container = new DOMParser().parseFromString(
     strFromU8(zip["META-INF/container.xml"]),
     "application/xml",

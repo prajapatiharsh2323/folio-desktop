@@ -11,6 +11,12 @@ export interface ReaderChromeProps {
   /** 0..100 total progression */
   percent: number;
   timeLeft: string | null;
+  /** R11: per-chapter remaining-time pill, when pace data allows. */
+  chapterTimeLeft: string | null;
+  /** R11: chapter start marks for slider ticks + scrub tooltip. */
+  chapterMarks: { percent: number; title: string }[];
+  /** R11: reading position reached the end of the book. */
+  finished: boolean;
   /** value while dragging the scrubber, otherwise null */
   scrubValue: number | null;
   /** an absolute navigation is resolving */
@@ -55,6 +61,9 @@ export function ReaderChrome({
   chapterTitle,
   percent,
   timeLeft,
+  chapterTimeLeft,
+  chapterMarks,
+  finished,
   scrubValue,
   seeking,
   bookmarked,
@@ -207,7 +216,7 @@ export function ReaderChrome({
                       }}
                     >
                       <FolioIcons.Focus size="sm" />
-                      <span className="folio-reader-menu__label">Focus mode</span>
+                      <span className="folio-reader-menu__label">Distraction-free</span>
                       <kbd className="folio-reader-menu__hint" aria-hidden="true">
                         F
                       </kbd>
@@ -289,6 +298,9 @@ export function ReaderChrome({
           chapterTitle={chapterTitle}
           percent={percent}
           timeLeft={timeLeft}
+          chapterTimeLeft={chapterTimeLeft}
+          chapterMarks={chapterMarks}
+          finished={finished}
           scrubValue={scrubValue}
           seeking={seeking}
           onPrevious={onPrevious}
@@ -299,18 +311,18 @@ export function ReaderChrome({
         />
       </div>
 
-      {/* Focus Mode Exit Pill */}
+      {/* Distraction-free Exit Pill */}
       {isFocusMode && onFocusMode && (
         <div className="folio-reader-focus-exit">
           <button
             type="button"
             className="folio-reader-focus-exit__btn"
             onClick={onFocusMode}
-            aria-label="Exit Focus Mode (Esc or F)"
-            title="Exit Focus Mode (Esc)"
+            aria-label="Exit distraction-free mode (Esc or F)"
+            title="Exit distraction-free mode (Esc)"
           >
             <FolioIcons.Focus size="sm" />
-            <span>Exit Focus Mode</span>
+            <span>Exit Distraction-free</span>
             <kbd className="folio-reader-focus-exit__kbd">Esc</kbd>
           </button>
         </div>

@@ -8,7 +8,14 @@ import { libraryLayout as L } from "../lib/libraryPaths";
 import { ManifestRepo } from "./repos";
 import { DocMetaRepo } from "./docMetaRepo";
 import { AnnotationsRepo, CollectionsRepo, PrefsRepo, ProgressRepo } from "./repos";
-import type { Collection, DocMeta, Manifest, ManifestDoc, ManifestFile } from "../model/types";
+import type {
+  Collection,
+  DocKind,
+  DocMeta,
+  Manifest,
+  ManifestDoc,
+  ManifestFile,
+} from "../model/types";
 import { newUuid, nowIso, resolveSlugConflict, slugify } from "../model/ids";
 import { runExclusive } from "../lib/writeLock";
 import { sha256Hex } from "../lib/sha256";
@@ -123,6 +130,36 @@ export class LibraryManager {
         manifest.docs = manifest.docs.filter((d) => d.id !== docId);
         await this.manifest.write(manifest);
       }
+    });
+  }
+
+  /**
+   * L4: edit details (title/author/kind/tags) through one sticky mutator.
+   * meta.json is rewritten first and the manifest LAST (commit point), so a
+   * crash can never leave a manifest entry carrying details meta.json lost.
+   * The manifest row's title/updatedAt follow the meta edit.
+   */
+  async updateMeta(
+    docId: string,
+    patch: { title?: string; author?: string | null; tags?: string[]; kind?: DocKind },
+  ): Promise<void> {
+    return runExclusive(async () => {
+      const manifest = await this.manifest.read();
+      if (!manifest) throw new Error("library has no manifest");
+      const doc = manifest.docs.find((d) => d.id === docId);
+      if (!doc) throw new Error(`doc not found in manifest: ${docId}`);
+      const meta = await this.meta.read(doc.slug);
+      if (!meta) throw new Error(`meta.json is missing for slug: ${doc.slug}`);
+      if (patch.title !== undefined) {
+        meta.title = patch.title;
+        doc.title = patch.title;
+      }
+      if (patch.author !== undefined) meta.author = patch.author;
+      if (patch.tags !== undefined) meta.tags = patch.tags;
+      if (patch.kind !== undefined) meta.kind = patch.kind;
+      doc.updatedAt = nowIso();
+      await this.meta.write(doc.slug, meta);
+      await this.manifest.write(manifest);
     });
   }
 

@@ -1,31 +1,57 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { FolioIcons } from "./FolioIcons";
-import { useToasts } from "../shell/toasts";
+import { useToasts, type Toast } from "../shell/toasts";
 
-const SUCCESS_MS = 4000;
+const AUTO_DISMISS_MS = 4000;
 
 /**
- * One global message at a time. Success disappears after 4 s; errors stay
- * until dismissed (or replaced) so a failed import cannot vanish unread.
- * Busy messages stay for the duration of the operation.
+ * The global message stack (R14): up to three snackbars, newest last.
+ * Success and info messages auto-dismiss after 4 s; errors and busy messages
+ * stay until dismissed so a failure cannot vanish unread. Hovering the stack
+ * or focusing anything inside it pauses the timers; leaving resumes them
+ * with a fresh window.
  */
 export function ToastHost() {
-  const toast = useToasts((s) => s.toast);
+  const toasts = useToasts((s) => s.toasts);
   const dismiss = useToasts((s) => s.dismiss);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
-    if (!toast) return;
-    if (toast.tone === "busy" || toast.tone === "error") return;
-    const id = toast.id;
-    const timer = setTimeout(() => dismiss(id), SUCCESS_MS);
+    if (paused || toasts.length === 0) return;
+    const autoIds = toasts
+      .filter((t) => t.tone === "success" || t.tone === "info")
+      .map((t) => t.id);
+    if (autoIds.length === 0) return;
+    // One window for the whole stack: pausing cancels it, resuming (or any
+    // change to the stack) restarts the full duration.
+    const timer = setTimeout(() => {
+      autoIds.forEach((id) => dismiss(id));
+    }, AUTO_DISMISS_MS);
     return () => clearTimeout(timer);
-  }, [toast, dismiss]);
+  }, [toasts, paused, dismiss]);
 
-  if (!toast) return null;
+  if (toasts.length === 0) return null;
 
+  return (
+    <div
+      className="folio-toast-stack"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPaused(false);
+      }}
+    >
+      {toasts.map((toast) => (
+        <Snackbar key={toast.id} toast={toast} dismiss={dismiss} />
+      ))}
+    </div>
+  );
+}
+
+function Snackbar({ toast, dismiss }: { toast: Toast; dismiss: (id?: string) => void }) {
   const isError = toast.tone === "error";
   const role = isError ? "alert" : "status";
-
   return (
     <div
       className={`folio-snackbar folio-snackbar--${toast.tone}`}

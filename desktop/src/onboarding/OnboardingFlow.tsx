@@ -4,7 +4,12 @@ import { FolioRadioGroup } from "../components/FolioRadioGroup";
 import { trapTabKey } from "../components/focusTrap";
 import { READER_THEME_COLORS } from "../model/defaults";
 import type { FontFamilyPref, ReadingPrefs } from "../model/types";
-import { filesFromDataTransfer, onDroppedFiles, pickImportFiles } from "../lib/fileSource";
+import {
+  filesFromDataTransfer,
+  onDroppedFiles,
+  pickImportFiles,
+  type PickedFile,
+} from "../lib/fileSource";
 import { getLibraryManager, useLibraryUi } from "../store/libraryUi";
 import { useRouteStore } from "../store/routeStore";
 import { previewTheme, useThemeStore, type ThemeSetting } from "../theme/theme";
@@ -366,7 +371,7 @@ function AddBookStep() {
   }, [completeSetup, setRoute]);
 
   const importFiles = useCallback(
-    async (files: { name: string; bytes: Uint8Array }[]) => {
+    async (files: PickedFile[]) => {
       if (files.length === 0 || busy) return;
       setBusy(true);
       setError(null);

@@ -15,7 +15,9 @@ import type { NavigationOutcome } from "../../reader/navigation";
 /** Bottom hover band that reveals the dock (07 §2). */
 const DOCK_REVEAL_ZONE_PX = 56;
 
-export type ReaderPanel = "appearance" | "toc";
+/** Single active panel (R8): TOC (modal), Appearance and Search (docked,
+ * non-modal). Opening one closes the other — one state field, one slot. */
+export type ReaderPanel = "appearance" | "toc" | "search";
 
 interface UseReaderChromeOptions {
   docId: string | undefined;
@@ -68,12 +70,13 @@ export function useReaderChrome({
   const openPanel = useCallback(
     (next: ReaderPanel) => {
       // Opening a panel is reading activity: break the pace session and pin
-      // the chrome up while the user works in the panel (07 §2).
+      // the chrome up while the user works in the panel (07 §2). One panel
+      // at a time: assigning over the previous value closes it (R8).
       paceRef.current?.breakSession(Date.now());
       chromeRef.current?.onActivity();
       setChromeVisible(true);
       setPanelState(next);
-      setWorkspaceTab("contents");
+      if (next === "toc") setWorkspaceTab("contents");
     },
     [paceRef, chromeRef, setChromeVisible],
   );
@@ -85,7 +88,7 @@ export function useReaderChrome({
     (next: ReaderPanel) => {
       chromeRef.current?.onActivity();
       setChromeVisible(true);
-      setWorkspaceTab("contents");
+      if (next === "toc") setWorkspaceTab("contents");
       setPanelState((current) => (current === next ? null : next));
     },
     [chromeRef, setChromeVisible],
@@ -126,7 +129,6 @@ export function useReaderChrome({
     sync("menu", menuOpen || external.get("menu") === true);
     sync("panel", panel !== null);
     sync("dialog", external.get("dialog") === true);
-    sync("search", external.get("search") === true);
     sync("selection", external.get("selection") === true);
     setChromeVisible(chrome.visible);
   }, [menuOpen, panel, holds, chromeRef, setChromeVisible]);

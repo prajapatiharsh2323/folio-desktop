@@ -1,6 +1,7 @@
 // Reader engine seam (prompt-pack tip #4): everything above this interface is
 // engine-agnostic, so a future engine swap doesn't reopen the app.
 import type { ReadingPrefs } from "../model/types";
+import type { SnippetParts } from "../search/occurrences";
 
 export interface ReaderLocator {
   /** CFI string (epubcfi(...)) when the engine provides one, else chapter href */
@@ -48,7 +49,8 @@ export interface SearchAnchor {
 
 export interface SearchHit {
   chapterTitle: string;
-  snippetHtml: string;
+  /** L9: structured snippet — the panel renders `<mark>` React nodes. */
+  snippet: SnippetParts;
   /** chapter href for the landing jump */
   locator: string;
   /** text anchor so the second-step jump lands on the match, not the chapter start */
@@ -86,12 +88,35 @@ export interface NoterefActivation {
   source: string;
 }
 
+/**
+ * A highlight decoration was clicked in the frame (R5). `id` is the
+ * annotation id for the "highlights" group; the point is host-relative CSS px.
+ */
+export interface HighlightActivation {
+  id: string;
+  group: string;
+  x: number;
+  y: number;
+}
+
+/** Progress while a book opens (R12), for the splash bar. */
+export interface EngineOpenProgress {
+  stage: "unpack" | "prepare";
+  /** 0..1 when known; null = indeterminate (unpack stage). */
+  fraction: number | null;
+}
+
 export interface ReaderEngine {
   /** Resolve and mount the publication. Rejects on parse failure (04 §1 step 2). */
-  open(container: HTMLElement): Promise<void>;
+  open(container: HTMLElement, onProgress?: (progress: EngineOpenProgress) => void): Promise<void>;
   destroy(): Promise<void>;
   /** Apply ReadingPrefs to the canvas. */
   applyPrefs(prefs: ReadingPrefs): Promise<void>;
+  /**
+   * OS dark-mode flag changed (R9): repaint "system" reader themes by
+   * re-submitting the current prefs with the resolved system colours.
+   */
+  setSystemDark(dark: boolean): Promise<void>;
   go(locator: string | { percent: number }, animated?: boolean): Promise<boolean>;
   goForward(): Promise<boolean>;
   goBackward(): Promise<boolean>;
@@ -99,6 +124,11 @@ export interface ReaderEngine {
   currentLocator(): ReaderLocator | null;
   /** 0..1 positions list for fraction recompute (resume cascade fallback). */
   totalProgression(): number | null;
+  /**
+   * Start percent (0..100) of each spine resource in reading order (R11):
+   * progress-slider chapter ticks and scrub tooltips. Empty until open().
+   */
+  chapterMarks(): { href: string; percent: number }[];
   /** Paint highlights/underlines; group per mobile. Passing a group replaces
    *  only that group's decorations (annotations: "highlights", search: "search"). */
   applyDecorations(decorations: DecorationSpec[], group?: string): Promise<void>;
@@ -125,6 +155,12 @@ export interface ReaderEngine {
    * position is host-relative CSS px for the popover.
    */
   onNoteref(cb: (activation: NoterefActivation | null) => void): () => void;
+  /**
+   * Highlight decoration activation (R5). Fired when the reader clicks a
+   * painted highlight in the "highlights" group; return true when the host
+   * consumed it (opens the annotation popover).
+   */
+  onHighlightActivated(cb: (activation: HighlightActivation) => boolean): () => void;
   /** Click events in the spine frame; return true when consumed. */
   onClick(cb: (info: ReaderClickInfo) => boolean): () => void;
   /** Right-click in the spine frame (native menu is suppressed by the

@@ -120,7 +120,9 @@ beforeEach(() => {
     failures: [],
     title: "Dune",
   });
-  h.pickImportFiles.mockResolvedValue([{ name: "dune.epub", bytes: new Uint8Array([1]) }]);
+  h.pickImportFiles.mockResolvedValue([
+    { name: "dune.epub", size: 1, read: async () => new Uint8Array([1]) },
+  ]);
   useThemeStore.setState({ setting: "system" });
   useRouteStore.setState({ route: "library", readerRequest: null, readerOrigin: null });
 });
@@ -234,7 +236,7 @@ describe("setup — step 2 (library)", () => {
     });
 
     expect(h.importPicked).toHaveBeenCalledWith([
-      { name: "dune.epub", bytes: new Uint8Array([1]) },
+      { name: "dune.epub", size: 1, read: expect.any(Function) },
     ]);
     expect(container!.querySelector("[role='status']")?.textContent).toBe("Dune");
 

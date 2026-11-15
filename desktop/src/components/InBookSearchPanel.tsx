@@ -2,10 +2,11 @@ import { useState } from "react";
 import { FolioPanel } from "./FolioPanel";
 import { FolioIcons } from "./FolioIcons";
 import { handleError } from "../lib/errorLog";
+import type { SnippetParts } from "../search/occurrences";
 
 interface SearchHit {
   chapterTitle: string;
-  snippetHtml: string;
+  snippet: SnippetParts;
   locator: string;
 }
 
@@ -105,7 +106,7 @@ export function InBookSearchPanel({
   const current = activeIndex >= 0 && activeIndex < results.length ? activeIndex + 1 : null;
 
   return (
-    <FolioPanel open={open} onClose={onClose} title="Search in Book" width={400}>
+    <FolioPanel open={open} onClose={onClose} title="Search in Book" width={400} modal={false}>
       <div className="folio-inbook-search-panel">
         {/* Search input header */}
         <div className="folio-inbook-search-panel__field">
@@ -244,10 +245,18 @@ export function InBookSearchPanel({
                       disabled={resolvingIndex !== null}
                       onClick={() => void handleSelect(hit, index)}
                     >
-                      <div
-                        className="folio-inbook-search-panel__snippet"
-                        dangerouslySetInnerHTML={{ __html: hit.snippetHtml }}
-                      />
+                      {/* L9: structured snippet — real React nodes, no raw HTML. */}
+                      <div className="folio-inbook-search-panel__snippet">
+                        {hit.snippet.head ? "…" : null}
+                        {hit.snippet.parts.map((p, i) =>
+                          p.mark ? (
+                            <mark key={i}>{p.text}</mark>
+                          ) : (
+                            <span key={i}>{p.text}</span>
+                          ),
+                        )}
+                        {hit.snippet.tail ? "…" : null}
+                      </div>
                       {isResolving && (
                         <div className="folio-inbook-search-panel__resolving">
                           <span>Navigating…</span>

@@ -81,6 +81,8 @@ export function SettingsScreen() {
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreMode, setRestoreMode] = useState<"merge" | "replace">("merge");
   const [restoreFile, setRestoreFile] = useState<Uint8Array | null>(null);
+  /** S2: Tauri keeps the picked path and reads the bytes only on restore. */
+  const [restorePath, setRestorePath] = useState<string | null>(null);
   const [restoreSummary, setRestoreSummary] = useState<BackupSummary | null>(null);
   const [restorePhase, setRestorePhase] = useState<RestorePhase | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
@@ -185,21 +187,47 @@ export function SettingsScreen() {
     setBusy(true);
     setMessage(null);
     try {
-      const bytes = await createBackup(getLibraryFs(), LIBRARY_ROOT);
       if (isTauri()) {
-        // The Rust command grants the picked path; fs_write_atomic accepts it.
+        // S2: the Rust command streams the library into the destination ZIP —
+        // no archive-sized buffer in the webview — verifies the archive after
+        // the write, and reports progress via folio://backup-progress.
         const path = await pickBackupDestPath("folio-backup.zip");
         if (!path) return;
-        await invoke("fs_write_atomic", { path, data: Array.from(bytes) });
+        let unlisten: (() => void) | undefined;
+        try {
+          const { listen } = await import("@tauri-apps/api/event");
+          unlisten = await listen<{ done: number; total: number }>(
+            "folio://backup-progress",
+            (event) => {
+              const p = event.payload;
+              if (p && p.total > 0 && p.done < p.total) {
+                setMessage(`Backing up… ${p.done} of ${p.total} files`);
+              }
+            },
+          );
+        } catch {
+          /* progress display is best-effort; export proceeds without it */
+        }
+        try {
+          const summary = await invoke<
+            {
+              compressedBytes: number;
+            } & BackupSummary
+          >("backup_export", { destPath: path });
+          setMessage(`Backup exported (${formatBytes(summary.compressedBytes)}) — verified.`);
+        } finally {
+          unlisten?.();
+        }
       } else {
+        const bytes = await createBackup(getLibraryFs(), LIBRARY_ROOT);
         const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
         const a = document.createElement("a");
         a.href = url;
         a.download = "folio-backup.zip";
         a.click();
         URL.revokeObjectURL(url);
+        setMessage(`Backup exported (${formatBytes(bytes.length)}).`);
       }
-      setMessage(`Backup exported (${formatBytes(bytes.length)}).`);
     } catch (e) {
       handleError(e, { context: "settings.backup.export" });
       setMessage(e instanceof Error ? e.message : "Export failed");
@@ -212,11 +240,16 @@ export function SettingsScreen() {
     setMessage(null);
     setRestoreError(null);
     try {
-      let bytes: Uint8Array | null = null;
       if (isTauri()) {
+        // S2: inspect without loading the archive — the Rust command reads
+        // only the central directory and metadata. The bytes are read later,
+        // when the user actually confirms the restore.
         const path = await pickBackupSourcePath();
         if (!path) return;
-        bytes = new Uint8Array(await invoke<number[]>("fs_read", { path }));
+        const summary = await invoke<BackupSummary>("backup_inspect", { path });
+        setRestorePath(path);
+        setRestoreFile(null);
+        setRestoreSummary(summary);
       } else {
         const input = document.createElement("input");
         input.type = "file";
@@ -226,12 +259,12 @@ export function SettingsScreen() {
           input.click();
         });
         if (!file) return;
-        bytes = new Uint8Array(await file.arrayBuffer());
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const summary = await inspectBackup(bytes);
+        setRestorePath(null);
+        setRestoreFile(bytes);
+        setRestoreSummary(summary);
       }
-      if (!bytes) return;
-      const summary = await inspectBackup(bytes);
-      setRestoreFile(bytes);
-      setRestoreSummary(summary);
       setRestoreMode("merge");
       setReplaceConfirmed(false);
       setRestoreOpen(true);
@@ -245,23 +278,27 @@ export function SettingsScreen() {
     if (busy) return;
     setRestoreOpen(false);
     setRestoreFile(null);
+    setRestorePath(null);
     setRestoreSummary(null);
     setRestoreError(null);
     setReplaceConfirmed(false);
   };
 
   const handleRestore = async () => {
-    if (!restoreFile || !restoreSummary) return;
+    if ((!restoreFile && !restorePath) || !restoreSummary) return;
     if (restoreMode === "replace" && !replaceConfirmed) return;
     setBusy(true);
     setMessage(null);
     setRestoreError(null);
     setRestorePhase("reading");
     try {
+      // S2: the archive bytes are only loaded here, after the user confirms.
+      const bytes =
+        restoreFile ?? new Uint8Array(await invoke<ArrayBuffer>("fs_read", { path: restorePath }));
       const result = await restoreBackup({
         fs: getLibraryFs(),
         root: LIBRARY_ROOT,
-        bytes: restoreFile,
+        bytes,
         mode: restoreMode,
         onPhase: setRestorePhase,
       });
@@ -270,6 +307,7 @@ export function SettingsScreen() {
       await useLibraryUi.getState().refresh();
       setRestoreOpen(false);
       setRestoreFile(null);
+      setRestorePath(null);
       setRestoreSummary(null);
       setReplaceConfirmed(false);
       setMessage(describeRestore(result));
@@ -353,7 +391,11 @@ export function SettingsScreen() {
             </FolioButton>
           }
         />
-        {message && <p className="folio-helper">{message}</p>}
+        {message && (
+          <p className="folio-helper" role="status">
+            {message}
+          </p>
+        )}
 
         <FolioSectionHeader>Storage</FolioSectionHeader>
         <FolioSettingsRow

@@ -6,7 +6,7 @@
 // DRM check for EPUB: META-INF/encryption.xml (except font-obfuscation algos)
 // or META-INF/rights.xml → refuse.
 
-import { unzipSync } from "fflate";
+import { ZipLimitError, unzipLimited } from "./zipLimits";
 
 export type SourceFormatDetect = "epub" | "html" | "txt";
 
@@ -20,12 +20,13 @@ export class ImportError extends Error {
   }
 }
 
-export const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
+export const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
 
 export const COPY = {
-  tooLarge: "This file is too large",
+  tooLarge: "This file is too large — files over 200 MB can't be imported",
   pdf: "PDF is not supported",
-  drm: "This book is protected and can't be imported",
+  drm: "This book is protected (DRM) and can't be imported",
+  corrupt: "This file can't be opened — it may be damaged",
 } as const;
 
 const FONT_OBFUSCATION_ALGOS = new Set([
@@ -76,13 +77,18 @@ export function assertImportable(fileName: string, bytes: Uint8Array): SourceFor
   const format = detectFormat(fileName, bytes);
 
   if (format === "epub") {
-    if (!startsWithEpubZip(bytes))
-      throw new ImportError("unreadable", COPY.drm ? COPY.drm : "Unreadable file");
+    if (!startsWithEpubZip(bytes)) throw new ImportError("unreadable", COPY.corrupt);
     let zip: Record<string, Uint8Array>;
     try {
-      zip = unzipSync(bytes);
-    } catch {
-      throw new ImportError("unreadable", "This file can't be opened");
+      zip = unzipLimited(bytes) as Record<string, Uint8Array>;
+    } catch (e) {
+      if (e instanceof ZipLimitError) {
+        throw new ImportError(
+          e.reason === "too-many-entries" ? "unreadable" : "too-large",
+          e.reason === "too-many-entries" ? COPY.corrupt : COPY.tooLarge,
+        );
+      }
+      throw new ImportError("unreadable", COPY.corrupt);
     }
     if (!zip["META-INF/container.xml"]) {
       throw new ImportError("not-epub", "This file can't be opened");

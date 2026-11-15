@@ -345,6 +345,76 @@
   font-weight: 600;
 }
 
+/* R11: per-chapter time pill + Finished state (R11) */
+.folio-reader-dock__chaptertime {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.folio-reader-dock__percent--finished {
+  color: var(--folio-accent, #355847);
+}
+
+/* R11: chapter ticks over the slider track. The wrapper owns relative
+ * positioning; ticks are decorative (title-only) pointer affordances. */
+.folio-reader-dock__track {
+  position: relative;
+  width: 100%;
+}
+
+.folio-reader-dock__tick {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 7px;
+  margin-top: -3.5px;
+  margin-left: -1px;
+  border-radius: var(--folio-radius-pill, 999px);
+  background: color-mix(in srgb, currentColor 38%, transparent);
+  pointer-events: none;
+}
+
+/* R11: scrub tooltip — percent + chapter at the dragged position. */
+.folio-reader-dock__tooltip {
+  position: absolute;
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: 70%;
+  padding: 4px 10px;
+  border-radius: var(--folio-radius-md, 8px);
+  background: var(--folio-surface-raised, rgba(20, 20, 22, 0.92));
+  color: var(--folio-text-strong, #fafaf7);
+  font-size: var(--folio-type-micro-size, 11px);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+}
+
+/* R11: end-of-book card body. */
+.folio-end-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-2, 8px);
+}
+
+.folio-end-card__title {
+  font-weight: 600;
+}
+
+.folio-end-card__author {
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-size: var(--folio-type-small-size, 13px);
+}
+
+.folio-end-card__text {
+  margin: 0;
+  color: color-mix(in srgb, currentColor 78%, transparent);
+}
+
 .folio-reader-dock__slider {
   -webkit-appearance: none;
   appearance: none;
@@ -541,6 +611,54 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* R12: open progress under the spinner — indeterminate while unpacking,
+ * percent-filled while preparing pages. */
+.folio-reader-splash__progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--folio-space-1, 4px);
+  margin-top: var(--folio-space-2);
+  min-width: 180px;
+}
+
+.folio-reader-splash__progressbar {
+  width: 100%;
+  height: 4px;
+  border-radius: var(--folio-radius-pill, 999px);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  overflow: hidden;
+}
+
+.folio-reader-splash__progressbar.is-indeterminate .folio-reader-splash__progressfill {
+  width: 34%;
+  animation: folio-reader-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes folio-reader-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.folio-reader-splash__progressfill {
+  display: block;
+  height: 100%;
+  width: var(--folio-progress, 0%);
+  border-radius: inherit;
+  background: var(--folio-accent, #355847);
+  transition: width 150ms ease;
+}
+
+.folio-reader-splash__progresslabel {
+  font-size: var(--folio-type-micro-size, 11px);
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-variant-numeric: tabular-nums;
 }
 
 .folio-reader-splash__error-title {
@@ -1316,6 +1434,84 @@
 
 .folio-footnote-popover__body p:last-child {
   margin-bottom: 0;
+}
+
+/* ---- Annotation (highlight) popover (R5) ---------------------------------- */
+.folio-annotation-popover {
+  position: fixed;
+  z-index: var(--folio-z-ctxmenu);
+  width: min(300px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-2);
+  padding: var(--folio-space-3);
+  background: var(--folio-surface, #fffefb);
+  color: var(--folio-text-primary, #22251f);
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  animation: folio-snackbar-in var(--folio-motion-panel) var(--folio-motion-panel-ease);
+}
+
+.folio-annotation-popover__quote {
+  margin: 0;
+  padding: 0 0 0 var(--folio-space-3);
+  border-left: 3px solid var(--folio-border);
+  font-size: var(--folio-type-note-size, 0.85rem);
+  font-style: italic;
+  color: var(--folio-text-secondary, #676a61);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.folio-annotation-popover__note {
+  margin: 0;
+  font-size: var(--folio-type-note-size, 0.85rem);
+  line-height: var(--folio-type-body-line, 1.55);
+}
+
+.folio-annotation-popover__swatches {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-2);
+}
+
+.folio-selection-swatch--active {
+  box-shadow:
+    0 0 0 2px var(--folio-surface, #fffefb),
+    0 0 0 4px var(--folio-accent, #4a7c59);
+}
+
+.folio-annotation-popover__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-2);
+}
+
+.folio-annotation-popover__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-pill, 999px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--folio-type-label-size);
+  cursor: pointer;
+}
+
+.folio-annotation-popover__action:hover {
+  background: var(--folio-surface-raised, #f4f2ec);
+}
+
+.folio-annotation-popover__action--danger:hover {
+  border-color: var(--folio-danger, #b3472e);
+  color: var(--folio-danger, #b3472e);
 }
 
 /* ---- Reader empty state --------------------------------------------------- */

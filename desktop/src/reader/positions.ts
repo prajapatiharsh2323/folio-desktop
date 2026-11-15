@@ -37,16 +37,18 @@ export interface PositionedLink {
  * `progression` and publication-wide `totalProgression` — enough for the
  * navigator's `go()`, percent jumps, and the progress pillar.
  */
-export function generatePositions(
-  publication: Publication,
-  zip: Record<string, Uint8Array>,
-): Locator[] {
-  const resources: PositionedLink[] = publication.readingOrder.items.map((link) => {
-    const bytes = zip[link.href] ?? zip[decodeHref(link.href)];
-    const length = bytes ? textLengthOfHtml(bytes) : 0;
-    return { link, length, count: Math.max(1, Math.ceil(length / POSITION_LENGTH)) };
-  });
+/** Text length of one spine resource from the (possibly lazy) zip map. */
+function resourceLength(zip: Record<string, Uint8Array>, link: Link): number {
+  const bytes = zip[link.href] ?? zip[decodeHref(link.href)];
+  return bytes ? textLengthOfHtml(bytes) : 0;
+}
 
+function resourceOf(link: Link, length: number): PositionedLink {
+  return { link, length, count: Math.max(1, Math.ceil(length / POSITION_LENGTH)) };
+}
+
+/** Build the locator list from measured resources (pure, sync, fast). */
+function positionsFromMeasured(resources: PositionedLink[]): Locator[] {
   const total = resources.reduce((sum, r) => sum + r.count, 0);
   const positions: Locator[] = [];
   let index = 0;
@@ -69,6 +71,46 @@ export function generatePositions(
     }
   }
   return positions;
+}
+
+export function generatePositions(
+  publication: Publication,
+  zip: Record<string, Uint8Array>,
+): Locator[] {
+  const resources = publication.readingOrder.items.map((link) =>
+    resourceOf(link, resourceLength(zip, link)),
+  );
+  return positionsFromMeasured(resources);
+}
+
+const MEASURE_CHUNK = 4;
+
+/** Eager the event loop back to the UI between chunks (R12): position
+ *  generation for a large book must not hold the main thread. */
+function yieldToUi(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Async position generation (R12): measures spine resources in small chunks,
+ * yielding between them and reporting (done, total) progress so the splash
+ * can show "Preparing pages…". Produces the identical list to the sync path.
+ */
+export async function generatePositionsAsync(
+  publication: Publication,
+  zip: Record<string, Uint8Array>,
+  onProgress?: (done: number, total: number) => void,
+): Promise<Locator[]> {
+  const links = publication.readingOrder.items;
+  const resources: PositionedLink[] = [];
+  for (let i = 0; i < links.length; i++) {
+    resources.push(resourceOf(links[i], resourceLength(zip, links[i])));
+    onProgress?.(i + 1, links.length);
+    if (i % MEASURE_CHUNK === MEASURE_CHUNK - 1 && i < links.length - 1) {
+      await yieldToUi();
+    }
+  }
+  return positionsFromMeasured(resources);
 }
 
 function decodeHref(href: string): string {

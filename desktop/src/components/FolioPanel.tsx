@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { FolioIcons } from "./FolioIcons";
 import { focusFirstIn, trapTabKey } from "./focusTrap";
-import { isTopModal, popModal, pushModal } from "../shell/modalStack";
+import { isTopModal, modalDepth, popModal, pushModal } from "../shell/modalStack";
 
 interface FolioPanelProps {
   open: boolean;
@@ -9,12 +9,26 @@ interface FolioPanelProps {
   title?: string;
   /** 360 (default) or 400 (wide) per 03 §5.4 */
   width?: 360 | 400;
+  /**
+   * Modal (default): scrim, focus trap, Escape via the modal stack.
+   * Non-modal (R8): docked without a scrim — the canvas stays visible and
+   * interactive (e.g. Appearance changes are seen live); Escape closes it
+   * only when no modal surface sits above the reader.
+   */
+  modal?: boolean;
   children: React.ReactNode;
 }
 
 /** Right-anchored panel replacing mobile bottom sheets (03 §5.4):
  * surface, hairline left border, x6 padding, ESC/backdrop closes, focus-trapped. */
-export function FolioPanel({ open, onClose, title, width = 360, children }: FolioPanelProps) {
+export function FolioPanel({
+  open,
+  onClose,
+  title,
+  width = 360,
+  modal = true,
+  children,
+}: FolioPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   // The effect below must not depend on `onClose`: callers pass inline arrow
   // functions, which would re-run the effect (focus + modal push/pop) on
@@ -24,6 +38,18 @@ export function FolioPanel({ open, onClose, title, width = 360, children }: Foli
 
   useEffect(() => {
     if (!open) return;
+    if (!modal) {
+      // Docked panel: no scrim, no focus steal, no modal-stack slot; Escape
+      // closes it only while no modal surface is above the reader.
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape" && modalDepth() === 0) {
+          e.stopPropagation();
+          onCloseRef.current();
+        }
+      };
+      document.addEventListener("keydown", onKey, true);
+      return () => document.removeEventListener("keydown", onKey, true);
+    }
     const panel = panelRef.current;
     if (!panel) return;
 
@@ -46,19 +72,19 @@ export function FolioPanel({ open, onClose, title, width = 360, children }: Foli
       popModal(token);
       prevActive?.focus();
     };
-  }, [open]);
+  }, [open, modal]);
 
   if (!open) return null;
 
   return (
     <>
-      <div className="folio-overlay" onClick={onClose} aria-hidden="true" />
+      {modal && <div className="folio-overlay" onClick={onClose} aria-hidden="true" />}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- focus-trap container: keydown only handles Tab trapping, all inner controls are focusable */}
       <div
         ref={panelRef}
         className="folio-panel"
         role="dialog"
-        aria-modal="true"
+        aria-modal={modal ? "true" : undefined}
         aria-label={title}
         tabIndex={-1}
         style={{ width }}

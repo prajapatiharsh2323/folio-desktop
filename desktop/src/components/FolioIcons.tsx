@@ -230,4 +230,22 @@ export const FolioIcons = {
       <path d="M13.5 6.5l4 4" />
     </>,
   ),
+  /** L5 view toggle: list rows */
+  ListRows: make(
+    "List",
+    <>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+      <circle cx="4.5" cy="6" r="0.2" />
+    </>,
+  ),
+  /** L5 view toggle: grid tiles */
+  Grid: make(
+    "Grid",
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1" />
+      <rect x="13" y="4" width="7" height="7" rx="1" />
+      <rect x="4" y="13" width="7" height="7" rx="1" />
+      <rect x="13" y="13" width="7" height="7" rx="1" />
+    </>,
+  ),
 } as const;

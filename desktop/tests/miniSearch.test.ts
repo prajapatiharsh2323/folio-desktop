@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import MiniSearch, { escapeHtml } from "../src/search/miniSearch";
+import MiniSearch from "../src/search/miniSearch";
+import { escapeHtml } from "../src/search/htmlEscape";
 
 describe("miniSearch snippets", () => {
-  it("escapes imported book text before adding highlight markup", () => {
+  it("carries raw text parts — the UI's React rendering provides the escaping", () => {
     const idx = new MiniSearch();
     idx.add({
       id: "ch1",
@@ -14,16 +15,17 @@ describe("miniSearch snippets", () => {
     });
 
     const [hit] = idx.search("script");
-    expect(hit.snippet).toContain("<mark>script</mark>");
-    expect(hit.snippet).not.toContain("<script>");
-    expect(hit.snippet).toContain("&lt;");
-    expect(hit.snippet).toContain("&gt;");
+    const marked = hit.snippet.parts.filter((p) => p.mark);
+    expect(marked.map((p) => p.text)).toEqual(["script"]);
+    // The raw source text (with markup) rides along unescaped; it is only
+    // ever rendered through React text nodes, which escape it.
+    expect(hit.snippet.parts.some((p) => p.text.includes("<script>"))).toBe(true);
     expect(hit.href).toBe("chapter-1.xhtml#opening");
     expect(hit.docTitle).toBe("A Book");
     expect(hit.chapterTitle).toBe("Opening");
   });
 
-  it("escapes text when the query only matches the document title", () => {
+  it("falls back to a plain unmarked head when the query only matches the title", () => {
     const idx = new MiniSearch();
     idx.add({
       id: "ch1",
@@ -32,17 +34,16 @@ describe("miniSearch snippets", () => {
     });
 
     const [hit] = idx.search("danger");
-    expect(hit.snippet).not.toContain("<img");
-    expect(hit.snippet).toContain("&lt;img");
-    expect(hit.snippet).toContain("&quot;");
+    expect(hit.snippet.parts.every((p) => !p.mark)).toBe(true);
+    expect(hit.snippet.parts.some((p) => p.text.includes("<img"))).toBe(true);
   });
 
-  it("keeps the original casing of the matched term inside <mark>", () => {
+  it("keeps the original casing of the matched term in the marked part", () => {
     const idx = new MiniSearch();
     idx.add({ id: "ch1", title: "Doc", text: "The Quick Brown Fox" });
 
     const [hit] = idx.search("quick");
-    expect(hit.snippet).toContain("<mark>Quick</mark>");
+    expect(hit.snippet.parts.filter((p) => p.mark).map((p) => p.text)).toEqual(["Quick"]);
   });
 
   it("escapeHtml handles all five markup characters", () => {
@@ -56,7 +57,7 @@ describe("miniSearch R3 upgrades", () => {
     idx.add({ id: "ch1", title: "Doc", text: "He sat in the café near the window." });
 
     const [hit] = idx.search("cafe");
-    expect(hit.snippet).toContain("<mark>café</mark>");
+    expect(hit.snippet.parts.filter((p) => p.mark).map((p) => p.text)).toEqual(["café"]);
   });
 
   it("highlights prefix matches", () => {
@@ -64,7 +65,7 @@ describe("miniSearch R3 upgrades", () => {
     idx.add({ id: "ch1", title: "Doc", text: "The detective examined the evidence." });
 
     const [hit] = idx.search("detect");
-    expect(hit.snippet).toContain("<mark>detective</mark>");
+    expect(hit.snippet.parts.filter((p) => p.mark).map((p) => p.text)).toEqual(["detective"]);
   });
 
   it("supports quoted phrases as a hard constraint", () => {
@@ -74,7 +75,8 @@ describe("miniSearch R3 upgrades", () => {
 
     const hits = idx.search('"quick brown"');
     expect(hits.map((h) => h.id)).toEqual(["a"]);
-    expect(hits[0].snippet).toContain("<mark>quick brown</mark>");
+    const marked = hits[0].snippet.parts.filter((p) => p.mark).map((p) => p.text);
+    expect(marked.join(" ")).toContain("quick brown");
   });
 
   it("keeps AND semantics for unquoted multi-word queries", () => {
@@ -91,7 +93,7 @@ describe("miniSearch R3 upgrades", () => {
     idx.add({ id: "ch1", title: "Doc", text: "The inspector examined everything." });
 
     const [hit] = idx.search("examine"); // distance 1 from "examined"
-    expect(hit.snippet).toContain("<mark>examined</mark>");
+    expect(hit.snippet.parts.filter((p) => p.mark).map((p) => p.text)).toEqual(["examined"]);
   });
 });
 
