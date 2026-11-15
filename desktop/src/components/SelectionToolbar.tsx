@@ -12,10 +12,18 @@ export interface SelectionToolbarProps {
   onHighlight: (color: string) => void;
   onNote: () => void;
   onCopy: () => void;
+  /** D2: documents that grant no copy permission disable Copy. */
+  copyDisabled?: boolean;
 }
 
 /** Floating selection toolbar (04 §7): 4 swatches, Add note, Copy. */
-export function SelectionToolbar({ rect, onHighlight, onNote, onCopy }: SelectionToolbarProps) {
+export function SelectionToolbar({
+  rect,
+  onHighlight,
+  onNote,
+  onCopy,
+  copyDisabled = false,
+}: SelectionToolbarProps) {
   const top = Math.max(8, rect.top - 48);
   const left = Math.min(window.innerWidth - 260, Math.max(8, (rect.left + rect.right) / 2 - 130));
   return (
@@ -49,7 +57,8 @@ export function SelectionToolbar({ rect, onHighlight, onNote, onCopy }: Selectio
         type="button"
         className="folio-selection-btn"
         aria-label="Copy"
-        title="Copy"
+        title={copyDisabled ? "Copying is not allowed for this document" : "Copy"}
+        disabled={copyDisabled}
         onClick={onCopy}
       >
         <FolioIcons.Copy size="sm" />

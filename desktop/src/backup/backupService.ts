@@ -328,6 +328,27 @@ async function readArchive(bytes: Uint8Array, limits: ArchiveLimits): Promise<Pa
   if (!meta.manifestSha256) {
     warnings.push("This backup has no checksum; its contents could not be verified.");
   }
+  // D1 (PDF plan §10): the desktop build reads PDFs; Folio Mobile does not,
+  // so a restore on this archive must warn about PDF documents up front.
+  let pdfCount = 0;
+  for (const e of entries) {
+    if (e.kind !== "library" || !e.path.endsWith("/meta.json")) continue;
+    try {
+      const metaBytes = readEntryData(bytes, e.entry, limits);
+      if (metaBytes.length > limits.maxMetadataBytes) continue;
+      const docMeta = JSON.parse(new TextDecoder().decode(metaBytes)) as {
+        sourceFormat?: string;
+      };
+      if (docMeta.sourceFormat === "pdf") pdfCount += 1;
+    } catch {
+      /* validation reports damaged metadata later; counting stays best-effort */
+    }
+  }
+  if (pdfCount > 0) {
+    warnings.push(
+      `Includes ${pdfCount} PDF document${pdfCount === 1 ? "" : "s"}; Folio Mobile may not open them yet.`,
+    );
+  }
 
   return {
     entries,

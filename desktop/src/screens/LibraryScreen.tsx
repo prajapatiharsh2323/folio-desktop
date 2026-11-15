@@ -498,7 +498,7 @@ export function LibraryScreen() {
             body={
               filterCollection
                 ? "Add books to this collection from your library, or show all books."
-                : "Import EPUB, HTML or TXT files to start your library. You can also drag files onto this window."
+                : "Import EPUB, PDF, HTML or TXT files to start your library. You can also drag files onto this window."
             }
             action={
               filterCollection ? (
@@ -537,6 +537,7 @@ export function LibraryScreen() {
                     title: r.title,
                     author: r.author ?? undefined,
                     kind: r.kind === "article" ? "Article" : "Book",
+                    format: r.format,
                     progress: r.percent === null ? undefined : r.percent / 100,
                     tint: r.tint,
                     coverUrl: r.coverUrl ?? undefined,

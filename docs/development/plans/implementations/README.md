@@ -7,6 +7,7 @@
 | I-20261030-02 | 2026-10-30 | Reader locator correctness (FT-008): persisted href+progression+anchor locators, click/teardown/prefs fixes | done (Linux verified; Windows unverified) | [`I-20261030-02-reader-locator-correctness.md`](I-20261030-02-reader-locator-correctness.md) |
 | I-20261030-03 | 2026-10-30 | Windows taskbar jump list (FT-001): "Open Folio" / "Import file…" via `ICustomDestinationList` | done (committed `4cce075` + pushed; Linux + Windows-target compile verified; runtime taskbar behaviour unverified) | [`I-20261030-03-taskbar-jump-list.md`](I-20261030-03-taskbar-jump-list.md) |
 | I-20261031-05 | 2026-10-31 | Audit repair batch 1 (FT-009/010/011): collections routing, reader navigation coordinator, menu/Escape/bookmark repair, dictionary removal (D-20261031-05) | done (Linux verified; Windows unverified) | [`I-20261031-05-audit-repair-batch-1.md`](I-20261031-05-audit-repair-batch-1.md) |
+| I-20261114-01 | 2026-11-14 | PDF support Phase 0 groundwork (feature flag, import refactor, engine capabilities seam, factory, baseline import snapshots) — in the `pdf-support` worktree | done (Phase 0; Linux verified) | [`I-20261114-01-pdf-support.md`](I-20261114-01-pdf-support.md) |
 
 ## Historical sources
 

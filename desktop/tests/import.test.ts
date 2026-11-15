@@ -1,7 +1,18 @@
+// Import pipeline tests (EPUB/HTML/TXT + gates). jsdom: the sanitize and
+// EpubBuilder paths use DOMParser.
 import { describe, it, expect, beforeEach } from "vitest";
 import { MemoryFileStore } from "../src/lib/fileStore";
 import { LibraryManager } from "../src/store/libraryManager";
-import { assertImportable, detectLanguage, ImportError, COPY } from "../src/import/fileDetector";
+import {
+  assertImportable,
+  detectFormat,
+  detectLanguage,
+  ImportError,
+  pdfSizeCap,
+  tooLargeMessage,
+  COPY,
+} from "../src/import/fileDetector";
+import { setFeatureEnabled } from "../src/lib/features";
 import { importFile, replaceDoc } from "../src/import/importService";
 import { buildEpub } from "../src/import/clip/epubBuilder";
 import { parseEpub } from "../src/import/epubImporter";
@@ -41,14 +52,52 @@ function epubWith(containerExtra: Zippable = {}): Uint8Array {
 }
 
 describe("import gates (fileDetector)", () => {
-  it("refuses PDF with mobile-parity copy", () => {
-    const bytes = TE.encode("%PDF-1.7 fake");
-    expect(() => assertImportable("book.pdf", bytes)).toThrowError(COPY.pdf);
+  it("refuses PDF with mobile-parity copy while the flag is off", () => {
+    setFeatureEnabled("pdf", false);
+    try {
+      const bytes = TE.encode("%PDF-1.7 fake");
+      expect(() => assertImportable("book.pdf", bytes)).toThrowError(COPY.pdf);
+      try {
+        assertImportable("book.pdf", bytes);
+      } catch (e) {
+        expect((e as ImportError).code).toBe("pdf");
+      }
+      // offset header: legacy check looks only at byte 0 — falls through
+      const padded = new Uint8Array(600);
+      padded.set(TE.encode("%PDF-1.7"), 512);
+      expect(() => assertImportable("book.pdf", padded)).not.toThrow();
+    } finally {
+      setFeatureEnabled("pdf", true);
+    }
+  });
+
+  it("accepts PDF behind the flag; cap + tolerant magic", () => {
+    expect(assertImportable("book.pdf", TE.encode("%PDF-1.7 fake"))).toBe("pdf");
+    // header may appear anywhere in the first 1,024 bytes (plan §6.1)
+    const padded = new Uint8Array(600);
+    padded.set(TE.encode("%PDF-1.7"), 512);
+    expect(assertImportable("book.pdf", padded)).toBe("pdf");
+    expect(assertImportable("mystery.bin", TE.encode("%PDF-x"))).toBe("pdf");
+  });
+
+  it("caps PDFs at the current size cap with the sized message", () => {
+    const cap = pdfSizeCap();
+    const bytes = new Uint8Array(cap + 1);
+    bytes[0] = 0x25;
+    expect(() => assertImportable("book.pdf", bytes)).toThrowError(
+      tooLargeMessage(bytes.length, cap),
+    );
     try {
       assertImportable("book.pdf", bytes);
     } catch (e) {
-      expect((e as ImportError).code).toBe("pdf");
+      expect((e as ImportError).code).toBe("too-large");
     }
+  });
+
+  it("detectFormat returns pdf for extension or magic (flag on)", () => {
+    expect(detectFormat("book.pdf", TE.encode("junk"))).toBe("pdf");
+    expect(detectFormat("book.bin", TE.encode("%PDF-1.4"))).toBe("pdf");
+    expect(detectFormat("book.txt", TE.encode("plain"))).toBe("txt");
   });
 
   it("refuses >50MB", () => {
@@ -378,10 +427,16 @@ describe("import pipeline", () => {
     expect((await lm.progress.get(id))!.percent).toBe(10);
   });
 
-  it("refusals surface as status=refused with copy", async () => {
-    const res = await importFile(lm, "doc.pdf", TE.encode("%PDF-1.4"));
-    expect(res.status).toBe("refused");
-    expect(res.error).toBe(COPY.pdf);
+  it("refusals surface as status=refused with copy (flag off)", async () => {
+    setFeatureEnabled("pdf", false);
+    try {
+      const res = await importFile(lm, "doc.pdf", TE.encode("%PDF-1.4"));
+      expect(res.status).toBe("refused");
+      expect(res.error).toBe(COPY.pdf);
+      expect(res.errorCode).toBe("pdf");
+    } finally {
+      setFeatureEnabled("pdf", true);
+    }
   });
 });
 

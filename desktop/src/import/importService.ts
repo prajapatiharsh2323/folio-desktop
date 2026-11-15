@@ -4,6 +4,7 @@
 import {
   assertImportable,
   detectFormat,
+  stem,
   ImportError,
   type SourceFormatDetect,
 } from "./fileDetector";
@@ -15,6 +16,7 @@ import type { LibraryManager } from "../store/libraryManager";
 import type { DocMeta, DocKind, SourceFormat } from "../model/types";
 import { nowIso, newUuid } from "../model/ids";
 import { libraryLayout as L } from "../lib/libraryPaths";
+import { parsePdf, type PdfOutlineEntry } from "../pdf/parsePdf";
 
 export type DuplicateResolution = "skip" | "keep" | "replace";
 
@@ -31,14 +33,33 @@ function ext(fileName: string): string {
   return i === -1 ? "" : fileName.slice(i + 1).toLowerCase();
 }
 
-function stem(fileName: string): string {
-  const base = fileName.split("/").pop() ?? fileName;
-  const i = base.lastIndexOf(".");
-  return (i === -1 ? base : base.slice(0, i)).trim() || "Untitled";
-}
-
 async function sha256HexOf(bytes: Uint8Array): Promise<string> {
   return sha256Hex(bytes);
+}
+
+/** What a format pipeline produces before anything is written to disk.
+ *  EPUB/HTML/TXT keep `readingPath: "reading/book.epub"`; a future PDF branch
+ *  returns `readingPath: "reading/book.pdf"` and `originalBytes: null`. */
+export interface PipelineResult {
+  title: string;
+  author: string | null;
+  kind: DocKind;
+  language: string;
+  sourceFormat: SourceFormat;
+  chapters: DocMeta["chapters"];
+  /** relative doc-folder path the reader opens */
+  readingPath: string;
+  readingBytes: Uint8Array;
+  originalName: string;
+  originalBytes: Uint8Array | null;
+  cleanHtml: string | null;
+  imageFiles: Record<string, Uint8Array>;
+  cover: { name: string; bytes: Uint8Array } | null;
+  wordCount: number | null;
+  /** decided at import (plan §6.2); meta.json is immutable afterwards */
+  searchable: boolean;
+  /** plain text per chapter, aligned with chapters */
+  chapterTexts: string[];
 }
 
 async function runPipeline(
@@ -46,25 +67,10 @@ async function runPipeline(
   bytes: Uint8Array,
   format: SourceFormatDetect,
   contentHash: string,
-): Promise<{
-  title: string;
-  author: string | null;
-  kind: DocKind;
-  language: string;
-  sourceFormat: SourceFormat;
-  chapters: DocMeta["chapters"];
-  readingEpub: Uint8Array;
-  originalName: string;
-  originalBytes: Uint8Array;
-  cleanHtml: string | null;
-  imageFiles: Record<string, Uint8Array>;
-  cover: { name: string; bytes: Uint8Array } | null;
-  wordCount: number | null;
-  /** plain text per chapter, aligned with chapters */
-  chapterTexts: string[];
-}> {
+): Promise<PipelineResult> {
   const originalName =
     format === "epub" ? "book.epub" : format === "html" ? "page.html" : "book.txt";
+  const readingPath = "reading/book.epub";
   const sourceFormat: SourceFormat = format;
 
   if (format === "epub") {
@@ -81,7 +87,8 @@ async function runPipeline(
         order: c.order,
         href: c.href,
       })),
-      readingEpub: bytes,
+      readingPath,
+      readingBytes: bytes,
       originalName,
       originalBytes: bytes,
       cleanHtml: null,
@@ -93,8 +100,13 @@ async function runPipeline(
           }
         : null,
       wordCount: null,
+      searchable: true,
       chapterTexts: parsed.chapters.map((c) => c.text),
     };
+  }
+
+  if (format === "pdf") {
+    return await runPdfPipeline(fileName, bytes, contentHash);
   }
 
   const article: ArticleImport =
@@ -123,13 +135,15 @@ async function runPipeline(
     language: article.language,
     sourceFormat,
     chapters: built.chapters,
-    readingEpub: built.bytes,
+    readingPath,
+    readingBytes: built.bytes,
     originalName,
     originalBytes: bytes,
     cleanHtml: article.cleanHtml || null,
     imageFiles,
     cover: null,
     wordCount: article.wordCount || null,
+    searchable: true,
     chapterTexts: article.chapters.map((c) =>
       c.html
         .replace(/<[^>]+>/g, " ")
@@ -139,11 +153,80 @@ async function runPipeline(
   };
 }
 
-function filesMapFor(p: Awaited<ReturnType<typeof runPipeline>>): Record<string, Uint8Array> {
-  const files: Record<string, Uint8Array> = {
-    [`original/${p.originalName}`]: p.originalBytes,
-    "reading/book.epub": p.readingEpub,
+/** PDF branch (plan §6.2/§6.3): one copy under reading/, no original copy
+ *  (backup validation only requires files.reading — §5), metadata + cover +
+ *  searchable decided at import. Chapters are the flattened outline, falling
+ *  back to at most 40 synthetic "Pages a–b" groups (plan §5). */
+async function runPdfPipeline(
+  fileName: string,
+  bytes: Uint8Array,
+  contentHash: string,
+  onProgress?: (fraction: number) => void,
+): Promise<PipelineResult> {
+  void contentHash;
+  const parsed = await parsePdf(fileName, bytes, { onProgress });
+  return {
+    title: parsed.title || stem(fileName),
+    author: parsed.author,
+    // D3: fewer than 20 pages reads like an article; the Library still shows
+    // the PDF badge (sourceFormat drives it, not kind).
+    kind: parsed.pageCount < 20 ? "article" : "book",
+    language: parsed.language,
+    sourceFormat: "pdf",
+    chapters: pdfChapters(parsed.outline, parsed.pageCount),
+    readingPath: "reading/book.pdf",
+    readingBytes: bytes,
+    originalName: "book.pdf",
+    originalBytes: null,
+    cleanHtml: null,
+    imageFiles: {},
+    cover: parsed.cover,
+    wordCount: parsed.estimatedWordCount,
+    searchable: parsed.searchable,
+    chapterTexts: [],
   };
+}
+
+/** Flattened outline as chapters; de-duplicated by page (already done in
+ *  parsePdf). Without an outline, synthetic groups of ≤25 pages. */
+function pdfChapters(outline: PdfOutlineEntry[], pageCount: number): DocMeta["chapters"] {
+  if (outline.length > 0) {
+    return outline.map((entry, i) => ({
+      id: `p${entry.page}`,
+      title: entry.title || `Page ${entry.page}`,
+      order: i,
+      href: `page-${entry.page}`,
+    }));
+  }
+  const chapters: DocMeta["chapters"] = [];
+  const groupSize = Math.max(1, Math.ceil(pageCount / 40));
+  for (let start = 1; start <= pageCount; start += groupSize) {
+    const end = Math.min(pageCount, start + groupSize - 1);
+    chapters.push({
+      id: `p${start}`,
+      title: end === start ? `Page ${start}` : `Pages ${start}–${end}`,
+      order: chapters.length,
+      href: `page-${start}`,
+    });
+  }
+  return chapters;
+}
+
+/** meta.files is built in exactly one place so importFile and replaceDoc can
+ *  never drift (02 §6). PDF later returns original: null + reading/book.pdf. */
+export function buildMetaFiles(p: PipelineResult): DocMeta["files"] {
+  return {
+    original: p.originalBytes ? `original/${p.originalName}` : null,
+    clean: p.cleanHtml !== null ? "clean/index.html" : null,
+    reading: p.readingPath,
+    cover: p.cover ? p.cover.name : null,
+  };
+}
+
+export function filesMapFor(p: PipelineResult): Record<string, Uint8Array> {
+  const files: Record<string, Uint8Array> = {};
+  if (p.originalBytes) files[`original/${p.originalName}`] = p.originalBytes;
+  files[p.readingPath] = p.readingBytes;
   if (p.cleanHtml !== null) files["clean/index.html"] = new TextEncoder().encode(p.cleanHtml);
   for (const [rel, bytes] of Object.entries(p.imageFiles)) files[rel] = bytes;
   if (p.cover) files[p.cover.name] = p.cover.bytes;
@@ -208,21 +291,20 @@ export async function importFile(
       importedAt: nowIso(),
       contentHash,
       wordCount: p.wordCount,
-      searchable: true,
+      searchable: p.searchable,
       tags: [],
       collectionIds: [],
-      files: {
-        original: `original/${p.originalName}`,
-        clean: p.cleanHtml !== null ? "clean/index.html" : null,
-        reading: "reading/book.epub",
-        cover: p.cover ? p.cover.name : null,
-      },
+      files: buildMetaFiles(p),
       chapters: p.chapters,
     };
     await lm.addDoc({ meta, files: filesMapFor(p) });
 
-    const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
-    await writeIndex(lm, meta.id, p.chapters, textByChapter);
+    if (p.sourceFormat !== "pdf") {
+      // PDFs get their index from the background job (plan §6.4); an empty
+      // import-time index would make library search silently return nothing.
+      const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
+      await writeIndex(lm, meta.id, p.chapters, textByChapter);
+    }
 
     return { status: "imported", docId: meta.id, title: p.title };
   } catch (e) {
@@ -268,15 +350,10 @@ export async function replaceDoc(
       importedAt: nowIso(),
       contentHash,
       wordCount: p.wordCount,
-      searchable: true,
+      searchable: p.searchable,
       tags: oldMeta?.tags ?? [],
       collectionIds: oldMeta?.collectionIds ?? [],
-      files: {
-        original: `original/${p.originalName}`,
-        clean: p.cleanHtml !== null ? "clean/index.html" : null,
-        reading: "reading/book.epub",
-        cover: p.cover ? p.cover.name : null,
-      },
+      files: buildMetaFiles(p),
       chapters: p.chapters,
     };
 
@@ -284,8 +361,14 @@ export async function replaceDoc(
     await lm.deleteFolderOnly(L.docDir(lm.root, md.slug));
     await lm.addDoc({ meta, files: filesMapFor(p) });
 
-    const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
-    await writeIndex(lm, meta.id, p.chapters, textByChapter);
+    if (p.sourceFormat !== "pdf") {
+      const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
+      await writeIndex(lm, meta.id, p.chapters, textByChapter);
+    } else {
+      // the old index belongs to the old file — drop it; the background job
+      // (or reconcileIndexes) rebuilds from the new bytes
+      await lm.deleteFolderOnly(L.indexText(lm.root, meta.id));
+    }
 
     return { status: "replaced", docId: meta.id, title: p.title };
   } catch (e) {

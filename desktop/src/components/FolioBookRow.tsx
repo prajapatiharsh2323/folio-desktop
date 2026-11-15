@@ -1,15 +1,24 @@
 import { FolioIcons } from "./FolioIcons";
+import type { SourceFormat } from "../model/types";
 
 export interface FolioBookRowData {
   id: string;
   title: string;
   author?: string;
   kind?: "Book" | "Article";
+  /** Source format (PDF plan §5): "pdf" shows the PDF badge; others unbadged. */
+  format?: SourceFormat;
   /** 0..1 */
   progress?: number;
   coverUrl?: string;
   /** Deterministic tint index (0–7) for placeholder art, by colorSeed. */
   tint?: number;
+}
+
+/** Accessible name for the row button. The PDF badge is visual only, so the
+ *  format is spoken here instead (03 §5.2: names describe the control). */
+function defaultRowLabel(data: FolioBookRowData): string {
+  return data.format === "pdf" ? `Open ${data.title}, PDF` : `Open ${data.title}`;
 }
 
 const TINT_VARS = [
@@ -54,7 +63,12 @@ export function FolioBookRow({
       <div className="folio-book-row__meta">
         <div className="folio-book-row__title">{data.title}</div>
         {data.author && <div className="folio-book-row__author">{data.author}</div>}
-        {data.kind && <div className="folio-book-row__author">{data.kind}</div>}
+        {(data.kind || data.format === "pdf") && (
+          <div className="folio-book-row__author">
+            {data.kind}
+            {data.format === "pdf" && <span className="folio-badge folio-badge--pdf">PDF</span>}
+          </div>
+        )}
       </div>
       <div className="folio-book-row__trailing">
         {data.progress !== undefined && (
@@ -76,7 +90,7 @@ export function FolioBookRow({
           type="button"
           className="folio-book-row__open"
           onClick={() => onOpen(data.id)}
-          aria-label={actionLabel ?? `Open ${data.title}`}
+          aria-label={actionLabel ?? defaultRowLabel(data)}
         >
           {body}
         </button>

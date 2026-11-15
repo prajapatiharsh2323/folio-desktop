@@ -1,5 +1,44 @@
 # Current Session Checkpoint
 
+**Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
+implemented in the `pdf-support` git worktree
+(`~/.local/share/opencode/worktree/8cca39/pdf-support`); plan and record at
+`docs/development/plans/implementations/I-20261114-01-pdf-support.md`,
+session log at `docs/development/sessions/S-20261114-01-pdf-support.md`.
+**Updated:** 2026-11-15
+**Status:** **All planned code done.** Phases 0–3 (adapter, engine, reader UI,
+text layer/selection/highlights/search/D2) plus the hardening phase (plan §12)
+items 1–3: encrypted-PDF fixture + password path (real R2/40-bit RC4 via
+`buildEncryptedPdf`; encrypted files refused at import per v1.1 scope —
+"Remove the password and import it again"), internal PDF links
+(`pageLinkRects` + engine prefetch/hit-test; GoTo → `jumpToPage`, URI →
+`onLink` → `openExternal` http/https-gated), and the decoration-click popover
+(`DecorationPopover`: Add/Edit note, Remove highlight, outside-mousedown +
+Escape dismissal). Gates (Linux, from `desktop/`): `tsc -b` clean,
+**Vitest 429 / 429 (57 files)** (411 pre-existing + 18 new, all pre-existing
+unmodified), `vite build` green, ESLint 0/0, Prettier clean. Windows-only
+verification (installer, release CSP, worker/WASM proof under WebView2,
+`open_files.rs` cargo tests, manual smoke incl. encrypted refusal + no-copy)
+remains pending — this host has no webkit2gtk. Everything is **uncommitted**;
+commit/push only with explicit authorization. Merge must reconcile with
+`S-20261113-01`'s uncommitted Step 2.1 (its `minisearch` dependency arrives
+via that merge).
+
+## Exact next action
+
+1. On a Windows host: run the PDF smoke checklist recorded in
+   `S-20261114-01` / `I-20261114-01` (installer `pnpm tauri:build`, release
+   CSP review, worker/WASM load proof, `open_files.rs` cargo tests, manual
+   smoke: import incl. encrypted refusal + >50 MB cap, open/resume,
+   zoom/fit, selection → highlight → popover, in-book search, GoTo + external
+   links, no-copy PDF, keyboard turning, bookmark, backup/restore).
+2. Merge-time: commit this worktree's work (explicit authorization only) and
+   reconcile with `S-20261113-01` Step 2.1 in the main checkout.
+
+---
+
+## Previous checkpoint — `S-20261113-01`
+
 **Session:** `S-20261113-01` — Production-readiness Phase 1 + Phase 2 Step 2.0
 (P0 blockers, quick wins, and the E2 reader refactor from the 2026-11-12
 report; plan at `~/.opencode/plan/folio-production-readiness.md`)
@@ -51,7 +90,7 @@ focus-mode/keyboard visual parity) remains blocked.
 ## Phase 1 — completed earlier in this session
 
 1. **P0-4 handled failures:** `handleError(error, {context, userMessage?,
-   details?})` + `describeError()` in `errorLog.ts`; swept user-facing catches
+details?})` + `describeError()` in `errorLog.ts`; swept user-facing catches
    in ReaderScreen (annotations/highlight/clipboard/bookmark/TOC callbacks —
    dialogs stay open with drafts on failure), NotesScreen, CollectionsScreen,
    LibraryScreen, SettingsScreen, libraryUi.ts, TocPanel, InBookSearchPanel,

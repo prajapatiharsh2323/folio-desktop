@@ -7,6 +7,7 @@ import { libraryLayout as L } from "../lib/libraryPaths";
 import { getBookCoverPreset } from "../lib/coverPresets";
 import type { DocMeta, Progress, ReadingPrefs } from "../model/types";
 import { nowIso } from "../model/ids";
+import { FEATURES } from "../lib/features";
 import type { ReaderOpenRequest } from "./routeStore";
 import type { PaceState } from "../reader/pace";
 
@@ -16,7 +17,12 @@ export interface ReaderDoc {
   title: string;
   author: string | null;
   meta: DocMeta;
+  /** @deprecated alias of `readingBytes` (kept so EPUB call sites compile) */
   epubBytes: Uint8Array;
+  /** bytes of `meta.files.reading` (reading/book.epub today; book.pdf later) */
+  readingBytes: Uint8Array;
+  /** "pdf" when meta.sourceFormat is pdf, else "epub" */
+  format: "epub" | "pdf";
   prefs: ReadingPrefs;
   progress: Progress | null;
   /** object URL for cover.*, or null when the book has no cover file */
@@ -66,9 +72,15 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
 
       const fs = getLibraryFs();
       const readingPath = meta.files.reading ?? "reading/book.epub";
-      const epubBytes = await fs.readBytes(
+      const readingBytes = await fs.readBytes(
         `${L.docDir(LIBRARY_ROOT, entry.slug)}/${readingPath.replace(/^\/+/, "")}`,
       );
+      const format: "epub" | "pdf" = meta.sourceFormat === "pdf" ? "pdf" : "epub";
+      if (format === "pdf" && !FEATURES.pdf) {
+        // Rollout rollback path: the document and its annotations stay in the
+        // library untouched; only opening is refused (PDF plan §11).
+        throw new Error("PDF support is turned off");
+      }
 
       const [prefs, progress] = await Promise.all([
         lm.prefs.resolved(request.docId),
@@ -106,7 +118,9 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
           title: meta.title || entry.title,
           author: meta.author ?? null,
           meta,
-          epubBytes,
+          epubBytes: readingBytes,
+          readingBytes,
+          format,
           prefs,
           progress,
           coverUrl,

@@ -181,4 +181,97 @@ describe("AppearancePanel", () => {
     });
     expect((nextPrefs as ReadingPrefs | null)?.hyphenate).toBe(true);
   });
+
+  describe("fixed layout (capabilities.format === 'fixed')", () => {
+    const FIXED = {
+      format: "fixed",
+      typography: false,
+      zoom: true,
+      flow: true,
+      spread: true,
+      pageCount: 24,
+    } as const;
+
+    it("hides typography controls and shows the zoom stepper", () => {
+      const zooms: (1 | -1)[] = [];
+      render(
+        <AppearancePanel
+          open={true}
+          prefs={DEFAULT_READING_PREFS}
+          onClose={() => {}}
+          onChange={() => {}}
+          onReset={() => {}}
+          capabilities={FIXED}
+          zoom={1.25}
+          onZoomBy={(d) => {
+            zooms.push(d);
+          }}
+        />,
+      );
+
+      // EPUB-only sections are gone
+      expect(document.body.textContent).not.toContain("Typeface");
+      expect(document.body.textContent).not.toContain("Line spacing");
+      expect(document.body.textContent).not.toContain("Margins");
+      // zoom stepper shows the absolute zoom and calls back
+      const zoomIn = document.querySelector("[aria-label='Zoom in']") as HTMLButtonElement;
+      const zoomOut = document.querySelector("[aria-label='Zoom out']") as HTMLButtonElement;
+      expect(zoomIn).not.toBeNull();
+      expect(zoomOut).not.toBeNull();
+      expect(document.body.textContent).toContain("125%");
+      act(() => {
+        zoomIn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        zoomOut.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      expect(zooms).toEqual([1, -1]);
+    });
+
+    it("offers zoom modes through the engine seam, not ReadingPrefs", () => {
+      const modes: string[] = [];
+      render(
+        <AppearancePanel
+          open={true}
+          prefs={DEFAULT_READING_PREFS}
+          onClose={() => {}}
+          onChange={() => {}}
+          onReset={() => {}}
+          capabilities={FIXED}
+          zoom="fit-width"
+          onZoomMode={(mode) => {
+            modes.push(mode);
+          }}
+        />,
+      );
+      const radios = Array.from(document.querySelectorAll("[role='radio']")) as HTMLButtonElement[];
+      const fitRadio = radios.find((r) => r.textContent?.trim() === "Fit page");
+      expect(fitRadio).not.toBeNull();
+      act(() => {
+        fitRadio!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      expect(modes).toEqual(["fit-page"]);
+    });
+
+    it("patches prefs.spread from the page layout radio", () => {
+      let nextPrefs: ReadingPrefs | null = null;
+      render(
+        <AppearancePanel
+          open={true}
+          prefs={DEFAULT_READING_PREFS}
+          onClose={() => {}}
+          onChange={(p) => {
+            nextPrefs = p;
+          }}
+          onReset={() => {}}
+          capabilities={FIXED}
+        />,
+      );
+      const radios = Array.from(document.querySelectorAll("[role='radio']")) as HTMLButtonElement[];
+      const spreadRadio = radios.find((r) => r.textContent?.trim() === "Spreads");
+      expect(spreadRadio).not.toBeNull();
+      act(() => {
+        spreadRadio!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      expect((nextPrefs as ReadingPrefs | null)?.spread).toBe("both");
+    });
+  });
 });

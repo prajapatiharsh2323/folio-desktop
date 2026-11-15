@@ -86,6 +86,17 @@ export function useBoot(): void {
           // Best-effort: a failed cleanup must not block app start.
         }
 
+        // Crash recovery for PDF text indexes (plan §6.4): enqueue any PDF
+        // whose index file is missing. Never blocks app start.
+        if (!disposed) {
+          try {
+            const { reconcileIndexes } = await import("../pdf/pdfIndexJob");
+            await reconcileIndexes();
+          } catch {
+            /* library search keeps skipping unindexed PDFs */
+          }
+        }
+
         if (!disposed) await useOnboarding.getState().boot();
         if (!disposed) await handle();
       } catch {

@@ -9,7 +9,7 @@ import { tintIndexFromHash } from "../import/cover";
 import { getBookCoverPreset } from "../lib/coverPresets";
 import { pushToast } from "../shell/toasts";
 import { handleError } from "../lib/errorLog";
-import type { Progress } from "../model/types";
+import type { Progress, SourceFormat } from "../model/types";
 
 export interface LibraryRow {
   id: string;
@@ -17,6 +17,8 @@ export interface LibraryRow {
   title: string;
   author?: string | null;
   kind: "book" | "article";
+  /** source format (PDF plan §5): drives the "PDF" badge; epub stays unbadged */
+  format?: SourceFormat;
   percent: number | null; // null → "New"
   tint: number;
   coverUrl?: string | null;
@@ -128,7 +130,11 @@ function coverMime(path: string): string {
 
 function rowFrom(
   doc: { id: string; slug: string; title: string; contentHash: string },
-  meta: { author?: string | null; kind: "book" | "article" } | null,
+  meta: {
+    author?: string | null;
+    kind: "book" | "article";
+    sourceFormat?: SourceFormat;
+  } | null,
   progress: Progress | null,
   coverUrl?: string | null,
 ): LibraryRow {
@@ -138,6 +144,7 @@ function rowFrom(
     title: doc.title,
     author: meta?.author ?? null,
     kind: meta?.kind ?? "book",
+    format: meta?.sourceFormat,
     percent: progress ? progress.percent : null,
     tint: tintIndexFromHash(doc.contentHash),
     coverUrl: coverUrl ?? getBookCoverPreset(doc.contentHash || doc.id),

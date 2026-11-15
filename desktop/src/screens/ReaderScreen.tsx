@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { AppearancePanel } from "../components/AppearancePanel";
 import { ReaderChrome } from "../components/ReaderChrome";
 import { ReaderContextMenu } from "../components/ReaderContextMenu";
+import { DecorationPopover } from "../components/DecorationPopover";
 import { ReaderSplash, type SplashPhase } from "../components/ReaderSplash";
 import { TocPanel } from "../components/TocPanel";
 import { InBookSearchPanel } from "../components/InBookSearchPanel";
@@ -131,6 +132,25 @@ export function ReaderScreen() {
     };
   }, [selection]);
 
+  /** Clicked-highlight popover (PDF, R5): anchored at the click, offering
+   *  note editing and removal. Resolved lazily — the engine only reports the
+   *  decoration id, the annotation lookup happens when the popover opens. */
+  const [decorPopover, setDecorPopover] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const decorationClickRef = useRef<(id: string, at?: { x: number; y: number }) => void>(() => {});
+  useEffect(() => {
+    decorationClickRef.current = (id, at) => {
+      setDecorPopover({
+        id,
+        x: at?.x ?? window.innerWidth / 2,
+        y: at?.y ?? window.innerHeight / 2,
+      });
+    };
+  }, []);
+
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
   const [quoteCardOpen, setQuoteCardOpen] = useState(false);
@@ -200,7 +220,7 @@ export function ReaderScreen() {
    *  chrome hook's sync effect only runs when one of them actually changes. */
   const holds = useMemo(
     () => [
-      { reason: "menu" as ChromeHold, active: ctxMenu !== null },
+      { reason: "menu" as ChromeHold, active: ctxMenu !== null || decorPopover !== null },
       {
         reason: "dialog" as ChromeHold,
         active: noteEditorOpen || quoteCardOpen || sessionInfoOpen || shortcutsGuideOpen,
@@ -210,6 +230,7 @@ export function ReaderScreen() {
     ],
     [
       ctxMenu,
+      decorPopover,
       noteEditorOpen,
       quoteCardOpen,
       sessionInfoOpen,
@@ -258,6 +279,7 @@ export function ReaderScreen() {
     keepAwakeRef,
     selectionRef,
     contextMenuRef,
+    decorationClickRef,
     isFocusModeRef,
     previousPercentRef,
     setChromeVisible,
@@ -274,6 +296,7 @@ export function ReaderScreen() {
     locator,
     setLocator,
     toc,
+    capabilities,
     seeking,
     paceVersion,
     resetForRetry,
@@ -281,6 +304,30 @@ export function ReaderScreen() {
     writerRef,
     paceRef,
   } = engine;
+
+  // PDF zoom lives in the engine (session state), but the appearance panel
+  // needs a reactive value to display. Zoom only changes through the panel's
+  // callbacks, so a mirror here stays honest (PDF plan §8.4).
+  const [pdfZoom, setPdfZoom] = useState<"fit-width" | "fit-page" | number>("fit-width");
+  useEffect(() => {
+    // New document: the engine always starts at its default zoom.
+    setPdfZoom("fit-width");
+  }, [doc?.docId]);
+  const handleZoomBy = useCallback(async (direction: 1 | -1) => {
+    const engineInstance = engineRef.current;
+    if (!engineInstance?.zoomBy) return;
+    await engineInstance.zoomBy(direction);
+    const next = engineInstance.getZoom?.();
+    if (typeof next === "number" || next === "fit-width" || next === "fit-page") {
+      setPdfZoom(next);
+    }
+  }, []);
+  const handleZoomMode = useCallback(async (mode: "fit-width" | "fit-page") => {
+    const engineInstance = engineRef.current;
+    if (!engineInstance?.setZoom) return;
+    await engineInstance.setZoom(mode);
+    setPdfZoom(mode);
+  }, []);
 
   // ---- chrome state machine (extracted hook) -------------------------------
   const chrome = useReaderChrome({
@@ -550,6 +597,39 @@ export function ReaderScreen() {
     setSelection(null);
   }, []);
 
+  /** Popover action: open the note editor for an existing highlight. */
+  const editDecorationNote = useCallback(
+    (id: string) => {
+      const annotation = annotations.find((a) => a.id === id) ?? null;
+      setDecorPopover(null);
+      if (!annotation) return;
+      setEditingAnnotation(annotation);
+      setNoteDraft(annotation.note ?? "");
+      setNoteEditorOpen(true);
+    },
+    [annotations],
+  );
+
+  /** Popover action: remove the highlight (same path as the TOC panel's
+   *  delete), then repaint the page decorations. */
+  const removeDecoration = useCallback(
+    async (id: string) => {
+      setDecorPopover(null);
+      if (!doc) return;
+      try {
+        await getLibraryManager().annotations.remove(id);
+        await refreshAnnotations(doc.docId);
+        showNavNotice("Highlight removed.");
+      } catch (e) {
+        handleError(e, {
+          context: "reader.annotations.remove",
+          userMessage: "The highlight could not be removed.",
+        });
+      }
+    },
+    [doc, refreshAnnotations, showNavNotice],
+  );
+
   const saveNote = useCallback(async () => {
     if (editingAnnotation) {
       const lm = getLibraryManager();
@@ -662,6 +742,26 @@ export function ReaderScreen() {
     [paceVersion, percent, paceRef],
   );
   const backLabel = backLabelFor(readerOrigin?.route);
+  // Fixed-layout page position (PDF plan §7.1): the dock shows "page x of y"
+  // instead of a percent-only readout, and the scrubber steps per page.
+  const isPdf = doc?.format === "pdf";
+  // D2: documents that grant no copy permission disable Copy / Share-as-image
+  // (reading itself is never blocked).
+  const noCopy = !!capabilities?.noCopy;
+  const locatorPage = locator?.page;
+  const locatorPageCount = locator?.pageCount;
+  const locatorPageLabel = locator?.pageLabel;
+  const pageInfo = useMemo(
+    () =>
+      isPdf && locatorPage && locatorPageCount
+        ? { page: locatorPage, pageCount: locatorPageCount, label: locatorPageLabel }
+        : null,
+    [isPdf, locatorPage, locatorPageCount, locatorPageLabel],
+  );
+  const dockStep = useMemo(
+    () => (isPdf && locatorPageCount ? Math.max(0.1, 100 / locatorPageCount) : undefined),
+    [isPdf, locatorPageCount],
+  );
   const bookmarked = useMemo(
     () =>
       !!locator &&
@@ -726,7 +826,7 @@ export function ReaderScreen() {
             }}
             onBookmark={() => void handleBookmarkToggle().then(announceBookmark)}
             onShareQuote={() => setQuoteCardOpen(true)}
-            shareEnabled={!!quoteSelection}
+            shareEnabled={!!quoteSelection && !noCopy}
             onToggleChrome={chrome.handleToggleChrome}
             onHold={chrome.handleChromeHold}
             onPrevious={() => handleTurn("previous")}
@@ -738,6 +838,8 @@ export function ReaderScreen() {
             onFocusMode={chrome.toggleFocusMode}
             onSessionInfo={() => setSessionInfoOpen(true)}
             onShortcutsGuide={() => setShortcutsGuideOpen(true)}
+            pageInfo={pageInfo}
+            step={dockStep}
           />
 
           <InBookSearchPanel
@@ -768,12 +870,27 @@ export function ReaderScreen() {
             />
           )}
 
+          {decorPopover && (
+            <DecorationPopover
+              x={decorPopover.x}
+              y={decorPopover.y}
+              hasNote={(annotations.find((a) => a.id === decorPopover.id)?.note ?? null) !== null}
+              onClose={() => setDecorPopover(null)}
+              onEditNote={() => editDecorationNote(decorPopover.id)}
+              onRemove={() => void removeDecoration(decorPopover.id)}
+            />
+          )}
+
           <AppearancePanel
             open={chrome.panel === "appearance"}
             prefs={activePrefs}
             onClose={chrome.closePanel}
             onChange={handlePrefsChange}
             onReset={() => void handleReset()}
+            capabilities={capabilities ?? undefined}
+            zoom={pdfZoom}
+            onZoomBy={(direction) => void handleZoomBy(direction)}
+            onZoomMode={(mode) => void handleZoomMode(mode)}
           />
 
           <TocPanel
@@ -848,6 +965,7 @@ export function ReaderScreen() {
               onHighlight={(color) => void toggleHighlight(color, selection)}
               onNote={() => openNoteEditor(selection)}
               onCopy={() => void handleCopySelection(selection.quote)}
+              copyDisabled={noCopy}
             />
           )}
 

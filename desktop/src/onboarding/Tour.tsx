@@ -19,7 +19,7 @@ interface TourStep {
 const STEPS: TourStep[] = [
   {
     title: "Your library",
-    body: "Every book, article, and text file you import lives here. Search across the whole library, filter by collection, and pick up where you left off.",
+    body: "Every book, article, text file, and PDF you import lives here. Search across the whole library, filter by collection, and pick up where you left off.",
     route: "library",
     anchor: "library-search",
   },

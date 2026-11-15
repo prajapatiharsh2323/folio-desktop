@@ -288,6 +288,25 @@
   color: var(--folio-text-secondary);
 }
 
+/* Format badge (PDF plan §5): subtle surface + 1 px border inline after the
+ * kind label. EPUB/HTML/TXT stay unbadged. */
+.folio-badge {
+  display: inline-block;
+  margin-left: var(--folio-space-2);
+  padding: 0 var(--folio-space-2);
+  border: 1px solid var(--folio-border-control);
+  border-radius: var(--folio-radius-pill);
+  font-size: var(--folio-type-label-size);
+  line-height: 1.4;
+  font-weight: var(--folio-type-label-weight);
+  color: var(--folio-text-secondary);
+  vertical-align: baseline;
+}
+
+.folio-badge--pdf {
+  letter-spacing: 0.04em;
+}
+
 .folio-book-row__trailing {
   display: flex;
   align-items: center;
