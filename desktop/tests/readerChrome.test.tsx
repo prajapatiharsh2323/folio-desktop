@@ -323,6 +323,31 @@ describe("ReaderDock", () => {
     expect(document.querySelector(".folio-reader-dock__time")).toBeNull();
     expect(document.querySelector(".folio-reader-dock__chaptertime")).toBeNull();
   });
+
+  it("shows the fixed-layout page position and per-page scrub granularity (PDF)", () => {
+    render(
+      <ReaderChrome
+        {...chromeProps({
+          percent: 37.5,
+          pageInfo: { page: 9, pageCount: 24, label: "iv" },
+          step: Math.max(0.1, 100 / 24),
+        })}
+      />,
+    );
+    const page = document.querySelector(".folio-reader-dock__page");
+    expect(page?.textContent).toContain("Page 9 of 24");
+    expect(page?.getAttribute("title")).toBe("iv");
+    const slider = document.querySelector(".folio-reader-dock__slider") as HTMLInputElement;
+    expect(slider.getAttribute("aria-valuetext")).toBe("Page 9 of 24");
+    expect(Number(slider.step)).toBeCloseTo(100 / 24, 6);
+    // EPUB default: no page readout, percent-only value text
+    act(() => {
+      root?.unmount();
+    });
+    document.body.innerHTML = "";
+    render(<ReaderChrome {...chromeProps({ percent: 42 })} />);
+    expect(document.querySelector(".folio-reader-dock__page")).toBeNull();
+  });
 });
 
 describe("tocHrefMatches (TOC active-chapter reliability)", () => {

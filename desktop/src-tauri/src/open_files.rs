@@ -24,7 +24,10 @@ static PENDING: Mutex<LaunchRequest> = Mutex::new(LaunchRequest {
     import_requested: false,
 });
 
-const OPENABLE_EXTENSIONS: &[&str] = &["epub", "html", "htm", "txt", "md"];
+// "pdf" added for the PDF feature (plan §5, D4 alternate handler): flagged-off
+// builds still refuse the file at the TS import gate with "PDF is not
+// supported", so behaviour is unchanged when the feature is disabled.
+const OPENABLE_EXTENSIONS: &[&str] = &["epub", "html", "htm", "txt", "md", "pdf"];
 
 fn is_openable(path: &str) -> bool {
     let p = Path::new(path);
@@ -117,17 +120,22 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let book = dir.join("book.epub");
         let txt = dir.join("notes.txt");
-        let pdf = dir.join("nope.pdf");
+        let pdf = dir.join("paper.pdf");
+        let upper = dir.join("DOC.PDF");
         fs::write(&book, b"x").unwrap();
         fs::write(&txt, b"x").unwrap();
         fs::write(&pdf, b"x").unwrap();
+        fs::write(&upper, b"x").unwrap();
         let req = parse_args(vec![
             "Folio.exe".to_string(),
             book.to_string_lossy().to_string(),
             txt.to_string_lossy().to_string(),
             pdf.to_string_lossy().to_string(),
+            upper.to_string_lossy().to_string(),
         ]);
-        assert_eq!(req.files.len(), 2);
+        // PDFs are openable now (PDF plan §5): the feature gate lives in the
+        // TS import gate, which refuses them while FEATURES.pdf is off.
+        assert_eq!(req.files.len(), 4);
         assert!(!req.import_requested);
         let _ = fs::remove_dir_all(&dir);
     }

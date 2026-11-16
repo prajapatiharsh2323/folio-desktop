@@ -50,7 +50,7 @@ export async function pickImportFiles(): Promise<PickedFile[]> {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    input.accept = ".epub,.html,.htm,.txt,.md";
+    input.accept = ".epub,.html,.htm,.txt,.md,.pdf";
     input.onchange = async () => {
       const files = Array.from(input.files ?? []);
       const out: PickedFile[] = [];

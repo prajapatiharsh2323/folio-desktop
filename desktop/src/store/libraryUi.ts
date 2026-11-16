@@ -11,7 +11,7 @@ import { pushToast } from "../shell/toasts";
 import { handleError } from "../lib/errorLog";
 import { COPY, MAX_IMPORT_BYTES } from "../import/fileDetector";
 import type { PickedFile } from "../lib/fileSource";
-import type { DocMeta, ManifestDoc, Progress } from "../model/types";
+import type { DocMeta, ManifestDoc, Progress, SourceFormat } from "../model/types";
 
 export interface LibraryRow {
   id: string;
@@ -19,6 +19,8 @@ export interface LibraryRow {
   title: string;
   author?: string | null;
   kind: "book" | "article";
+  /** source format (PDF plan §5): drives the "PDF" badge; epub stays unbadged */
+  format?: SourceFormat;
   percent: number | null; // null → "New"
   tint: number;
   coverUrl?: string | null;
@@ -252,8 +254,10 @@ async function resolveCovers(
 function rowFrom(
   doc: { id: string; slug: string; title: string; contentHash: string; updatedAt?: string },
   meta:
-    | (Pick<DocMeta, "author" | "kind" | "importedAt"> & {
+    | (Pick<DocMeta, "author" | "kind" | "importedAt" | "tags"> & {
         files?: { cover?: string | null };
+        /** Source format for the row's PDF badge (PDF plan §5). */
+        sourceFormat?: SourceFormat;
       })
     | null,
   progress: Progress | null,
@@ -281,6 +285,7 @@ function rowFrom(
     title: doc.title,
     author: meta?.author ?? null,
     kind: meta?.kind ?? "book",
+    format: meta?.sourceFormat,
     percent: progress ? progress.percent : null,
     tint: tintIndexFromHash(doc.contentHash),
     coverUrl: coverUrl ?? getBookCoverPreset(doc.contentHash || doc.id),
@@ -527,18 +532,13 @@ async function runImportBatch(files: PickedFile[]): Promise<ImportOutcome> {
           continue;
         }
         const bytes = await file.read();
-        const result: ImportResult = await importFile(
-          lm,
-          file.name,
-          bytes,
-          (title) => {
-            // L10: an earlier "Apply to all remaining" answers this prompt.
-            if (duplicateApplyAll) return Promise.resolve(duplicateApplyAll);
-            return new Promise<DuplicateResolution>((resolve) => {
-              useLibraryUi.setState({ duplicate: { title, resolve } });
-            });
-          },
-        );
+        const result: ImportResult = await importFile(lm, file.name, bytes, (title) => {
+          // L10: an earlier "Apply to all remaining" answers this prompt.
+          if (duplicateApplyAll) return Promise.resolve(duplicateApplyAll);
+          return new Promise<DuplicateResolution>((resolve) => {
+            useLibraryUi.setState({ duplicate: { title, resolve } });
+          });
+        });
         if (result.status === "imported") {
           imported += 1;
           lastTitle = result.title ?? file.name;

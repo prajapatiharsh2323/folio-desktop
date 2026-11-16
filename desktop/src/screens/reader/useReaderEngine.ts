@@ -11,6 +11,7 @@ import type { ReadingPrefs, Annotation } from "../../model/types";
 import type {
   HighlightActivation,
   NoterefActivation,
+  ReaderCapabilities,
   ReaderEngine,
   ReaderLocator,
   TextSelectionInfo,
@@ -26,8 +27,8 @@ import {
 import { ProgressWriter } from "../../reader/progress";
 import { ReadingPaceStats, type PaceState } from "../../reader/pace";
 import { resumePlan } from "../../reader/resume";
-import { createReadiumEngine } from "../../reader/readiumEngine";
 import { positionsCacheFor } from "../../store/positionsCache";
+import { createEngine } from "../../reader/engineFactory";
 import type { KeepAwakeController } from "../../reader/keepAwake";
 import { openExternal } from "./launchExternal";
 import { planTarget } from "./resumeTargets";
@@ -51,6 +52,9 @@ interface UseReaderEngineOptions {
   /** A live selection owns the pointer — edge clicks must not turn the page. */
   selectionRef: MutableRefObject<TextSelectionInfo | null>;
   contextMenuRef: MutableRefObject<(x: number, y: number) => void>;
+  /** A painted highlight/annotation box was clicked (PDF popover hook, R5).
+   *  Implemented by the PDF engine only; kept current via the ref pattern. */
+  decorationClickRef: MutableRefObject<(id: string, at?: { x: number; y: number }) => void>;
   /** Focus mode is read through this ref inside engine callbacks (E2 fix). */
   isFocusModeRef: MutableRefObject<boolean>;
   previousPercentRef: MutableRefObject<number | null>;
@@ -94,6 +98,7 @@ export function useReaderEngine({
   keepAwakeRef,
   selectionRef,
   contextMenuRef,
+  decorationClickRef,
   isFocusModeRef,
   previousPercentRef,
   setChromeVisible,
@@ -124,6 +129,8 @@ export function useReaderEngine({
   const [engineError, setEngineError] = useState<string | null>(null);
   const [locator, setLocator] = useState<ReaderLocator | null>(null);
   const [toc, setToc] = useState<TocEntry[]>([]);
+  /** Engine capability report (PDF plan §8.4); null ⇒ reflowable EPUB. */
+  const [capabilities, setCapabilities] = useState<ReaderCapabilities | null>(null);
   const [seeking, setSeeking] = useState(false);
   /** Bumped at most once a second so pace-derived labels stay live without
    *  re-rendering on every scroll locator. */
@@ -153,8 +160,9 @@ export function useReaderEngine({
     const target = planTarget(plan);
     const restorePending = plan.kind !== "first";
 
-    const engine = createReadiumEngine({
-      epubBytes: doc.epubBytes,
+    const engine = createEngine({
+      format: doc.format,
+      readingBytes: doc.readingBytes,
       prefs: prefsRef.current,
       initial: target,
       positionsCache: positionsCacheFor({
@@ -295,6 +303,11 @@ export function useReaderEngine({
       contextMenuRef.current(info.x, info.y);
       return true;
     });
+    // Optional engine API (Readium has no painted decorations): wired when the
+    // engine implements it (PDF).
+    const offDecorClick = engine.onDecorationClick?.((id, at) => {
+      decorationClickRef.current(id, at);
+    });
 
     void (async () => {
       try {
@@ -304,6 +317,8 @@ export function useReaderEngine({
         if (cancelled) return;
         setSplashProgress(null);
         setToc(engine.toc());
+        // Capability report is only known after the document parses (PDF §8.4).
+        setCapabilities(engine.capabilities ?? null);
         try {
           await refreshAnnotations(doc.docId);
         } catch {
@@ -330,6 +345,8 @@ export function useReaderEngine({
       offHighlight();
       offPointer();
       offCtxMenu();
+      offDecorClick?.();
+      setCapabilities(null);
       void writer.flush();
       void engine.destroy();
       if (engineRef.current === engine) engineRef.current = null;
@@ -353,6 +370,7 @@ export function useReaderEngine({
     keepAwakeRef,
     selectionRef,
     contextMenuRef,
+    decorationClickRef,
     isFocusModeRef,
     previousPercentRef,
     setChromeVisible,
@@ -370,6 +388,7 @@ export function useReaderEngine({
     setEngineError(null);
     setLocator(null);
     setSplashProgress(null);
+    setCapabilities(null);
     setSplash("loading");
   }, []);
 
@@ -390,6 +409,7 @@ export function useReaderEngine({
     locator,
     setLocator,
     toc,
+    capabilities,
     seeking,
     paceVersion,
     resetForRetry,

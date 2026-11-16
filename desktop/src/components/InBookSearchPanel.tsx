@@ -249,11 +249,7 @@ export function InBookSearchPanel({
                       <div className="folio-inbook-search-panel__snippet">
                         {hit.snippet.head ? "…" : null}
                         {hit.snippet.parts.map((p, i) =>
-                          p.mark ? (
-                            <mark key={i}>{p.text}</mark>
-                          ) : (
-                            <span key={i}>{p.text}</span>
-                          ),
+                          p.mark ? <mark key={i}>{p.text}</mark> : <span key={i}>{p.text}</span>,
                         )}
                         {hit.snippet.tail ? "…" : null}
                       </div>

@@ -1,0 +1,139 @@
+/* ---- PDF fixed-layout reader (PDF plan §7.4) ------------------------------
+   The engine mounts .folio-pdf-scroll inside .folio-reader__canvas. The page
+   surround follows the reading theme (--pdf-page-bg set by the engine); the
+   pages themselves stay white — the paper is the PDF's, the surround is the
+   theme's. */
+
+.folio-pdf {
+  --pdf-page-bg: #fbf9f4;
+  --pdf-page-text: #1c1b19;
+}
+
+.folio-pdf-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: var(--pdf-page-bg);
+  color: var(--pdf-page-text);
+  overscroll-behavior: contain;
+}
+
+/* Paginated flow hides the scrollbar: page turns replace free scrolling. */
+.folio-pdf--paginated .folio-pdf-scroll {
+  scrollbar-width: none;
+}
+.folio-pdf--paginated .folio-pdf-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* The content plane carries the laid-out pages; its size is set by the
+   engine to the layout's total width/height. */
+.folio-pdf-content {
+  position: relative;
+}
+
+.folio-pdf-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* One box per rendered page: canvas + text layer + decorations share its
+   coordinate space; the engine sets left/top/width/height per layout. */
+.folio-pdf-pagebox {
+  position: absolute;
+  --user-unit: 1;
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  /* --scale-factor is set inline by the view (layout scale, CSS px per pt);
+     pdf.js text layer CSS resolves font sizes through --total-scale-factor. */
+  --total-scale-factor: calc(var(--scale-factor, 1) * var(--user-unit));
+}
+
+.folio-pdf-page {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+  display: block;
+}
+
+/* ---- Text layer (PDF plan §7.4) — selection/search substrate. Minimal
+   copy of pdfjs-dist/web/pdf_viewer.css .textLayer rules (Apache-2.0, listed
+   in THIRD-PARTY-NOTICES.md); spans are positioned inline by pdf.js. */
+.folio-pdf-textlayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  text-align: initial;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.folio-pdf-textlayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.folio-pdf-textlayer > :not(.markedContent),
+.folio-pdf-textlayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.folio-pdf-textlayer .markedContent {
+  display: contents;
+}
+
+.folio-pdf-textlayer ::selection {
+  background: rgb(0 90 255 / 0.25);
+  color: transparent;
+}
+
+/* ---- Highlight decorations (§7.4): translucent rects over the canvas,
+   under the (transparent) text spans; pointer-events stay off so selection
+   and page clicks work through them. */
+.folio-pdf-decorations {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.folio-pdf-highlight {
+  position: absolute;
+  border-radius: 1px;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* ---- Clicked-highlight popover (R5, hardening §12): fixed menu over the
+   canvas with note/ remove actions; item styles shared with the reduced
+   context menu (.folio-reader-menu__item, reader.css). */
+.folio-pdf-decor-popover {
+  position: fixed;
+  z-index: var(--folio-z-ctxmenu);
+  min-width: 200px;
+  padding: var(--folio-space-2) 0;
+  background: var(--folio-surface, #fffefb);
+  color: var(--folio-text-primary, #22251f);
+  border: var(--folio-divider) solid var(--folio-border);
+  border-radius: var(--folio-radius-card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}

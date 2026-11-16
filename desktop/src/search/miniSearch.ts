@@ -9,6 +9,7 @@
 import { normalizeQuery } from "./normalise";
 import { editDistance, fuzzyMaxDist } from "./editDistance";
 import {
+  buildCorpus,
   buildSnippetParts,
   findOccurrences,
   wordMatches,
@@ -265,9 +266,7 @@ export class MiniSearch {
       hits.push({
         id: entry.doc.id,
         score,
-        snippet: corpus
-          ? buildSnippetParts(corpus.raw, spans)
-          : plainSnippet(entry.doc.text),
+        snippet: corpus ? buildSnippetParts(corpus.raw, spans) : plainSnippet(entry.doc.text),
         docId: entry.doc.docId,
         docTitle: entry.doc.docTitle,
         href: entry.doc.href,

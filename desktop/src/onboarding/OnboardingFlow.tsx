@@ -502,7 +502,7 @@ function AddBookStep() {
               </p>
             ) : (
               <>
-                <p className="folio-setup__drop-copy">Drop an EPUB, HTML or text file</p>
+                <p className="folio-setup__drop-copy">Drop an EPUB, PDF, HTML or text file</p>
                 <FolioButton variant="primary" onClick={() => void chooseFiles()} disabled={busy}>
                   {busy ? "Importing…" : "Choose files"}
                 </FolioButton>

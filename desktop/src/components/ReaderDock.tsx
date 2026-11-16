@@ -6,6 +6,7 @@
 // a finished book replaces the percent label with "Finished".
 import { useCallback, useRef } from "react";
 import { FolioIcons } from "./FolioIcons";
+import type { ReaderPageInfo } from "../reader/ReaderEngine";
 
 export interface ReaderDockProps {
   chapterTitle: string;
@@ -27,6 +28,11 @@ export interface ReaderDockProps {
   onScrubStart: () => void;
   onScrubChange: (percent: number) => void;
   onScrubEnd: (percent: number) => void;
+  /** Fixed-layout page position; absent ⇒ percent-only display (EPUB today). */
+  pageInfo?: ReaderPageInfo | null;
+  /** Slider granularity; defaults to 1 (EPUB behaviour). PDFs pass
+   *  max(0.1, 100 / pageCount) so a 340-page book can land between pages. */
+  step?: number;
 }
 
 const SCRUB_KEYS = new Set([
@@ -66,6 +72,8 @@ export function ReaderDock({
   onScrubStart,
   onScrubChange,
   onScrubEnd,
+  pageInfo = null,
+  step = 1,
 }: ReaderDockProps) {
   const value = scrubValue ?? percent;
   const scrubbing = useRef(false);
@@ -157,6 +165,11 @@ export function ReaderDock({
             {chapterTitle}
           </span>
           <span className="folio-reader-dock__stats">
+            {pageInfo && (
+              <span className="folio-reader-dock__page" title={pageInfo.label ?? undefined}>
+                Page {pageInfo.page} of {pageInfo.pageCount}
+              </span>
+            )}
             <span
               className={`folio-reader-dock__percent${finished ? " folio-reader-dock__percent--finished" : ""}`}
             >
@@ -208,13 +221,15 @@ export function ReaderDock({
           className="folio-reader-dock__slider"
           min={0}
           max={100}
-          step={0.1}
+          step={step}
           value={Math.min(100, Math.max(0, value))}
           aria-label="Reading progress"
           aria-valuetext={
-            finished
-              ? "Finished"
-              : `${Math.floor(clamp(value))} percent${tooltipChapter ? `, ${tooltipChapter}` : ""}`
+            pageInfo
+              ? `Page ${pageInfo.page} of ${pageInfo.pageCount}`
+              : finished
+                ? "Finished"
+                : `${Math.floor(clamp(value))} percent${tooltipChapter ? `, ${tooltipChapter}` : ""}`
           }
           aria-busy={seeking}
           onPointerDown={(e) => {

@@ -88,38 +88,38 @@ describe("InBookSearchPanel", () => {
           {
             chapterTitle: "Chapter 1",
             snippet: {
-            head: false,
-            tail: false,
-            parts: [
-              { text: "It was ", mark: false },
-              { text: "Sherlock", mark: true },
-              { text: " Holmes who spoke.", mark: false },
-            ],
-          },
+              head: false,
+              tail: false,
+              parts: [
+                { text: "It was ", mark: false },
+                { text: "Sherlock", mark: true },
+                { text: " Holmes who spoke.", mark: false },
+              ],
+            },
             locator: "text/ch1.xhtml#p4",
           },
           {
             chapterTitle: "Chapter 1",
             snippet: {
-            head: false,
-            tail: false,
-            parts: [
-              { text: "Sherlock", mark: true },
-              { text: " closed the door.", mark: false },
-            ],
-          },
+              head: false,
+              tail: false,
+              parts: [
+                { text: "Sherlock", mark: true },
+                { text: " closed the door.", mark: false },
+              ],
+            },
             locator: "text/ch1.xhtml#p7",
           },
           {
             chapterTitle: "Chapter 2",
             snippet: {
-            head: false,
-            tail: false,
-            parts: [
-              { text: "Sherlock", mark: true },
-              { text: " smiled.", mark: false },
-            ],
-          },
+              head: false,
+              tail: false,
+              parts: [
+                { text: "Sherlock", mark: true },
+                { text: " smiled.", mark: false },
+              ],
+            },
             locator: "text/ch2.xhtml#p1",
           },
         ]}
@@ -189,26 +189,26 @@ describe("InBookSearchPanel", () => {
           {
             chapterTitle: "Chapter 1",
             snippet: {
-            head: false,
-            tail: false,
-            parts: [
-              { text: "It was ", mark: false },
-              { text: "Sherlock", mark: true },
-              { text: " Holmes who spoke.", mark: false },
-            ],
-          },
+              head: false,
+              tail: false,
+              parts: [
+                { text: "It was ", mark: false },
+                { text: "Sherlock", mark: true },
+                { text: " Holmes who spoke.", mark: false },
+              ],
+            },
             locator: "text/ch1.xhtml#p4",
           },
           {
             chapterTitle: "Chapter 1",
             snippet: {
-            head: false,
-            tail: false,
-            parts: [
-              { text: "Sherlock", mark: true },
-              { text: " closed the door.", mark: false },
-            ],
-          },
+              head: false,
+              tail: false,
+              parts: [
+                { text: "Sherlock", mark: true },
+                { text: " closed the door.", mark: false },
+              ],
+            },
             locator: "text/ch1.xhtml#p7",
           },
         ]}
@@ -255,14 +255,14 @@ describe("InBookSearchPanel", () => {
           {
             chapterTitle: "Chapter 1",
             snippet: {
-            head: false,
-            tail: false,
-            parts: [
-              { text: "It was ", mark: false },
-              { text: "Sherlock", mark: true },
-              { text: " Holmes who spoke.", mark: false },
-            ],
-          },
+              head: false,
+              tail: false,
+              parts: [
+                { text: "It was ", mark: false },
+                { text: "Sherlock", mark: true },
+                { text: " Holmes who spoke.", mark: false },
+              ],
+            },
             locator: "text/ch1.xhtml#p4",
           },
         ]}

@@ -49,9 +49,13 @@ export function FolioMenu({
       return;
     }
     const height = items.length * ITEM_HEIGHT + 12;
-    const left = Math.max(8, Math.min(anchorRect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8));
+    const left = Math.max(
+      8,
+      Math.min(anchorRect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8),
+    );
     const below = anchorRect.bottom + 4;
-    const top = below + height > window.innerHeight - 8 ? Math.max(8, anchorRect.top - height - 4) : below;
+    const top =
+      below + height > window.innerHeight - 8 ? Math.max(8, anchorRect.top - height - 4) : below;
     setPos({ top, left });
   }, [anchorRect, items.length]);
 

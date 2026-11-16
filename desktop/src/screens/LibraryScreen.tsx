@@ -14,7 +14,7 @@ import { buildLibraryIndex } from "../search/libraryIndex";
 import { reportError } from "../lib/errorLog";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { readStorage, writeStorage } from "../lib/storage";
-import { sortLibraryRows, visibleRowIds } from "../lib/libraryView";
+import { sortLibraryRows } from "../lib/libraryView";
 import { searchSignature } from "../lib/searchCache";
 import { hasBlockingOverlay } from "../shell/overlays";
 import { pushToast } from "../shell/toasts";
@@ -99,7 +99,6 @@ export function LibraryScreen() {
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [addToCollectionOpen, setAddToCollectionOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchScope, setSearchScope] = useState<SearchScope>("all");
@@ -126,9 +125,9 @@ export function LibraryScreen() {
   const [editSaving, setEditSaving] = useState(false);
 
   // ---- L8: soft delete (pending window with Undo) ---------------------------
-  const [pendingDeletes, setPendingDeletes] = useState<Map<string, { title: string; timer: number }>>(
-    new Map(),
-  );
+  const [pendingDeletes, setPendingDeletes] = useState<
+    Map<string, { title: string; timer: number }>
+  >(new Map());
   const pendingDeletesRef = useRef(pendingDeletes);
   pendingDeletesRef.current = pendingDeletes;
 
@@ -601,14 +600,16 @@ export function LibraryScreen() {
       await addToCollection(created.id, [...selectedIds]);
     } catch (e) {
       handleError(e, { context: "library.collection.create" });
-      setNewCollectionError(e instanceof Error ? e.message : "The collection could not be created.");
+      setNewCollectionError(
+        e instanceof Error ? e.message : "The collection could not be created.",
+      );
     } finally {
       setCreatingCollection(false);
     }
   };
 
   // ---- L4: per-book menu ----------------------------------------------------
-  const menuRow = menuDocId ? rows.find((r) => r.id === menuDocId) ?? null : null;
+  const menuRow = menuDocId ? (rows.find((r) => r.id === menuDocId) ?? null) : null;
   const openMenu = (row: LibraryRow, trigger: HTMLElement) => {
     setMenuAnchor(trigger.getBoundingClientRect());
     setMenuDocId(row.id);
@@ -725,8 +726,8 @@ export function LibraryScreen() {
                 label: "Show in folder",
                 onSelect: () => void showInFolder(menuRow),
               },
-            ])
-        : [],
+            ]
+          : []),
         {
           key: "delete",
           label: "Delete…",
@@ -782,7 +783,13 @@ export function LibraryScreen() {
   };
 
   const rowBadge = (r: LibraryRow): "New" | "Finished" | "Missing" | undefined =>
-    missingIds.has(r.id) ? "Missing" : r.percent === null ? "New" : r.percent >= 100 ? "Finished" : undefined;
+    missingIds.has(r.id)
+      ? "Missing"
+      : r.percent === null
+        ? "New"
+        : r.percent >= 100
+          ? "Finished"
+          : undefined;
 
   return (
     <>
@@ -861,11 +868,7 @@ export function LibraryScreen() {
       )}
 
       {searchOpen && searchQuery.trim().length > 0 && indexProgress === null && (
-        <div
-          className="folio-searchbar__progress"
-          role="status"
-          aria-live="polite"
-        >
+        <div className="folio-searchbar__progress" role="status" aria-live="polite">
           {searchResults.length > 0
             ? `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`
             : null}
@@ -873,7 +876,12 @@ export function LibraryScreen() {
       )}
 
       {searchOpen && searchQuery.trim().length > 0 && indexProgress === null && (
-        <div className="folio-toolbar" role="group" aria-label="Search scope" style={{ paddingTop: 0 }}>
+        <div
+          className="folio-toolbar"
+          role="group"
+          aria-label="Search scope"
+          style={{ paddingTop: 0 }}
+        >
           {(["all", "book", "article"] as SearchScope[]).map((s) => (
             <FolioChip key={s} selected={searchScope === s} onClick={() => setSearchScope(s)}>
               {s === "all" ? "All" : s === "book" ? "Books" : "Articles"}
@@ -999,7 +1007,10 @@ export function LibraryScreen() {
             Select
           </FolioChip>
           {selectionMode && (
-            <FolioChip selected={selectedIds.size === visibleRows.length && visibleRows.length > 0} onClick={selectAllVisible}>
+            <FolioChip
+              selected={selectedIds.size === visibleRows.length && visibleRows.length > 0}
+              onClick={selectAllVisible}
+            >
               Select all
             </FolioChip>
           )}
@@ -1020,7 +1031,12 @@ export function LibraryScreen() {
       )}
 
       {count > 0 && (
-        <div className="folio-toolbar" role="group" aria-label="Filters" style={{ paddingTop: 0, flexWrap: "wrap" }}>
+        <div
+          className="folio-toolbar"
+          role="group"
+          aria-label="Filters"
+          style={{ paddingTop: 0, flexWrap: "wrap" }}
+        >
           <FolioChip selected={kindFilter === "all"} onClick={() => setKindFilter("all")}>
             All
           </FolioChip>
@@ -1030,17 +1046,30 @@ export function LibraryScreen() {
           <FolioChip selected={kindFilter === "article"} onClick={() => setKindFilter("article")}>
             Articles
           </FolioChip>
-          <FolioChip selected={statusFilter === "reading"} onClick={() => setStatusFilter(statusFilter === "reading" ? "all" : "reading")}>
+          <FolioChip
+            selected={statusFilter === "reading"}
+            onClick={() => setStatusFilter(statusFilter === "reading" ? "all" : "reading")}
+          >
             Reading
           </FolioChip>
-          <FolioChip selected={statusFilter === "finished"} onClick={() => setStatusFilter(statusFilter === "finished" ? "all" : "finished")}>
+          <FolioChip
+            selected={statusFilter === "finished"}
+            onClick={() => setStatusFilter(statusFilter === "finished" ? "all" : "finished")}
+          >
             Finished
           </FolioChip>
-          <FolioChip selected={statusFilter === "new"} onClick={() => setStatusFilter(statusFilter === "new" ? "all" : "new")}>
+          <FolioChip
+            selected={statusFilter === "new"}
+            onClick={() => setStatusFilter(statusFilter === "new" ? "all" : "new")}
+          >
             New
           </FolioChip>
           {allTags.slice(0, 6).map((t) => (
-            <FolioChip key={t} selected={tagFilter === t} onClick={() => setTagFilter(tagFilter === t ? null : t)}>
+            <FolioChip
+              key={t}
+              selected={tagFilter === t}
+              onClick={() => setTagFilter(tagFilter === t ? null : t)}
+            >
               #{t}
             </FolioChip>
           ))}
@@ -1117,7 +1146,7 @@ export function LibraryScreen() {
             body={
               filterCollection || kindFilter !== "all" || statusFilter !== "all" || tagFilter
                 ? "Try removing a filter, or import something new."
-                : "Import EPUB, HTML or TXT files to start your library. You can also drag files onto this window."
+                : "Import EPUB, PDF, HTML or TXT files to start your library. You can also drag files onto this window."
             }
             action={
               filterCollection || kindFilter !== "all" || statusFilter !== "all" || tagFilter ? (
@@ -1153,7 +1182,8 @@ export function LibraryScreen() {
                           id: r.id,
                           title: r.title,
                           author: r.author ?? undefined,
-                          progress: r.percent / 100,
+                          format: r.format,
+                          progress: (r.percent ?? 0) / 100,
                           tint: r.tint,
                           coverUrl: r.coverUrl ?? undefined,
                           badge: rowBadge(r),
@@ -1200,6 +1230,7 @@ export function LibraryScreen() {
                         title: r.title,
                         author: r.author ?? undefined,
                         kind: r.kind === "article" ? "Article" : "Book",
+                        format: r.format,
                         progress: r.percent === null ? undefined : r.percent / 100,
                         tint: r.tint,
                         coverUrl: r.coverUrl ?? undefined,
@@ -1226,9 +1257,9 @@ export function LibraryScreen() {
                       onMore={
                         selectionMode
                           ? undefined
-                          : (id) => {
+                          : (id, trigger) => {
                               const row = rows.find((x) => x.id === id);
-                              if (row) openMenu(row, (e.currentTarget as HTMLElement) ?? null);
+                              if (row) openMenu(row, trigger);
                             }
                       }
                     />
@@ -1286,6 +1317,7 @@ export function LibraryScreen() {
                           title: r.title,
                           author: r.author ?? undefined,
                           kind: r.kind === "article" ? "Article" : "Book",
+                          format: r.format,
                           progress: r.percent === null ? undefined : r.percent / 100,
                           tint: r.tint,
                           coverUrl: r.coverUrl ?? undefined,
@@ -1310,11 +1342,7 @@ export function LibraryScreen() {
                                     })
                                   : openReader({ docId: r.id })
                         }
-                        onMore={
-                          selectionMode
-                            ? undefined
-                            : (_id, trigger) => openMenu(r, trigger)
-                        }
+                        onMore={selectionMode ? undefined : (_id, trigger) => openMenu(r, trigger)}
                       />
                     </div>
                   ),
@@ -1434,7 +1462,6 @@ export function LibraryScreen() {
             </FolioButton>
             <FolioButton
               variant="danger"
-              disabled={deleting}
               onClick={() => {
                 setDeleteConfirmOpen(false);
                 scheduleDelete([...selectedIds]);
@@ -1521,13 +1548,22 @@ export function LibraryScreen() {
         title="Already in your library"
         actions={
           <>
-            <FolioButton variant="secondary" onClick={() => resolveDuplicate("skip", duplicateApplyAll)}>
+            <FolioButton
+              variant="secondary"
+              onClick={() => resolveDuplicate("skip", duplicateApplyAll)}
+            >
               Skip
             </FolioButton>
-            <FolioButton variant="secondary" onClick={() => resolveDuplicate("keep", duplicateApplyAll)}>
+            <FolioButton
+              variant="secondary"
+              onClick={() => resolveDuplicate("keep", duplicateApplyAll)}
+            >
               Keep both
             </FolioButton>
-            <FolioButton variant="primary" onClick={() => resolveDuplicate("replace", duplicateApplyAll)}>
+            <FolioButton
+              variant="primary"
+              onClick={() => resolveDuplicate("replace", duplicateApplyAll)}
+            >
               Replace
             </FolioButton>
           </>
@@ -1591,7 +1627,7 @@ export function LibraryScreen() {
         title="Library recovery"
         actions={
           <>
-            {recovery && (recovery.damaged.length + recovery.interrupted.length > 1) && (
+            {recovery && recovery.damaged.length + recovery.interrupted.length > 1 && (
               <FolioButton
                 variant="danger"
                 onClick={() => {

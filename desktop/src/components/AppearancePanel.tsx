@@ -16,7 +16,9 @@ import {
   FONT_SIZE_MIN,
   READER_THEME_COLORS,
 } from "../model/defaults";
-import type { ReadingPrefs } from "../model/types";
+import type { ReadingPrefs, ReadingSpread } from "../model/types";
+import type { ReaderCapabilities } from "../reader/ReaderEngine";
+import { MAX_ZOOM, MIN_ZOOM } from "../pdf/pdfLayout";
 import { READING_THEME_OPTIONS, TYPEFACE_OPTIONS } from "./readingPrefsOptions";
 
 const SERIF_CSS = '"Iowan Old Style", Georgia, serif';
@@ -27,6 +29,12 @@ const ALIGNMENT_OPTIONS = [
 const FLOW_OPTIONS = [
   { value: "paginated", label: "Paginated" },
   { value: "scrolled", label: "Scrolled" },
+] as const;
+
+const SPREAD_OPTIONS = [
+  { value: "none", label: "Single pages" },
+  { value: "auto", label: "Auto" },
+  { value: "both", label: "Spreads" },
 ] as const;
 
 const WIDTH_PRESETS: { label: string; value: number }[] = [
@@ -48,6 +56,15 @@ interface AppearancePanelProps {
   onChange: (next: ReadingPrefs) => void;
   /** removes this book's override, restoring the global defaults (04 §3) */
   onReset: () => void;
+  /** Engine capability report (PDF plan §8.4). Undefined ⇒ reflowable with
+   *  typography, which renders exactly today's EPUB panel. Fixed-layout
+   *  documents get zoom + page-layout sections instead of typography. */
+  capabilities?: ReaderCapabilities;
+  /** Current zoom (fit mode or absolute); shown in the zoom controls. */
+  zoom?: "fit-width" | "fit-page" | number;
+  /** Zoom stepping goes to the engine: zoom is session state, not a pref. */
+  onZoomBy?: (direction: 1 | -1) => void;
+  onZoomMode?: (mode: "fit-width" | "fit-page") => void;
 }
 
 /**
@@ -62,8 +79,20 @@ export function AppearancePanel({
   onClose,
   onChange,
   onReset,
+  capabilities,
+  zoom = "fit-width",
+  onZoomBy,
+  onZoomMode,
 }: AppearancePanelProps) {
   const patch = (part: Partial<ReadingPrefs>) => onChange({ ...prefs, ...part });
+  /** Fixed layout: no typography sections, zoom + page layout instead (§8.4). */
+  const fixed = capabilities?.format === "fixed";
+  const zoomLabel =
+    zoom === "fit-width"
+      ? "Fit width"
+      : zoom === "fit-page"
+        ? "Fit page"
+        : `${Math.round(zoom * 100)}%`;
 
   const activeFont =
     prefs.fontFamily === "publisher"
@@ -96,115 +125,147 @@ export function AppearancePanel({
           <div className="folio-appearance__quick-title">Quick Adjustments</div>
 
           <div className="folio-appearance__quick-row">
-            <div
-              className="folio-appearance__quick-stepper"
-              role="group"
-              aria-label="Quick font size"
-            >
+            {fixed ? (
+              <div className="folio-appearance__quick-stepper" role="group" aria-label="Page zoom">
+                <button
+                  type="button"
+                  className="folio-appearance__quick-btn"
+                  aria-label="Zoom out"
+                  disabled={typeof zoom === "number" && zoom <= MIN_ZOOM}
+                  onClick={() => onZoomBy?.(-1)}
+                >
+                  −
+                </button>
+                <span className="folio-appearance__quick-size" aria-live="polite">
+                  {zoomLabel}
+                </span>
+                <button
+                  type="button"
+                  className="folio-appearance__quick-btn"
+                  aria-label="Zoom in"
+                  disabled={typeof zoom === "number" && zoom >= MAX_ZOOM}
+                  onClick={() => onZoomBy?.(1)}
+                >
+                  +
+                </button>
+              </div>
+            ) : (
+              <div
+                className="folio-appearance__quick-stepper"
+                role="group"
+                aria-label="Quick font size"
+              >
+                <button
+                  type="button"
+                  className="folio-appearance__quick-btn"
+                  aria-label="Decrease text size"
+                  disabled={prefs.fontSize <= FONT_SIZE_MIN}
+                  onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize - 1) })}
+                >
+                  A−
+                </button>
+                <span className="folio-appearance__quick-size" aria-live="polite">
+                  {prefs.fontSize}px
+                </span>
+                <button
+                  type="button"
+                  className="folio-appearance__quick-btn"
+                  aria-label="Increase text size"
+                  disabled={prefs.fontSize >= FONT_SIZE_MAX}
+                  onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize + 1) })}
+                >
+                  A+
+                </button>
+              </div>
+            )}
+
+            {!fixed && (
+              <FolioRadioGroup
+                label="Reading column width presets"
+                className="folio-appearance__quick-presets"
+                value={widthPreset}
+                options={WIDTH_PRESETS.map((p) => ({
+                  value: String(p.value),
+                  label: p.label,
+                }))}
+                onChange={(key) => patch({ maxWidth: Number(key) })}
+                renderOption={({ option, selected, tabIndex, select, setButton }) => (
+                  <button
+                    ref={setButton}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={tabIndex}
+                    className={`folio-appearance__preset-chip${selected ? " is-active" : ""}`}
+                    onClick={select}
+                  >
+                    {option.label}
+                  </button>
+                )}
+              />
+            )}
+          </div>
+
+          {!fixed && (
+            <div className="folio-appearance__quick-row" style={{ marginTop: 4 }}>
+              <FolioRadioGroup
+                label="Text alignment"
+                className="folio-appearance__quick-presets"
+                value={prefs.justify ? "justify" : "left"}
+                options={[...ALIGNMENT_OPTIONS]}
+                onChange={(value) => patch({ justify: value === "justify" })}
+                renderOption={({ option, selected, tabIndex, select, setButton }) => (
+                  <button
+                    ref={setButton}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={tabIndex}
+                    className={`folio-appearance__toggle-chip${selected ? " is-active" : ""}`}
+                    onClick={select}
+                  >
+                    {option.label}
+                  </button>
+                )}
+              />
+
               <button
                 type="button"
-                className="folio-appearance__quick-btn"
-                aria-label="Decrease text size"
-                disabled={prefs.fontSize <= FONT_SIZE_MIN}
-                onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize - 1) })}
+                role="switch"
+                aria-checked={prefs.hyphenate}
+                className={`folio-appearance__toggle-chip${prefs.hyphenate ? " is-active" : ""}`}
+                onClick={() => patch({ hyphenate: !prefs.hyphenate })}
+                aria-label="Toggle hyphenation"
               >
-                A−
-              </button>
-              <span className="folio-appearance__quick-size" aria-live="polite">
-                {prefs.fontSize}px
-              </span>
-              <button
-                type="button"
-                className="folio-appearance__quick-btn"
-                aria-label="Increase text size"
-                disabled={prefs.fontSize >= FONT_SIZE_MAX}
-                onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize + 1) })}
-              >
-                A+
+                Hyphenate: {prefs.hyphenate ? "On" : "Off"}
               </button>
             </div>
-
-            <FolioRadioGroup
-              label="Reading column width presets"
-              className="folio-appearance__quick-presets"
-              value={widthPreset}
-              options={WIDTH_PRESETS.map((p) => ({
-                value: String(p.value),
-                label: p.label,
-              }))}
-              onChange={(key) => patch({ maxWidth: Number(key) })}
-              renderOption={({ option, selected, tabIndex, select, setButton }) => (
-                <button
-                  ref={setButton}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  tabIndex={tabIndex}
-                  className={`folio-appearance__preset-chip${selected ? " is-active" : ""}`}
-                  onClick={select}
-                >
-                  {option.label}
-                </button>
-              )}
-            />
-          </div>
-
-          <div className="folio-appearance__quick-row" style={{ marginTop: 4 }}>
-            <FolioRadioGroup
-              label="Text alignment"
-              className="folio-appearance__quick-presets"
-              value={prefs.justify ? "justify" : "left"}
-              options={[...ALIGNMENT_OPTIONS]}
-              onChange={(value) => patch({ justify: value === "justify" })}
-              renderOption={({ option, selected, tabIndex, select, setButton }) => (
-                <button
-                  ref={setButton}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  tabIndex={tabIndex}
-                  className={`folio-appearance__toggle-chip${selected ? " is-active" : ""}`}
-                  onClick={select}
-                >
-                  {option.label}
-                </button>
-              )}
-            />
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={prefs.hyphenate}
-              className={`folio-appearance__toggle-chip${prefs.hyphenate ? " is-active" : ""}`}
-              onClick={() => patch({ hyphenate: !prefs.hyphenate })}
-              aria-label="Toggle hyphenation"
-            >
-              Hyphenate: {prefs.hyphenate ? "On" : "Off"}
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* Typography Live Preview */}
-        <section className="folio-appearance__preview-section">
-          <FolioSectionHeader>Typography Preview</FolioSectionHeader>
-          <div
-            className="folio-typography-preview"
-            style={{
-              backgroundColor: previewColors.bg,
-              color: previewColors.text,
-              fontFamily: activeFont.css,
-              fontSize: `${Math.min(22, Math.max(14, prefs.fontSize))}px`,
-              lineHeight: prefs.lineHeight,
-              letterSpacing: `${prefs.letterSpacing}em`,
-              textAlign: prefs.justify ? "justify" : "left",
-              hyphens: prefs.hyphenate ? "auto" : "none",
-            }}
-            aria-hidden="true"
-          >
-            The quick brown fox jumps over the lazy dog. Comfortable typography and clean margins
-            deliver an immersive, distraction-free reading experience.
-          </div>
-        </section>
+        {/* Typography Live Preview — reflowable only */}
+        {!fixed && (
+          <section className="folio-appearance__preview-section">
+            <FolioSectionHeader>Typography Preview</FolioSectionHeader>
+            <div
+              className="folio-typography-preview"
+              style={{
+                backgroundColor: previewColors.bg,
+                color: previewColors.text,
+                fontFamily: activeFont.css,
+                fontSize: `${Math.min(22, Math.max(14, prefs.fontSize))}px`,
+                lineHeight: prefs.lineHeight,
+                letterSpacing: `${prefs.letterSpacing}em`,
+                textAlign: prefs.justify ? "justify" : "left",
+                hyphens: prefs.hyphenate ? "auto" : "none",
+              }}
+              aria-hidden="true"
+            >
+              The quick brown fox jumps over the lazy dog. Comfortable typography and clean margins
+              deliver an immersive, distraction-free reading experience.
+            </div>
+          </section>
+        )}
 
         {/* Reading Theme */}
         <section>
@@ -244,203 +305,215 @@ export function AppearancePanel({
           />
         </section>
 
-        {/* Typeface */}
-        <section>
-          <FolioSectionHeader>Typeface</FolioSectionHeader>
-          <FolioRadioGroup
-            label="Typeface"
-            className="folio-wrap-row"
-            value={prefs.fontFamily}
-            options={TYPEFACE_OPTIONS.map((f) => ({
-              value: f.value,
-              label: f.label,
-              style: {
-                fontFamily: f.value === "publisher" ? SERIF_CSS : f.css,
-              } as CSSProperties,
-            }))}
-            onChange={(fontFamily) => patch({ fontFamily })}
-          />
-        </section>
+        {/* Reflowable typography — the whole block is meaningless for fixed
+            layouts, whose pages are images of the paper (PDF plan §8.4). */}
+        {!fixed && (
+          <>
+            {/* Typeface */}
+            <section>
+              <FolioSectionHeader>Typeface</FolioSectionHeader>
+              <FolioRadioGroup
+                label="Typeface"
+                className="folio-wrap-row"
+                value={prefs.fontFamily}
+                options={TYPEFACE_OPTIONS.map((f) => ({
+                  value: f.value,
+                  label: f.label,
+                  style: {
+                    fontFamily: f.value === "publisher" ? SERIF_CSS : f.css,
+                  } as CSSProperties,
+                }))}
+                onChange={(fontFamily) => patch({ fontFamily })}
+              />
+            </section>
 
-        {/* Text Size */}
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Text size</FolioSectionHeader>
-          <div className="folio-stepper">
-            <button
-              type="button"
-              className="folio-stepper__btn"
-              aria-label="Smaller text"
-              disabled={prefs.fontSize <= FONT_SIZE_MIN}
-              onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize - 1) })}
-            >
-              −
-            </button>
-            <input
-              type="range"
-              className="folio-slider"
-              min={FONT_SIZE_MIN}
-              max={FONT_SIZE_MAX}
-              step={1}
-              value={prefs.fontSize}
-              aria-label="Text size"
-              aria-valuetext={`${prefs.fontSize} pixels`}
-              onChange={(e) => patch({ fontSize: clampFontSize(Number(e.currentTarget.value)) })}
-            />
-            <button
-              type="button"
-              className="folio-stepper__btn"
-              aria-label="Larger text"
-              disabled={prefs.fontSize >= FONT_SIZE_MAX}
-              onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize + 1) })}
-            >
-              +
-            </button>
-            <span className="folio-control-value">{prefs.fontSize}px</span>
-          </div>
-        </section>
+            {/* Text Size */}
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Text size</FolioSectionHeader>
+              <div className="folio-stepper">
+                <button
+                  type="button"
+                  className="folio-stepper__btn"
+                  aria-label="Smaller text"
+                  disabled={prefs.fontSize <= FONT_SIZE_MIN}
+                  onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize - 1) })}
+                >
+                  −
+                </button>
+                <input
+                  type="range"
+                  className="folio-slider"
+                  min={FONT_SIZE_MIN}
+                  max={FONT_SIZE_MAX}
+                  step={1}
+                  value={prefs.fontSize}
+                  aria-label="Text size"
+                  aria-valuetext={`${prefs.fontSize} pixels`}
+                  onChange={(e) =>
+                    patch({ fontSize: clampFontSize(Number(e.currentTarget.value)) })
+                  }
+                />
+                <button
+                  type="button"
+                  className="folio-stepper__btn"
+                  aria-label="Larger text"
+                  disabled={prefs.fontSize >= FONT_SIZE_MAX}
+                  onClick={() => patch({ fontSize: clampFontSize(prefs.fontSize + 1) })}
+                >
+                  +
+                </button>
+                <span className="folio-control-value">{prefs.fontSize}px</span>
+              </div>
+            </section>
 
-        {/* Line Spacing */}
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Line spacing</FolioSectionHeader>
-          <div className="folio-slider-row">
-            <input
-              type="range"
-              className="folio-slider"
-              min={1.3}
-              max={2.4}
-              step={0.1}
-              value={prefs.lineHeight}
-              aria-label="Line spacing"
-              aria-valuetext={`${prefs.lineHeight.toFixed(1)} times`}
-              onChange={(e) =>
-                patch({ lineHeight: clampLineHeight(Number(e.currentTarget.value)) })
-              }
-            />
-            <span className="folio-control-value">{prefs.lineHeight.toFixed(1)}</span>
-          </div>
-        </section>
+            {/* Line Spacing */}
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Line spacing</FolioSectionHeader>
+              <div className="folio-slider-row">
+                <input
+                  type="range"
+                  className="folio-slider"
+                  min={1.3}
+                  max={2.4}
+                  step={0.1}
+                  value={prefs.lineHeight}
+                  aria-label="Line spacing"
+                  aria-valuetext={`${prefs.lineHeight.toFixed(1)} times`}
+                  onChange={(e) =>
+                    patch({ lineHeight: clampLineHeight(Number(e.currentTarget.value)) })
+                  }
+                />
+                <span className="folio-control-value">{prefs.lineHeight.toFixed(1)}</span>
+              </div>
+            </section>
 
-        {/* Text Alignment & Hyphenation */}
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Alignment & hyphenation</FolioSectionHeader>
-          <div className="folio-toggle-row">
-            <span>Justify text</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={prefs.justify}
-              className={`folio-switch${prefs.justify ? " is-on" : ""}`}
-              onClick={() => patch({ justify: !prefs.justify })}
-              aria-label="Justify text"
-            >
-              <span className="folio-switch__thumb" />
-            </button>
-          </div>
-          <div className="folio-toggle-row">
-            <span>Hyphenate</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={prefs.hyphenate}
-              className={`folio-switch${prefs.hyphenate ? " is-on" : ""}`}
-              onClick={() => patch({ hyphenate: !prefs.hyphenate })}
-              aria-label="Hyphenate"
-            >
-              <span className="folio-switch__thumb" />
-            </button>
-          </div>
-        </section>
+            {/* Text Alignment & Hyphenation */}
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Alignment & hyphenation</FolioSectionHeader>
+              <div className="folio-toggle-row">
+                <span>Justify text</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={prefs.justify}
+                  className={`folio-switch${prefs.justify ? " is-on" : ""}`}
+                  onClick={() => patch({ justify: !prefs.justify })}
+                  aria-label="Justify text"
+                >
+                  <span className="folio-switch__thumb" />
+                </button>
+              </div>
+              <div className="folio-toggle-row">
+                <span>Hyphenate</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={prefs.hyphenate}
+                  className={`folio-switch${prefs.hyphenate ? " is-on" : ""}`}
+                  onClick={() => patch({ hyphenate: !prefs.hyphenate })}
+                  aria-label="Hyphenate"
+                >
+                  <span className="folio-switch__thumb" />
+                </button>
+              </div>
+            </section>
 
-        {/* Margins */}
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Margins</FolioSectionHeader>
-          <div className="folio-slider-row">
-            <input
-              type="range"
-              className="folio-slider"
-              min={12}
-              max={64}
-              step={1}
-              value={prefs.margin}
-              aria-label="Margins"
-              aria-valuetext={`${prefs.margin} pixels`}
-              onChange={(e) => patch({ margin: clampMargin(Number(e.currentTarget.value)) })}
-            />
-            <span className="folio-control-value">{prefs.margin}px</span>
-          </div>
-        </section>
+            {/* Margins */}
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Margins</FolioSectionHeader>
+              <div className="folio-slider-row">
+                <input
+                  type="range"
+                  className="folio-slider"
+                  min={12}
+                  max={64}
+                  step={1}
+                  value={prefs.margin}
+                  aria-label="Margins"
+                  aria-valuetext={`${prefs.margin} pixels`}
+                  onChange={(e) => patch({ margin: clampMargin(Number(e.currentTarget.value)) })}
+                />
+                <span className="folio-control-value">{prefs.margin}px</span>
+              </div>
+            </section>
 
-        {/* Reading Width */}
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Reading width</FolioSectionHeader>
-          <div className="folio-wrap-row">
-            <FolioChip
-              selected={prefs.maxWidth === 0}
-              onClick={() => patch({ maxWidth: prefs.maxWidth === 0 ? 1040 : 0 })}
-            >
-              Full width
-            </FolioChip>
-          </div>
-          <div className="folio-slider-row">
-            <input
-              type="range"
-              className="folio-slider"
-              min={480}
-              max={1600}
-              step={20}
-              value={prefs.maxWidth > 0 ? prefs.maxWidth : 1040}
-              disabled={prefs.maxWidth === 0}
-              aria-label="Reading width"
-              aria-valuetext={prefs.maxWidth > 0 ? `${prefs.maxWidth} pixels` : "full width"}
-              onChange={(e) => patch({ maxWidth: clampMaxWidth(Number(e.currentTarget.value)) })}
-            />
-            <span className="folio-control-value">
-              {prefs.maxWidth > 0 ? `${prefs.maxWidth}px` : "—"}
-            </span>
-          </div>
-        </section>
+            {/* Reading Width */}
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Reading width</FolioSectionHeader>
+              <div className="folio-wrap-row">
+                <FolioChip
+                  selected={prefs.maxWidth === 0}
+                  onClick={() => patch({ maxWidth: prefs.maxWidth === 0 ? 1040 : 0 })}
+                >
+                  Full width
+                </FolioChip>
+              </div>
+              <div className="folio-slider-row">
+                <input
+                  type="range"
+                  className="folio-slider"
+                  min={480}
+                  max={1600}
+                  step={20}
+                  value={prefs.maxWidth > 0 ? prefs.maxWidth : 1040}
+                  disabled={prefs.maxWidth === 0}
+                  aria-label="Reading width"
+                  aria-valuetext={prefs.maxWidth > 0 ? `${prefs.maxWidth} pixels` : "full width"}
+                  onChange={(e) =>
+                    patch({ maxWidth: clampMaxWidth(Number(e.currentTarget.value)) })
+                  }
+                />
+                <span className="folio-control-value">
+                  {prefs.maxWidth > 0 ? `${prefs.maxWidth}px` : "—"}
+                </span>
+              </div>
+            </section>
 
-        {/* Paragraph Spacing */}
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Paragraph spacing</FolioSectionHeader>
-          <div className="folio-slider-row">
-            <input
-              type="range"
-              className="folio-slider"
-              min={0}
-              max={0.8}
-              step={0.01}
-              value={prefs.paragraphSpacing}
-              aria-label="Paragraph spacing"
-              aria-valuetext={`${prefs.paragraphSpacing.toFixed(2)} em`}
-              onChange={(e) =>
-                patch({ paragraphSpacing: clampParagraphSpacing(Number(e.currentTarget.value)) })
-              }
-            />
-            <span className="folio-control-value">{prefs.paragraphSpacing.toFixed(2)}</span>
-          </div>
-        </section>
+            {/* Paragraph Spacing */}
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Paragraph spacing</FolioSectionHeader>
+              <div className="folio-slider-row">
+                <input
+                  type="range"
+                  className="folio-slider"
+                  min={0}
+                  max={0.8}
+                  step={0.01}
+                  value={prefs.paragraphSpacing}
+                  aria-label="Paragraph spacing"
+                  aria-valuetext={`${prefs.paragraphSpacing.toFixed(2)} em`}
+                  onChange={(e) =>
+                    patch({
+                      paragraphSpacing: clampParagraphSpacing(Number(e.currentTarget.value)),
+                    })
+                  }
+                />
+                <span className="folio-control-value">{prefs.paragraphSpacing.toFixed(2)}</span>
+              </div>
+            </section>
 
-        {/* Letter Spacing */}
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Letter spacing</FolioSectionHeader>
-          <div className="folio-slider-row">
-            <input
-              type="range"
-              className="folio-slider"
-              min={0}
-              max={0.1}
-              step={0.01}
-              value={prefs.letterSpacing}
-              aria-label="Letter spacing"
-              aria-valuetext={`${prefs.letterSpacing.toFixed(2)} em`}
-              onChange={(e) =>
-                patch({ letterSpacing: clampLetterSpacing(Number(e.currentTarget.value)) })
-              }
-            />
-            <span className="folio-control-value">{prefs.letterSpacing.toFixed(2)}</span>
-          </div>
-        </section>
+            {/* Letter Spacing */}
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Letter spacing</FolioSectionHeader>
+              <div className="folio-slider-row">
+                <input
+                  type="range"
+                  className="folio-slider"
+                  min={0}
+                  max={0.1}
+                  step={0.01}
+                  value={prefs.letterSpacing}
+                  aria-label="Letter spacing"
+                  aria-valuetext={`${prefs.letterSpacing.toFixed(2)} em`}
+                  onChange={(e) =>
+                    patch({ letterSpacing: clampLetterSpacing(Number(e.currentTarget.value)) })
+                  }
+                />
+                <span className="folio-control-value">{prefs.letterSpacing.toFixed(2)}</span>
+              </div>
+            </section>
+          </>
+        )}
 
         {/* Page Flow */}
         <section className="folio-appearance__group">
@@ -453,6 +526,45 @@ export function AppearancePanel({
             onChange={(flow) => patch({ flow })}
           />
         </section>
+
+        {/* Fixed layout: zoom mode + page layout (PDF plan §8.4). Zoom lives
+            in the engine, not ReadingPrefs (pdfZoom is a byte-compat dead
+            field), so these call back into the engine seam. */}
+        {fixed && (
+          <>
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Zoom mode</FolioSectionHeader>
+              <FolioRadioGroup
+                label="Zoom mode"
+                className="folio-wrap-row"
+                value={typeof zoom === "string" ? zoom : ""}
+                options={[
+                  { value: "fit-width", label: "Fit width" },
+                  { value: "fit-page", label: "Fit page" },
+                ]}
+                onChange={(mode) => onZoomMode?.(mode as "fit-width" | "fit-page")}
+              />
+              <p className="folio-helper folio-helper--muted">
+                Fit width keeps the whole page width in view; zooming with the controls above
+                switches to a specific zoom until you pick a fit mode again.
+              </p>
+            </section>
+
+            <section className="folio-appearance__group">
+              <FolioSectionHeader>Page layout</FolioSectionHeader>
+              <FolioRadioGroup
+                label="Page layout"
+                className="folio-wrap-row"
+                value={prefs.spread}
+                options={SPREAD_OPTIONS.map((o) => ({ ...o }))}
+                onChange={(spread) => patch({ spread: spread as ReadingSpread })}
+              />
+              <p className="folio-helper folio-helper--muted">
+                Auto shows two-page spreads when the window is wide enough.
+              </p>
+            </section>
+          </>
+        )}
 
         {/* Brightness */}
         <section className="folio-appearance__group">

@@ -17,9 +17,15 @@ describe("miniSearch snippets", () => {
     const [hit] = idx.search("script");
     const marked = hit.snippet.parts.filter((p) => p.mark);
     expect(marked.map((p) => p.text)).toEqual(["script"]);
-    // The raw source text (with markup) rides along unescaped; it is only
-    // ever rendered through React text nodes, which escape it.
-    expect(hit.snippet.parts.some((p) => p.text.includes("<script>"))).toBe(true);
+    // The raw source text (with markup) rides along unescaped across the
+    // parts; it is only ever rendered through React text nodes, which
+    // escape it. The match splits the tag, so join the parts to check.
+    expect(
+      hit.snippet.parts
+        .map((p) => p.text)
+        .join("")
+        .includes("<script>"),
+    ).toBe(true);
     expect(hit.href).toBe("chapter-1.xhtml#opening");
     expect(hit.docTitle).toBe("A Book");
     expect(hit.chapterTitle).toBe("Opening");
@@ -121,7 +127,7 @@ describe("serialize / fromPlain round-trip", () => {
   it("keeps snippet building working after restore (corpus rebuilt lazily)", () => {
     const restored = MiniSearch.fromPlain(sampleIndex().serialize());
     const [hit] = restored.search("detective");
-    expect(hit.snippet).toContain("<mark>detective</mark>");
+    expect(hit.snippet.parts.filter((p) => p.mark).map((p) => p.text)).toEqual(["detective"]);
   });
 
   it("keeps prefix and fuzzy matching after restore", () => {

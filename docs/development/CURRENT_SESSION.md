@@ -1,5 +1,28 @@
 # Current Session Checkpoint
 
+**Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
+implemented in the `pdf-support` git worktree
+(`~/.local/share/opencode/worktree/8cca39/pdf-support`) off `380e6b3`;
+record at `docs/development/plans/implementations/I-20261114-01-pdf-support.md`,
+session log at `docs/development/sessions/S-20261114-01-pdf-support.md`.
+**Updated:** 2026-11-15
+**Status:** **All planned code done and merged into `main`** (merged on top of
+the production-readiness line `435102a` + `ac67b64`, user-authorized). Phases
+0–3 (adapter, engine, reader UI, text layer/selection/highlights/search/D2)
+plus the hardening phase (plan §12): encrypted-PDF fixture + password path
+(real R2/40-bit RC4 via `buildEncryptedPdf`; encrypted files refused at import
+per v1.1 scope), internal PDF links (`pageLinkRects` + engine prefetch/
+hit-test; GoTo → `jumpToPage`, URI → `onLink` → `openExternal` http/https-
+gated), and the decoration-click popover (`DecorationPopover`: Add/Edit note,
+Remove highlight). Windows-only verification (installer, release CSP,
+worker/WASM proof under WebView2, `open_files.rs` cargo tests, manual smoke
+incl. encrypted refusal + no-copy + anchored-surface placement) remains
+pending — the Linux host has no webkit2gtk.
+
+---
+
+## Previous checkpoint — `S-20261113-01`
+
 **Session:** `S-20261113-01` — Production-readiness Phases 1–3: Phase 1,
 Phase 2 (Steps 2.0–2.7), and Phase 3 Steps 3.1–3.4 (async IPC + streaming
 bytes; import/open decompression once, 200 MB cap, streaming imports +

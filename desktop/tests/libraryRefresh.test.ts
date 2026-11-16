@@ -15,6 +15,9 @@ function row(partial: Partial<LibraryRow> & { id: string }): LibraryRow {
     tint: 0,
     importedAt: "",
     activityAt: "",
+    tags: [],
+    lastReadAt: null,
+    minutesLeft: null,
     ...partial,
   };
 }

@@ -10,6 +10,8 @@ import { libraryLayout as L } from "../lib/libraryPaths";
 import { readJsonAsync } from "../store/jsonio";
 import { parseEpub } from "../import/epubImporter";
 import type { DocMeta, Manifest } from "../model/types";
+import { openPdf } from "../pdf/pdfjsAdapter";
+import { buildPdfIndexEntries } from "../pdf/pdfIndexJob";
 
 export interface ReindexFailure {
   docId: string;
@@ -42,28 +44,52 @@ export async function reindexDocs(
       if (!meta) throw new Error("metadata is missing");
       const reading = (meta.files.reading ?? "reading/book.epub").replace(/^\/+/, "");
       const bytes = await fs.readBytes(`${L.docDir(root, doc.slug)}/${reading}`);
-      const parsed = parseEpub(bytes);
-      const byChapterId = new Map(parsed.chapters.map((c) => [c.id, c.text]));
 
-      // Prefer the document's stored chapter list (stable ids); fall back to
-      // spine order when an older document has no chapters recorded.
-      const chapters = meta.chapters.length
-        ? meta.chapters.map((c, i) => ({
-            id: c.id,
-            title: c.title,
-            order: c.order,
-            href: c.href,
-            text: byChapterId.get(c.id) ?? parsed.chapters[i]?.text ?? "",
-          }))
-        : parsed.chapters.map((c) => ({
-            id: c.id,
-            title: c.title,
-            order: c.order,
-            href: c.href,
-            text: c.text,
-          }));
+      let index: { schema: 1; chapters: unknown[] };
+      if (meta.sourceFormat === "pdf") {
+        // PDF branch (plan §6.5): page text from reading/book.pdf via the
+        // same extractor the background job uses.
+        const opened = await openPdf(bytes);
+        try {
+          const built = await buildPdfIndexEntries(opened);
+          const titleByHref = new Map(meta.chapters.map((c) => [c.href, c.title]));
+          index = {
+            schema: 1 as const,
+            chapters: built.entries.map((e) => ({
+              id: e.id,
+              title: titleByHref.get(e.href) ?? e.title,
+              order: e.order,
+              href: e.href,
+              text: e.text,
+            })),
+          };
+        } finally {
+          await opened.destroy().catch(() => {});
+        }
+      } else {
+        const parsed = parseEpub(bytes);
+        const byChapterId = new Map(parsed.chapters.map((c) => [c.id, c.text]));
 
-      const index = { schema: 1 as const, chapters };
+        // Prefer the document's stored chapter list (stable ids); fall back to
+        // spine order when an older document has no chapters recorded.
+        const chapters = meta.chapters.length
+          ? meta.chapters.map((c, i) => ({
+              id: c.id,
+              title: c.title,
+              order: c.order,
+              href: c.href,
+              text: byChapterId.get(c.id) ?? parsed.chapters[i]?.text ?? "",
+            }))
+          : parsed.chapters.map((c) => ({
+              id: c.id,
+              title: c.title,
+              order: c.order,
+              href: c.href,
+              text: c.text,
+            }));
+        index = { schema: 1 as const, chapters };
+      }
+
       await fs.writeBytesAtomic(
         L.indexText(root, docId),
         new TextEncoder().encode(JSON.stringify(index)),

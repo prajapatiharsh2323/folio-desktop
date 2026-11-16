@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { FolioIcons } from "./FolioIcons";
 import { ReaderDock } from "./ReaderDock";
+import type { ReaderPageInfo } from "../reader/ReaderEngine";
 
 export interface ReaderChromeProps {
   visible: boolean;
@@ -46,6 +47,10 @@ export interface ReaderChromeProps {
   isFocusMode?: boolean;
   onSessionInfo?: () => void;
   onShortcutsGuide?: () => void;
+  /** Fixed-layout page position; absent ⇒ percent-only display (EPUB today). */
+  pageInfo?: ReaderPageInfo | null;
+  /** Dock slider granularity; PDFs pass max(0.1, 100 / pageCount). */
+  step?: number;
 }
 
 /**
@@ -87,6 +92,8 @@ export function ReaderChrome({
   isFocusMode = false,
   onSessionInfo,
   onShortcutsGuide,
+  pageInfo,
+  step,
 }: ReaderChromeProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -308,6 +315,8 @@ export function ReaderChrome({
           onScrubStart={onScrubStart}
           onScrubChange={onScrubChange}
           onScrubEnd={onScrubEnd}
+          pageInfo={pageInfo}
+          step={step}
         />
       </div>
 

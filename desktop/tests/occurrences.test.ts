@@ -95,7 +95,10 @@ describe("buildSnippetParts", () => {
     const snip = buildSnippetParts(raw, occ, { window: 10 });
     expect(snip.head).toBe(true);
     expect(snip.tail).toBe(true);
-    const marked = snip.parts.filter((p) => p.mark).map((p) => p.text).join("");
+    const marked = snip.parts
+      .filter((p) => p.mark)
+      .map((p) => p.text)
+      .join("");
     expect(marked).toBe("Déjà");
   });
 

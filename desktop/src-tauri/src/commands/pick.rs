@@ -79,7 +79,11 @@ async fn save_file(
     .map_err(|e| e.to_string())?
 }
 
-const BOOK_EXTENSIONS: &[&str] = &["epub", "html", "htm", "txt", "md"];
+// "pdf" added behind the TS feature flag (PDF plan §5): the path is accepted
+// here and the import gate in fileDetector.ts refuses it with the
+// mobile-parity copy when FEATURES.pdf is off, so a flag-off build behaves
+// exactly as before — the picker just lists one extra type.
+const BOOK_EXTENSIONS: &[&str] = &["epub", "html", "htm", "txt", "md", "pdf"];
 
 fn owned(extensions: &[&str]) -> Vec<String> {
     extensions.iter().map(|s| s.to_string()).collect()

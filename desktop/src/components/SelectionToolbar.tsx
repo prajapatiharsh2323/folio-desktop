@@ -19,6 +19,8 @@ export interface SelectionToolbarProps {
   onShare: () => void;
   /** R6: copy the quote with a citation line (title/author). */
   onCopyCitation: () => void;
+  /** D2: documents that grant no copy permission disable Copy. */
+  copyDisabled?: boolean;
 }
 
 /** Floating selection toolbar (04 §7): 4 swatches, Add note, Copy,
@@ -31,6 +33,7 @@ export function SelectionToolbar({
   onCopy,
   onShare,
   onCopyCitation,
+  copyDisabled = false,
 }: SelectionToolbarProps) {
   const top = Math.max(8, rect.top - 48);
   const left = Math.min(window.innerWidth - 340, Math.max(8, (rect.left + rect.right) / 2 - 170));
@@ -68,7 +71,8 @@ export function SelectionToolbar({
         type="button"
         className="folio-selection-btn"
         aria-label="Copy"
-        title="Copy"
+        title={copyDisabled ? "Copying is not allowed for this document" : "Copy"}
+        disabled={copyDisabled}
         onClick={onCopy}
       >
         <FolioIcons.Copy size="sm" />

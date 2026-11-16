@@ -1,10 +1,13 @@
 import { FolioIcons } from "./FolioIcons";
+import type { SourceFormat } from "../model/types";
 
 export interface FolioBookRowData {
   id: string;
   title: string;
   author?: string;
   kind?: "Book" | "Article";
+  /** Source format (PDF plan §5): "pdf" shows the PDF badge; others unbadged. */
+  format?: SourceFormat;
   /** 0..1 */
   progress?: number;
   coverUrl?: string;
@@ -14,6 +17,12 @@ export interface FolioBookRowData {
   badge?: "New" | "Finished" | "Missing";
   /** L5: secondary line under the author (last read / time left). */
   metaLine?: string;
+}
+
+/** Accessible name for the row button. The PDF badge is visual only, so the
+ *  format is spoken here instead (03 §5.2: names describe the control). */
+function defaultRowLabel(data: FolioBookRowData): string {
+  return data.format === "pdf" ? `Open ${data.title}, PDF` : `Open ${data.title}`;
 }
 
 const TINT_VARS = [
@@ -40,7 +49,8 @@ export function FolioBookRow({
 }: {
   data: FolioBookRowData;
   onOpen?: (id: string) => void;
-  onMore?: (id: string) => void;
+  /** ⋯ action; `trigger` is the button element, for anchored menus (L4). */
+  onMore?: (id: string, trigger: HTMLElement) => void;
   /** Overrides the row button's accessible name (e.g. selection mode). */
   actionLabel?: string;
   variant?: "row" | "card";
@@ -79,7 +89,12 @@ export function FolioBookRow({
         {badge}
       </div>
       {data.author && <div className="folio-book-row__author">{data.author}</div>}
-      {data.kind && <div className="folio-book-row__author">{data.kind}</div>}
+      {(data.kind || data.format === "pdf") && (
+        <div className="folio-book-row__author">
+          {data.kind}
+          {data.format === "pdf" && <span className="folio-badge folio-badge--pdf">PDF</span>}
+        </div>
+      )}
       {data.metaLine && <div className="folio-book-row__metaline">{data.metaLine}</div>}
     </div>
   );
@@ -104,10 +119,7 @@ export function FolioBookRow({
             )}
             {data.progress !== undefined && (
               <span className="folio-book-card__progress" aria-hidden="true">
-                <span
-                  className="folio-book-row__progress-fill"
-                  style={{ width: `${pct}%` }}
-                />
+                <span className="folio-book-row__progress-fill" style={{ width: `${pct}%` }} />
               </span>
             )}
           </button>
@@ -119,7 +131,7 @@ export function FolioBookRow({
             type="button"
             className="folio-iconbtn folio-book-row__more folio-book-card__more"
             aria-label={`Actions for ${data.title}`}
-            onClick={() => onMore(data.id)}
+            onClick={(e) => onMore(data.id, e.currentTarget)}
           >
             <FolioIcons.More size="sm" />
           </button>
@@ -152,7 +164,7 @@ export function FolioBookRow({
           type="button"
           className="folio-book-row__open"
           onClick={() => onOpen(data.id)}
-          aria-label={actionLabel ?? `Open ${data.title}`}
+          aria-label={actionLabel ?? defaultRowLabel(data)}
         >
           {body}
         </button>
@@ -164,7 +176,7 @@ export function FolioBookRow({
           type="button"
           className="folio-iconbtn folio-book-row__more"
           aria-label={`Actions for ${data.title}`}
-          onClick={() => onMore(data.id)}
+          onClick={(e) => onMore(data.id, e.currentTarget)}
         >
           <FolioIcons.More size="sm" />
         </button>
