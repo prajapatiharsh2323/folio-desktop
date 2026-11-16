@@ -36,9 +36,12 @@ Steps 3.1, 3.2, 3.3 and 3.4 complete**. Gates: `tsc -b` clean, ESLint 0/0,
 **Vitest 489 / 489 (61 files)**, `prettier --check` clean, `vite build`
 green, `perf.ts` budgets pass, `cargo fmt --all -- --check` clean.
 **Phase 1 + Step 2.0 committed as `203f237` and pushed to `origin/main`
-(2026-11-13, user-authorized). Steps 2.1–2.2b committed as `435102a`
-(2026-11-14, user-authorized; not yet pushed). Steps 2.3–2.7 and Phase 3
-Steps 3.1–3.4 are uncommitted** pending authorization.
+(2026-11-13, user-authorized). Steps 2.1–2.2b committed as `435102a`;
+Steps 2.3–2.7 and Phase 3 Steps 3.1–3.4 committed as `ac67b64`; the PDF
+support feature (I-20261114-01) merged as `7f7f8c1` — all pushed to
+`origin/main` 2026-11-16, user-authorized.** Post-merge integration gates
+re-run on the merged tree: `tsc -b` clean, **Vitest 587 / 587 (73 files)**,
+`vite build` green, ESLint 0/0, Prettier clean.
 Windows runtime verification (grant flows, full Tauri `cargo test`
 including the new backup unit tests, installer, webview feel of the new
 list/refresh/backup surfaces, 200 MB import + cancel, cached second open,
@@ -588,9 +591,11 @@ details?})` + `describeError()` in `errorLog.ts`; swept user-facing catches
    remaining" for duplicate imports + recovery "Remove all", notes
    grouping/search/export, disable Open for missing docs (N2).
 2. Committing: Phase 1 + Step 2.0 are committed and pushed (`203f237`,
-   user-authorized). Steps 2.1–2.2b are committed as `435102a` (not yet
-   pushed). **Steps 2.3–2.7 and Phase 3 Steps 3.1–3.4 are uncommitted** —
-   commit under explicit authorization.
+   user-authorized). Steps 2.1–2.2b are committed as `435102a`; Steps
+   2.3–2.7 and Phase 3 Steps 3.1–3.4 are committed as `ac67b64`; the PDF
+   feature merge is `7f7f8c1` — **all pushed to `origin/main` (2026-11-16,
+   user-authorized)**. Continue committing per phase milestone with
+   explicit authorization.
 3. Windows-only proof still pending through Phase 3.4: real dialog/drop
    grant flows, full `cargo test --all-targets` for the Tauri crate
    (including the 5 backup unit tests), installer, keyboard matrix +
