@@ -1,35 +1,27 @@
 # Current Session Checkpoint
 
 **Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4
-Step 4.2 (X1–X5) code-complete**; plan at
+Step 4.2 complete; Step 4.3 (E4) CI matrix done**; plan at
 `~/.opencode/plan/folio-production-readiness.md`
 **Updated:** 2026-11-16
-**Status:** Tranches A (X1, `33e96cc`) and B (X2–X4, `df7f684`) committed;
-Step 4.1 fully committed earlier (`c71a2fe` + `70942b9`). Final 4.2 tranche
-built (uncommitted): **collapsible sidebar <900 px** — CSS-only 56 px icon
-rail (`base.css` `@media (max-width: 899.98px)`), labels visually clipped
-but kept in the a11y tree, `title` tooltips in `Sidebar.tsx`. **Axe sweep**
-— axe-core 4.14.0 added as a devDependency; `tests/axeSweep.test.tsx`
-mounts all four screens (Library/Collections/Notes/Settings) with a light
-`libraryUi` mock + empty `MemoryFileStore` in both themes and asserts zero
-serious/critical violations (8 runs, all green first try; color-contrast
-rule disabled — jsdom can't evaluate it). **X5 i18n** —
-`src/i18n/i18n.ts`: catalogue + `t()` (en source of truth, hi/ar partial
-with English fallback; shell chrome covered — sidebar, palette, skeleton
-label, Settings row; screen copy stays English pending a dedicated pass),
-`useLocaleStore` (`folio.ui.locale`), pre-paint `initLocale()` in
-`main.tsx` setting `lang`/`dir` on `<html>`, Devanagari/Arabic-aware font
-stacks via `:lang(hi)`/`:lang(ar)` in `tokens.css`, RTL page progression
-(plain ArrowLeft/Right swap in `useReaderKeyboard` when the locale is RTL;
-Alt+Left/Right keep history meanings), Settings Appearance **Language**
-row (English/हिन्दी/العربية chips). Tests: `axeSweep` (8), `i18n` (11),
-`settings` → 9. Gates: `tsc -b` clean, ESLint 0/0, **Vitest 678 / 678
-(86 files)**, prettier clean, `vite build` green, perf 0 over budget,
-`cargo fmt` clean. FT-039 recorded in `TASKS.md`.
-**Exact next action:** on authorization, commit the final 4.2 tranche
-(incl. `package.json`/`pnpm-lock.yaml` for axe-core); then Phase 4
-**Step 4.3 (E4: Playwright/Tauri-WebDriver smoke + CI matrix)** from the
-plan (~line 276+).
+**Status:** Tranches A (X1, `33e96cc`), B (X2–X4, `df7f684`) and the final
+4.2 tranche (`255bf43`) committed; Step 4.1 fully committed earlier
+(`c71a2fe` + `70942b9`). **Step 4.2 (X1–X5) is complete.** Step 4.3 (E4)
+partially done: **CI matrix** — `desktop-ci.yml` gains ESLint + Prettier
+check steps, a perf-budgets step (fails on any `"withinBudget": false`,
+uploads `perf-report.json`), Rust clippy `-D warnings`, and a separate
+ubuntu `audits` job (`pnpm audit --prod` — verified clean — plus
+`rustsec/audit-check@v2`); `.prettierignore` also excludes
+`src-tauri/foliocore/target` (Rust build artifacts were flagged). The
+**WebDriver smoke** is recorded Windows-pending with an exact runbook at
+`docs/development/runbooks/E4-webdriver-smoke.md` (`P-20261116-01`):
+tauri-driver capabilities, `withGlobalTauri` flipped for the smoke build
+only, synthetic HTML5-drop import (fixture staged via raw-IPC
+`fs_write_atomic` + `x-folio-path` header), invoke-driven
+`backup_export(destPath)`. The plan's jest-axe item is superseded by the
+FT-039 Vitest axe sweep. FT-040 recorded in `TASKS.md`.
+**Exact next action:** on authorization, commit the E4 CI-matrix tranche;
+then Phase 4 **Step 4.4 (E5: release/distribution)** from the plan.
 
 ---
 

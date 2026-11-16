@@ -43,19 +43,44 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc -b
 
+      - name: Lint (ESLint)
+        run: pnpm run lint
+
+      - name: Format check (Prettier)
+        run: pnpm run format:check
+
       - name: Unit tests (Vitest)
         run: pnpm exec vitest run
 
       - name: Frontend build
         run: pnpm exec vite build
 
-      - name: Rust tests
-        working-directory: desktop/src-tauri
-        run: cargo test --all-targets
+      - name: Perf budgets (scripts/perf.ts)
+        run: |
+          pnpm perf | Out-File -Encoding utf8 perf-report.json
+          if (Select-String -Path perf-report.json -Pattern '"withinBudget": false' -Quiet) {
+            throw "Perf budget exceeded (see the perf-report artifact)"
+          }
+
+      - name: Upload perf report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report
+          path: desktop/perf-report.json
+          if-no-files-found: ignore
 
       - name: Rust format
         working-directory: desktop/src-tauri
         run: cargo fmt --all -- --check
+
+      - name: Rust clippy
+        working-directory: desktop/src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Rust tests
+        working-directory: desktop/src-tauri
+        run: cargo test --all-targets
 
       - name: Build NSIS installer
         run: pnpm tauri:build
@@ -70,3 +95,22 @@ jobs:
           name: folio-windows-nsis
           path: desktop/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+
+  audits:
+    name: Dependency audits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: pnpm audit (production dependencies)
+        run: pnpm audit --prod
+
+      - name: Rust advisories (RustSec / cargo audit)
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: desktop/src-tauri
