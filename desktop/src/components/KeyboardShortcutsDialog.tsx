@@ -22,6 +22,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["Home"], description: "Jump to start of book" },
       { keys: ["End"], description: "Jump to end of book" },
       { keys: ["Alt", "←"], description: "Go back to the previous position" },
+      { keys: ["Alt", "→"], description: "Go forward to a position you backed out of" },
       { keys: ["F3"], description: "Next in-book search match (Shift+F3: previous)" },
       { keys: ["Media Next / Prev"], description: "Hardware page turn keys" },
     ],
@@ -38,6 +39,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "View & Controls",
     items: [
+      { keys: ["Ctrl", "K"], description: "Command palette (from any screen)" },
       { keys: ["M"], description: "Toggle reading controls (toolbar & dock)" },
       { keys: ["F"], description: "Toggle Distraction-free reading" },
       { keys: ["?"], description: "Open this keyboard shortcuts guide" },

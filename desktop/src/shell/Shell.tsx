@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouteStore } from "../store/routeStore";
 import { Sidebar, type Route } from "./Sidebar";
 import { LibraryScreen } from "../screens/LibraryScreen";
@@ -9,12 +9,15 @@ import { ReaderScreen } from "../screens/ReaderScreen";
 import { exitFullscreen, toggleFullscreen } from "../lib/fullscreen";
 import { hasBlockingOverlay } from "./overlays";
 import { ToastHost } from "../components/ToastHost";
+import { CommandPalette, isPaletteTrigger } from "../components/CommandPalette";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 /** Single-window shell (02 §3, 03 §5.1): one route stack, sidebar hidden in reader. */
 export function Shell() {
   const route = useRouteStore((s) => s.route);
   const setRoute = useRouteStore((s) => s.setRoute);
+  // X1: Ctrl+K command palette, available from every screen.
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const inReader = route === "reader";
 
@@ -27,6 +30,13 @@ export function Shell() {
         !!target?.isContentEditable;
       if (hasBlockingOverlay()) {
         if (e.key === "Escape" && typing) target?.blur();
+        return;
+      }
+      // X1: Ctrl+K toggles the command palette (except while typing in a
+      // field — Ctrl+F-style inputs keep their own combos).
+      if (isPaletteTrigger(e) && !typing) {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
         return;
       }
       if (e.key === "F11") {
@@ -78,6 +88,7 @@ export function Shell() {
           )}
         </main>
       </div>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <ToastHost />
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { recoverInterruptedRestore } from "../backup/backupService";
 import { autoBackupIfNeeded, checkBackupReminder } from "../backup/rollingBackup";
+import { reopenLastBookIfEnabled } from "./reopenLast";
 import { filesFromTauriDrop, pickImportFiles } from "../lib/fileSource";
 import { onLaunch, takePendingLaunch } from "../lib/openWith";
 import { useOnboarding } from "../onboarding/onboardingState";
@@ -116,6 +117,16 @@ export function useBoot(): void {
               // boot must not fail over backup housekeeping
             }
           })();
+        }
+
+        // X1: opt-in "reopen last book on launch" — opens the most recently
+        // read book at its saved position through the normal openReader
+        // request. Never blocks or fails boot.
+        if (!disposed && interactive()) {
+          const appDir = LIBRARY_ROOT.replace(/[\\/]+library[\\/]*$/, "") || LIBRARY_ROOT;
+          void reopenLastBookIfEnabled(getLibraryFs(), appDir, LIBRARY_ROOT).catch(() => {
+            // launch proceeds to the library screen
+          });
         }
       } catch {
         // Startup never fails closed; the Library screen reports storage errors.

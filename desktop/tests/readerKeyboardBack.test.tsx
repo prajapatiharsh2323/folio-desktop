@@ -19,6 +19,7 @@ let root: Root | null = null;
 
 function renderHarness(opts: {
   goBack: () => void;
+  goForward?: () => void;
   reportNavigation: (pending: Promise<unknown>, message: string) => void;
 }) {
   const noop = () => {};
@@ -48,6 +49,7 @@ function renderHarness(opts: {
       searchNext: noop,
       searchPrev: noop,
       goBack: opts.goBack,
+      goForward: opts.goForward ?? (() => {}),
       onTextSize: noop,
       stepChapter: noop,
       clearSelection: noop,
@@ -106,5 +108,23 @@ describe("reader keyboard back navigation (R4)", () => {
 
     press("PageUp", { altKey: true });
     expect(goBack).not.toHaveBeenCalled();
+  });
+
+  it("Alt+Right re-advances through history (goForward)", () => {
+    const goForward = vi.fn();
+    renderHarness({ goBack: () => {}, goForward, reportNavigation: () => {} });
+
+    press("ArrowRight", { altKey: true });
+    expect(goForward).toHaveBeenCalledTimes(1);
+  });
+
+  it("plain ArrowRight still turns the page forward", () => {
+    const goForward = vi.fn();
+    const reportNavigation = vi.fn();
+    renderHarness({ goBack: () => {}, goForward, reportNavigation });
+
+    press("ArrowRight");
+    expect(goForward).not.toHaveBeenCalled();
+    expect(reportNavigation).toHaveBeenCalledTimes(1);
   });
 });

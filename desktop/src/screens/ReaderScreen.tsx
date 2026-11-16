@@ -25,6 +25,7 @@ import { useRouteStore } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
 import { pushToast } from "../shell/toasts";
 import { describeError, handleError } from "../lib/errorLog";
+import { APP_WINDOW_TITLE, bookWindowTitle, setWindowTitle } from "../lib/windowTitle";
 import { DEFAULT_READING_PREFS, clampFontSize } from "../model/defaults";
 import type { TextSizeAction } from "./reader/useReaderKeyboard";
 import type { ReadingPrefs, Annotation } from "../model/types";
@@ -221,6 +222,12 @@ export function ReaderScreen() {
   const goBackInHistory = useCallback(() => {
     const nav = navRef.current;
     if (nav) reportNavigation(nav.goBack(), "Couldn't go back.");
+  }, [reportNavigation, navRef]);
+
+  /** R4/X1: re-advance through positions abandoned by Back (Alt+Right). */
+  const goForwardInHistory = useCallback(() => {
+    const nav = navRef.current;
+    if (nav) reportNavigation(nav.goForward(), "Couldn't go forward.");
   }, [reportNavigation, navRef]);
 
   /** Offer a way back right after an in-content internal link lands. */
@@ -686,6 +693,7 @@ export function ReaderScreen() {
     searchNext: search.moveNext,
     searchPrev: search.movePrev,
     goBack: goBackInHistory,
+    goForward: goForwardInHistory,
     onTextSize: adjustTextSize,
     stepChapter,
     clearSelection: () => setSelection(null),
@@ -860,6 +868,17 @@ export function ReaderScreen() {
     e.preventDefault();
     contextMenuRef.current(e.clientX, e.clientY);
   }, []);
+
+  // X1: the OS window title tracks the open book and resets on close.
+  const titleDocId = doc?.docId;
+  const docTitle = doc?.title;
+  useEffect(() => {
+    if (!titleDocId || !docTitle) return;
+    void setWindowTitle(bookWindowTitle(docTitle));
+    return () => {
+      void setWindowTitle(APP_WINDOW_TITLE);
+    };
+  }, [titleDocId, docTitle]);
 
   const title = doc?.title ?? (request ? "Opening book…" : "Reader");
   const chapterTitle =

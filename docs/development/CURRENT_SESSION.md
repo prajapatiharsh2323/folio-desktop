@@ -1,44 +1,37 @@
 # Current Session Checkpoint
 
 **Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4
-Step 4.1 (S1–S3 Settings) code-complete** on the merged PDF-support `main`;
-plan at `~/.opencode/plan/folio-production-readiness.md`
+Step 4.2 (X1–X5), tranche A code-complete**; plan at
+`~/.opencode/plan/folio-production-readiness.md`
 **Updated:** 2026-11-16
-**Status:** Step 3.5 committed as `207d5d2`; Step 4.1 tranche A committed as
-`c71a2fe` (merge `7f7f8c1` + docs `ad42814` earlier pushed to `origin/main`).
-Step 4.1 now fully built: **S1** — UI zoom (`folio.ui.zoom`, CSS `zoom`
-80–150%, pre-paint in `main.tsx`), keep-awake chips
-(`user/window.json`), default library sort/view, full default-reading-prefs
-save (unknown keys preserved), Rebuild search index, **rolling backups**
-(`src/backup/rollingBackup.ts`: daily auto backup into
-`<appDir>/user/backups/` when enabled — setting `autoBackup` in
-`user/window.json`; newest archive recognised by its
-`folio-backup-<stamp>.zip` file name; prune to last 5; boot hook in
-`useBoot.ts` after onboarding boot; stale-backup reminder toast at ≥7
-days with a "Back up now" action, never for an empty library), and
-**Reset app data** behind an acknowledgement-checkbox dialog (wipes every
-app-dir child, clears setup/tour flags, reloads into setup). **S2** —
-export cancel: Rust `backup_cancel` command + module-level `AtomicBool`
-checked at every entry boundary in `backup_export_core`, partial archive
-removed, flag cleared at export start; Cancel button shows while the
-streaming export runs; a cancel is reported as "Backup cancelled." and
-not logged as an error; progress messages already `role="status"`.
-**S3** — shortcuts/licences/privacy/diagnostics/version rows. Tests:
-`tests/settings.test.tsx` (6), `tests/uiZoom.test.ts` (3),
-`tests/rollingBackup.test.ts` (17, toast host mocked); Rust
-`export_cancel_removes_partial_archive` added (fmt-only here). Gates:
-`tsc -b` clean, ESLint 0/0, **Vitest 627 / 627 (78 files)**, prettier
-clean, `vite build` green, perf 0 over budget, `cargo fmt` clean. FT-036
-recorded as done (Windows checks deferred) in `TASKS.md`. **The Step 4.1
-remainder is uncommitted** — commit only with explicit user
-authorization.
-**Step 4.1 Windows-deferred:** UI zoom feel under WebView2, keep-awake +
-auto-backup toggles, reminder toast, native save-dialog export
-round-trip incl. cancel, reset→setup flow.
-**Exact next action:** on authorization, commit the Step 4.1 remainder
-(+ docs); then Phase 4 Step 4.2 (X1–X5: reopen-last-book, Alt+Left/Right,
-Ctrl+K palette, window title, skeletons, forced-colors, i18n) from the
-plan.
+**Status:** Step 4.1 fully committed (`c71a2fe` tranche A + `70942b9`
+remainder). Step 4.2 tranche A (X1) built: **Alt+Right forward history**
+(`ReaderNavigationCoordinator` gains a `forward` stack — Back pushes the
+position it leaves, any new absolute destination including scrubs clears
+the chain, `canGoForward`/`goForward` + `useReaderKeyboard` wiring +
+two shortcuts-guide rows); **window title = book** (`lib/windowTitle.ts`,
+`document.title` in every host + native `setTitle` under the already
+granted `core:window:allow-set-title`, resets to "Folio" on close);
+**"Reopen last book"** (`shell/reopenLast.ts`: opt-in `reopenLastBook` in
+`user/window.json`, Settings Reading row, boot hook picks the newest
+progress record still in the manifest and opens it via the normal
+openReader resume cascade); **Ctrl+K command palette**
+(`components/CommandPalette.tsx`, mounted in `Shell`, combobox+listbox
+a11y, type-to-filter, ArrowUp/Down+Enter, 6 commands: four screens,
+appearance cycle, tour replay; `Ctrl+K` row added to the shortcuts
+guide). Tests: `commandPalette` (6), `reopenLast` (6), `windowTitle`,
+forward-stack cases in `navigation` (28 total) and `readerKeyboardBack`.
+Gates: `tsc -b` clean, ESLint 0/0, **Vitest 648 / 648 (80 files)**,
+prettier clean, `vite build` green, perf 0 over budget. FT-037 recorded
+in `TASKS.md`. **Step 4.2 tranche A is uncommitted** — commit only with
+explicit user authorization.
+**Step 4.2 remaining:** collapsible sidebar <900 px; X2 skeleton rows +
+reduced-motion shimmer; X3 remainder (forced-colors + prefers-contrast
+support, high-contrast option, roving focus, `inert` app root while a
+modal is open, axe checks on the four screens in both themes); X4 min
+text 12/14 px; X5 i18n `t()` (P2 — may defer).
+**Exact next action:** on authorization, commit tranche A; then build the
+X2/X3/X4 a11y + loading tranche.
 
 ---
 

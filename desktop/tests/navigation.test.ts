@@ -530,3 +530,98 @@ describe("position history (R4 back navigation)", () => {
     await expect(nav.goBack()).resolves.toMatchObject({ ok: false });
   });
 });
+
+describe("forward history (X1 Alt+Right)", () => {
+  function setupHistory(initial = "ch1.xhtml") {
+    const fake = new FakeEngine();
+    const { hooks } = makeHooks();
+    let current = initial;
+    hooks.getCurrentLocation = () => current;
+    const nav = createNavigationCoordinator(fake as unknown as ReaderEngine, hooks);
+    return { fake, nav, setCurrent: (v: string) => (current = v) };
+  }
+
+  it("goForward returns to the position Back left behind", async () => {
+    const { fake, nav, setCurrent } = setupHistory();
+
+    const move = nav.goToHref("ch2.xhtml", "contents");
+    fake.goAt(0).resolve(true);
+    await move;
+    await settle();
+    setCurrent("ch2.xhtml");
+
+    const back = nav.goBack();
+    fake.goAt(1).resolve(true);
+    await back;
+    setCurrent("ch1.xhtml");
+    expect(nav.canGoForward()).toBe(true);
+
+    const fwd = nav.goForward();
+    await settle();
+    fake.goAt(2).resolve(true);
+    await expect(fwd).resolves.toEqual({ ok: true, superseded: false });
+    expect(fake.goCalls.at(-1)).toBe("ch2.xhtml");
+    setCurrent("ch2.xhtml");
+    // consumed
+    expect(nav.canGoForward()).toBe(false);
+  });
+
+  it("a new absolute move clears the forward stack", async () => {
+    const { fake, nav, setCurrent } = setupHistory();
+
+    let move = nav.goToHref("ch2.xhtml", "contents");
+    fake.goAt(0).resolve(true);
+    await move;
+    await settle();
+    setCurrent("ch2.xhtml");
+
+    const back = nav.goBack();
+    fake.goAt(1).resolve(true);
+    await back;
+    setCurrent("ch1.xhtml");
+    expect(nav.canGoForward()).toBe(true);
+
+    // A fresh destination abandons the re-advance chain.
+    move = nav.goToHref("ch5.xhtml", "contents");
+    await settle();
+    fake.goAt(2).resolve(true);
+    await move;
+    setCurrent("ch5.xhtml");
+    expect(nav.canGoForward()).toBe(false);
+    await expect(nav.goForward()).resolves.toMatchObject({ ok: false });
+    void back;
+  });
+
+  it("a scrub jump also clears the forward stack but records no history", async () => {
+    const { fake, nav, setCurrent } = setupHistory();
+
+    const move = nav.goToHref("ch2.xhtml", "contents");
+    fake.goAt(0).resolve(true);
+    await move;
+    await settle();
+    setCurrent("ch2.xhtml");
+
+    const back = nav.goBack();
+    fake.goAt(1).resolve(true);
+    await back;
+    setCurrent("ch1.xhtml");
+
+    const jump = nav.goToPercent(40, "slider");
+    await settle();
+    fake.goAt(2).resolve(true);
+    await jump;
+    setCurrent("mid.xhtml");
+    expect(nav.canGoForward()).toBe(false);
+    expect(nav.canGoBack()).toBe(false);
+  });
+
+  it("forward with nothing to re-advance to fails without moving", async () => {
+    const { fake, nav } = setupHistory();
+    await expect(nav.goForward()).resolves.toMatchObject({
+      ok: false,
+      superseded: false,
+      reason: "No later position to go forward to.",
+    });
+    expect(fake.goCalls).toEqual([]);
+  });
+});

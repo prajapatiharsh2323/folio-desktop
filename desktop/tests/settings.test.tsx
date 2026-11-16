@@ -202,6 +202,20 @@ describe("Settings — S1 automatic backups", () => {
   });
 });
 
+describe("Settings — X1 reopen last book", () => {
+  it("writes reopenLastBook into user/window.json", async () => {
+    await render();
+    expect(container!.textContent).toContain("Reopen last book");
+    await act(async () => {
+      chipIn("Reopen last book", "On").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const raw = await (h.fs as MemoryFileStore).readText("/folio-library/user/window.json");
+    expect(JSON.parse(raw)).toMatchObject({ reopenLastBook: true });
+  });
+});
+
 describe("Settings — S1 reset app data", () => {
   const realLocation = window.location;
   const reload = vi.fn();

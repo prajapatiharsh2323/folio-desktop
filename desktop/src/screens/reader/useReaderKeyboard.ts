@@ -46,6 +46,8 @@ interface UseReaderKeyboardOptions {
   searchPrev: () => void;
   /** Return through the position history (Alt+Left, R4). */
   goBack: () => void;
+  /** Re-advance through positions abandoned by Back (Alt+Right, R4/X1). */
+  goForward: () => void;
 
   // Reading prefs and chapters (R13)
   /** Ctrl+= / Ctrl+− / Ctrl+0: larger / smaller / reset this book's text. */
@@ -84,6 +86,7 @@ export function useReaderKeyboard({
   searchNext,
   searchPrev,
   goBack,
+  goForward,
   onTextSize,
   stepChapter,
   clearSelection,
@@ -128,7 +131,12 @@ export function useReaderKeyboard({
         case "PageDown":
         case "ArrowDown":
           event.preventDefault();
-          turn("next");
+          if (event.key === "ArrowRight" && event.altKey) {
+            // Alt+Right re-advances through positions abandoned by Back (X1).
+            goForward();
+          } else {
+            turn("next");
+          }
           break;
         case "ArrowLeft":
         case "PageUp":
@@ -279,6 +287,7 @@ export function useReaderKeyboard({
     searchNext,
     searchPrev,
     goBack,
+    goForward,
     clearSelection,
     clearCtxMenu,
     reportNavigation,

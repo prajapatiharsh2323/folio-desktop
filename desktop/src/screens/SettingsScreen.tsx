@@ -21,6 +21,7 @@ import {
   readAutoBackupSetting,
   writeAutoBackupSetting,
 } from "../backup/rollingBackup";
+import { readReopenLastSetting, writeReopenLastSetting } from "../shell/reopenLast";
 import { PREFS_COMPLETE_KEY, TOUR_COMPLETE_KEY } from "../onboarding/onboardingState";
 import { DEFAULT_READING_PREFS } from "../model/defaults";
 import type { LibrarySort } from "../lib/libraryView";
@@ -139,6 +140,9 @@ export function SettingsScreen() {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetConfirmed, setResetConfirmed] = useState(false);
 
+  // ---- X1: reopen last book on launch --------------------------------------
+  const [reopenLast, setReopenLast] = useState(false);
+
   const loadKeepAwake = useCallback(async () => {
     try {
       setKeepAwake(await readPreventSleepSetting(getLibraryFs()));
@@ -154,6 +158,31 @@ export function SettingsScreen() {
       handleError(e, { context: "settings.autobackup.load" });
     }
   }, []);
+
+  const loadReopenLast = useCallback(async () => {
+    try {
+      setReopenLast(await readReopenLastSetting(getLibraryFs(), APP_DIR));
+    } catch (e) {
+      handleError(e, { context: "settings.reopenlast.load" });
+    }
+  }, []);
+
+  const setReopenLastPref = async (enable: boolean) => {
+    const prev = reopenLast;
+    setReopenLast(enable);
+    try {
+      await writeReopenLastSetting(getLibraryFs(), APP_DIR, enable);
+      setMessage(
+        enable
+          ? "Folio will reopen the book you read last when it starts."
+          : "Folio opens to the library on launch.",
+      );
+    } catch (e) {
+      handleError(e, { context: "settings.reopenlast.save" });
+      setReopenLast(prev);
+      setMessage(e instanceof Error ? e.message : "That setting could not be saved.");
+    }
+  };
 
   const setAutoBackupPref = async (enable: boolean) => {
     const prev = autoBackup;
@@ -286,6 +315,7 @@ export function SettingsScreen() {
     void loadStorage();
     void loadKeepAwake();
     void loadAutoBackup();
+    void loadReopenLast();
     if (isTauri()) {
       void invoke<string>("library_path")
         .then(setLibPath)
@@ -294,7 +324,7 @@ export function SettingsScreen() {
         .then(setLogPath)
         .catch(() => {});
     }
-  }, [loadPrefs, loadStorage, loadKeepAwake, loadAutoBackup]);
+  }, [loadPrefs, loadStorage, loadKeepAwake, loadAutoBackup, loadReopenLast]);
 
   /** S1: erase everything under the app data dir, then reboot into setup. */
   const resetAppData = async () => {
@@ -586,6 +616,25 @@ export function SettingsScreen() {
                 style={{ marginLeft: 8 }}
               >
                 Off
+              </FolioChip>
+            </div>
+          }
+        />
+
+        <FolioSettingsRow
+          title="Reopen last book"
+          helper="When Folio starts, open the book you read last at your saved position"
+          control={
+            <div role="group" aria-label="Reopen last book">
+              <FolioChip selected={!reopenLast} onClick={() => void setReopenLastPref(false)}>
+                Off
+              </FolioChip>
+              <FolioChip
+                selected={reopenLast}
+                onClick={() => void setReopenLastPref(true)}
+                style={{ marginLeft: 8 }}
+              >
+                On
               </FolioChip>
             </div>
           }

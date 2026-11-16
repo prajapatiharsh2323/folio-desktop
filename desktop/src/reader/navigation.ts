@@ -17,7 +17,9 @@ export type NavigationOrigin =
   /** Followed an in-content internal link (footnote, cross-reference). */
   | "link"
   /** Returning to a recorded position (Alt+Left / Back action). */
-  | "back";
+  | "back"
+  /** Re-advancing through positions left by Back (Alt+Right). */
+  | "forward";
 
 /**
  * Result of one coordinated move.
@@ -114,6 +116,8 @@ export class ReaderNavigationCoordinator {
   private seeking = false;
   /** Positions the user left behind through absolute moves, newest last. */
   private history: string[] = [];
+  /** Positions abandoned by Back, newest last (consumed by Alt+Right). */
+  private forward: string[] = [];
 
   constructor(
     private readonly engine: ReaderEngine,
@@ -256,8 +260,15 @@ export class ReaderNavigationCoordinator {
   }): Promise<NavigationOutcome> {
     this.assertEngine();
     const id = ++this.seq;
-    if (request.absolute && this.recordsHistory(request.origin)) {
-      this.recordHistory(request.destination);
+    if (request.absolute) {
+      // A brand-new destination abandons everything the user went back past
+      // (scrubs too — only Back/Forward themselves keep the chain alive).
+      if (request.origin !== "back" && request.origin !== "forward") {
+        this.forward.length = 0;
+      }
+      if (this.recordsHistory(request.origin)) {
+        this.recordHistory(request.destination);
+      }
     }
     let resolve!: (outcome: NavigationOutcome) => void;
     const task: Task = {
@@ -292,7 +303,7 @@ export class ReaderNavigationCoordinator {
    * place the reader chose to leave; a back move must never record itself.
    */
   private recordsHistory(origin: NavigationOrigin): boolean {
-    return origin !== "slider" && origin !== "back";
+    return origin !== "slider" && origin !== "back" && origin !== "forward";
   }
 
   /**
@@ -330,7 +341,34 @@ export class ReaderNavigationCoordinator {
         reason: "No earlier position to go back to.",
       });
     }
+    // The position being left becomes reachable again through Alt+Right.
+    const leaving = this.hooks.getCurrentLocation?.() ?? null;
+    if (leaving && this.forward[this.forward.length - 1] !== leaving) {
+      this.forward.push(leaving);
+      if (this.forward.length > MAX_HISTORY) this.forward.shift();
+    }
     return this.enqueueAbsolute("back", () => this.engine.go(target));
+  }
+
+  /** Is there a position to re-advance to (Alt+Right)? */
+  canGoForward(): boolean {
+    return this.forward.length > 0;
+  }
+
+  /**
+   * Re-advance to the most recently abandoned position (Alt+Right). Like
+   * Back, the move itself is absolute but never recorded.
+   */
+  goForward(): Promise<NavigationOutcome> {
+    const target = this.forward.pop();
+    if (!target) {
+      return Promise.resolve({
+        ok: false,
+        superseded: false,
+        reason: "No later position to go forward to.",
+      });
+    }
+    return this.enqueueAbsolute("forward", () => this.engine.go(target));
   }
 
   private drop(task: Task): void {
