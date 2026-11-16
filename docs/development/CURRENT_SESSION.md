@@ -1,27 +1,30 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4
-Step 4.2 complete; Step 4.3 (E4) CI matrix done**; plan at
+**Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4:
+Steps 4.2–4.4 code-complete**; plan at
 `~/.opencode/plan/folio-production-readiness.md`
 **Updated:** 2026-11-16
-**Status:** Tranches A (X1, `33e96cc`), B (X2–X4, `df7f684`) and the final
-4.2 tranche (`255bf43`) committed; Step 4.1 fully committed earlier
-(`c71a2fe` + `70942b9`). **Step 4.2 (X1–X5) is complete.** Step 4.3 (E4)
-partially done: **CI matrix** — `desktop-ci.yml` gains ESLint + Prettier
-check steps, a perf-budgets step (fails on any `"withinBudget": false`,
-uploads `perf-report.json`), Rust clippy `-D warnings`, and a separate
-ubuntu `audits` job (`pnpm audit --prod` — verified clean — plus
-`rustsec/audit-check@v2`); `.prettierignore` also excludes
-`src-tauri/foliocore/target` (Rust build artifacts were flagged). The
-**WebDriver smoke** is recorded Windows-pending with an exact runbook at
-`docs/development/runbooks/E4-webdriver-smoke.md` (`P-20261116-01`):
-tauri-driver capabilities, `withGlobalTauri` flipped for the smoke build
-only, synthetic HTML5-drop import (fixture staged via raw-IPC
-`fs_write_atomic` + `x-folio-path` header), invoke-driven
-`backup_export(destPath)`. The plan's jest-axe item is superseded by the
-FT-039 Vitest axe sweep. FT-040 recorded in `TASKS.md`.
-**Exact next action:** on authorization, commit the E4 CI-matrix tranche;
-then Phase 4 **Step 4.4 (E5: release/distribution)** from the plan.
+**Status:** Step 4.2 complete (`33e96cc`, `df7f684`, `255bf43`); Step 4.3
+CI matrix committed (`c36b2cd`, FT-040; WebDriver smoke recorded
+Windows-pending per runbook `P-20261116-01`). Step 4.4 (E5) built
+(uncommitted): **updater wired** — `tauri-plugin-updater` +
+`tauri-plugin-process` (Cargo/lib.rs/capabilities), `createUpdaterArtifacts:
+true`, `plugins.updater` config with a pubkey placeholder + GitHub-releases
+endpoint, `lib/updater.ts` (`checkForUpdates`, `downloadAndInstallUpdate` +
+relaunch), Settings **Check for updates** row (user-initiated only,
+offer-then-confirm install). **README/env** — root README PDF claims fixed,
+platform matrix restated; `desktop/README.md` Drive setup replaced with
+removal pointers, Layout corrected; `desktop/.env.example` deleted;
+`THIRD-PARTY-NOTICES.md` extended with the Tauri API + dialog/updater/
+process plugins; **LICENSE deliberately skipped (user decision pending)**.
+Signing + updater e2e recorded Windows-blocked per runbook
+`docs/development/runbooks/E5-updater-signing.md` (`P-20261116-02`).
+Tests: `settings` → 10 (E5 row). Gates: `tsc` clean, ESLint 0/0, **Vitest
+679 / 679 (86 files)**, prettier clean, `vite build` green, perf 0 over
+budget, `cargo fmt` clean. FT-041 recorded.
+**Exact next action:** on authorization, commit the E5 tranche; then
+Phase 4 **Step 4.5 (E6 fail-loudly app-dir dialog + E7 minor fixes)** from
+the plan.
 
 ---
 

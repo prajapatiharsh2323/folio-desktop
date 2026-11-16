@@ -319,3 +319,15 @@ describe("Settings — S1 reset app data", () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Settings — E5 updater row", () => {
+  it("renders Check for updates and disables the button outside Tauri", async () => {
+    await render();
+    expect(container!.textContent).toContain("Check for updates");
+    const check = Array.from(container!.querySelectorAll<HTMLButtonElement>("button")).find(
+      (b) => b.textContent === "Check",
+    );
+    expect(check).toBeDefined();
+    expect(check!.disabled).toBe(true);
+  });
+});

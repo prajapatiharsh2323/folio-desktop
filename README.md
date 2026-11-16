@@ -8,8 +8,7 @@ with **Tauri 2 + React 18 + TypeScript**; the UI is in `desktop/`.
 
 ## What it does
 
-- Imports EPUB books plus HTML/TXT articles; PDFs are rejected with a clear
-  message.
+- Imports EPUB books plus HTML/TXT articles and PDFs.
 - Reads with themes, typefaces, text size, line spacing, page flow
   (paged/scrolled), reading width, justification and hyphenation.
 - Saves reading position, reading pace and per-book overrides.
@@ -23,11 +22,11 @@ request**; Google Drive sync was removed in October 2026.
 
 ## Requirements
 
-| | |
-|---|---|
-| Run (release) | Windows 10/11 x64, WebView2 (installed by the NSIS installer when missing) |
-| Develop | Node 22.18+ and pnpm 11; Rust stable with the Tauri Windows prerequisites |
-| Build | `pnpm tauri:build` on Windows; the full Tauri/Rust build is **Windows-first** |
+|               |                                                                               |
+| ------------- | ----------------------------------------------------------------------------- |
+| Run (release) | Windows 10/11 x64, WebView2 (installed by the NSIS installer when missing)    |
+| Develop       | Node 22.18+ and pnpm 11; Rust stable with the Tauri Windows prerequisites     |
+| Build         | `pnpm tauri:build` on Windows; the full Tauri/Rust build is **Windows-first** |
 
 The Linux development host can run typecheck, Vitest and the Vite build only;
 see [AGENTS.md](AGENTS.md).
@@ -76,7 +75,8 @@ Settings → About → **Open log folder** reveals it.
 
 ## Known limitations
 
-- EPUB, HTML and TXT only; PDF import is intentionally unsupported.
+- Windows-first: no macOS/Linux builds (EPUB/HTML/TXT/PDF import is
+  Windows-verified; see the release checklist for pending verdicts).
 - Local-only by design: no sync, accounts or cloud storage.
 - Windows installer, Narrator and display-scaling verdicts are tracked on the
   release checklist and are not yet verified for 0.1.0.

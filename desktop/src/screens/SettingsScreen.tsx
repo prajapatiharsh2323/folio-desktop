@@ -14,6 +14,7 @@ import { pickBackupDestPath, pickBackupSourcePath } from "../lib/fileSource";
 import { applyUiZoom, readUiZoom, UI_ZOOM_STEPS } from "../lib/uiZoom";
 import { readContrastPref, setContrastPref, type ContrastPref } from "../lib/highContrast";
 import { LOCALES, t, useLocaleStore, type Locale } from "../i18n/i18n";
+import { checkForUpdates, downloadAndInstallUpdate } from "../lib/updater";
 import { readPreventSleepSetting } from "../reader/keepAwake";
 import { readJsonAsync, writeJsonAtomic } from "../store/jsonio";
 import { writeStorage, readStorage, removeStorage } from "../lib/storage";
@@ -138,6 +139,12 @@ export function SettingsScreen() {
   );
   const [licencesOpen, setLicencesOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // E5: user-initiated update check (never automatic).
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState<{ version: string; notes: string } | null>(
+    null,
+  );
+  const [installing, setInstalling] = useState(false);
 
   // ---- S1: rolling backups + Reset app data --------------------------------
   const [autoBackup, setAutoBackup] = useState(false);
@@ -230,6 +237,39 @@ export function SettingsScreen() {
 
   const setContrast = (pref: ContrastPref) => {
     setContrastState(setContrastPref(pref));
+  };
+
+  // E5: the update check is strictly user-initiated; a found update is
+  // offered as a separate confirm step, and install ends in a relaunch.
+  const runUpdateCheck = async () => {
+    if (!isTauri() || checkingUpdates) return;
+    setCheckingUpdates(true);
+    setMessage(null);
+    setUpdateAvailable(null);
+    try {
+      const result = await checkForUpdates();
+      if (result.status === "upToDate") {
+        setMessage("You're up to date.");
+      } else if (result.status === "available") {
+        setUpdateAvailable({ version: result.version ?? "", notes: result.notes ?? "" });
+      } else {
+        setMessage(result.message ?? "The update check failed.");
+      }
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
+
+  const installUpdate = async () => {
+    if (!updateAvailable || installing) return;
+    setInstalling(true);
+    try {
+      // downloadAndInstallUpdate relaunches the app on success.
+      await downloadAndInstallUpdate();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "The update could not be installed.");
+      setInstalling(false);
+    }
   };
 
   const setSort = (s: LibrarySort) => {
@@ -854,7 +894,7 @@ export function SettingsScreen() {
         />
         <FolioSettingsRow
           title="Open-source licences"
-          helper="React, Zustand, Readium, fflate and pdf.js"
+          helper="React, Zustand, Readium, fflate, pdf.js and Tauri"
           control={
             <FolioButton variant="secondary" onClick={() => setLicencesOpen(true)}>
               View
@@ -872,13 +912,32 @@ export function SettingsScreen() {
         />
         <FolioSettingsRow
           title="Check for updates"
-          helper="Updates will arrive with signed releases (E5); this build has no updater."
+          helper="User-initiated only; updates are signature-verified before install"
           control={
-            <FolioButton variant="secondary" disabled>
-              Check
+            <FolioButton
+              variant="secondary"
+              disabled={!isTauri() || checkingUpdates}
+              onClick={() => void runUpdateCheck()}
+            >
+              {checkingUpdates ? "Checking…" : "Check"}
             </FolioButton>
           }
         />
+        {updateAvailable && (
+          <FolioSettingsRow
+            title={`Update available: ${updateAvailable.version}`}
+            helper={updateAvailable.notes || "A new version is ready to install."}
+            control={
+              <FolioButton
+                variant="primary"
+                disabled={installing}
+                onClick={() => void installUpdate()}
+              >
+                {installing ? "Installing…" : "Install and restart"}
+              </FolioButton>
+            }
+          />
+        )}
         <FolioSettingsRow
           title="Error log"
           helper={

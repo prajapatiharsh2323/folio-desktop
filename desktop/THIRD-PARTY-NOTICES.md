@@ -5,14 +5,18 @@ All are used unmodified, as installed from their npm packages. This file
 lists only what is bundled at runtime; build-time tooling is not
 redistributed and is therefore not listed.
 
-| Package            | Version | Licence      |
-| ------------------ | ------- | ------------ |
-| react, react-dom   | 18.3.x  | MIT          |
-| zustand            | 4.5.x   | MIT          |
-| @readium/navigator | 2.14.x  | BSD-3-Clause |
-| @readium/shared    | 2.8.x   | BSD-3-Clause |
-| fflate             | 0.8.x   | MIT          |
-| pdfjs-dist         | 6.5.438 | Apache-2.0   |
+| Package                    | Version | Licence           |
+| -------------------------- | ------- | ----------------- |
+| react, react-dom           | 18.3.x  | MIT               |
+| zustand                    | 4.5.x   | MIT               |
+| @readium/navigator         | 2.14.x  | BSD-3-Clause      |
+| @readium/shared            | 2.8.x   | BSD-3-Clause      |
+| @tauri-apps/api            | 2.x     | MIT OR Apache-2.0 |
+| @tauri-apps/plugin-dialog  | 2.8.x   | MIT OR Apache-2.0 |
+| @tauri-apps/plugin-updater | 2.14.x  | MIT OR Apache-2.0 |
+| @tauri-apps/plugin-process | 2.4.x   | MIT OR Apache-2.0 |
+| fflate                     | 0.8.x   | MIT               |
+| pdfjs-dist                 | 6.5.438 | Apache-2.0        |
 
 ## pdf.js (pdfjs-dist)
 
@@ -35,6 +39,14 @@ licences ship inside `node_modules/pdfjs-dist` (`cmaps/`, `standard_fonts/`,
 
 Copyright (c) Readium Foundation and contributors. BSD 3-Clause License
 (https://opensource.org/licenses/BSD-3-Clause).
+
+## Tauri (API + plugins: dialog, updater, process)
+
+Copyright (c) Tauri Programme within The Commons Conservancy. Licensed under
+either of MIT or Apache-2.0 (dual licence, recipient's choice); the Apache
+License 2.0 text is at https://www.apache.org/licenses/LICENSE-2.0. The
+updater plugin verifies release-manifest signatures before download and is
+only exercised from the user-initiated "Check for updates" action.
 
 ## fflate
 

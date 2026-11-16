@@ -176,23 +176,19 @@ pnpm tauri:build      # NSIS / installer
 
 ## Drive sync setup
 
-1. Google Cloud Console → enable **Google Drive API**.
-2. OAuth consent screen → add yourself as a test user (the app uses the
-   restricted `drive.file` scope, which needs no verification for test users).
-3. Create credentials → **OAuth client ID** → application type **Desktop app**.
-4. Build with `VITE_GOOGLE_CLIENT_ID=…apps.googleusercontent.com` (and the
-   Desktop client secret as `VITE_GOOGLE_CLIENT_SECRET` if Google issued one),
-   or paste the client ID under Settings → Cloud sync.
-5. Sign in; Folio creates a private **Folio Library** folder. The refresh token
-   is stored by Windows Credential Manager; Disconnect removes it.
+Removed entirely on 2026-10-31 — the Drive sync feature and its
+`VITE_GOOGLE_*` build variables no longer exist. See
+`docs/development/decisions/D-20261031-03-google-drive-sync-removal.md`.
+(Offline dictionary: same day, `D-20261031-05-dictionary-removal.md`.)
 
 ## Layout
 
 - `src/` — frontend (React, Zustand route stub, FileStore, path helpers).
 - `src-tauri/` — thin Rust core: `fs_*`, `zip_*`, `sha256_file`,
   `open_external_url`, `open_app_dir`, `library_path`, `prevent_display_sleep`,
-  dictionary pack bridge, Google OAuth loopback flow, single-instance launch
-  queue, and window-state persistence. No Folio data-model logic lives here by
-  design.
+  backup export/inspect/cancel, single-instance launch queue, and
+  window-state persistence. No Folio data-model logic lives here by design.
+  (The dictionary pack bridge and Google OAuth loopback flow were removed
+  2026-10-31 — `D-20261031-05`, `D-20261031-03`.)
 - `tests/` — Vitest suites (FileStore round-trip/atomicity, path guard, model,
-  import, reader, library, shell, sync).
+  import, reader, library, shell).

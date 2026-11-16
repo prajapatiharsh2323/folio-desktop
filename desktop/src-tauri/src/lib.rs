@@ -20,6 +20,10 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        // E5: signed updater + relaunch-after-install. Checks are
+        // user-initiated only (Settings → Check for updates).
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             fs::fs_read,
             fs::fs_write_atomic,
