@@ -160,3 +160,15 @@
   --folio-on-danger-container: #F3C9C4;
   --folio-scrim: rgba(0,0,0,.6);
 }
+
+/* X5: Devanagari-aware and Arabic-aware stacks; `:lang()` keys off the
+   `lang` attribute set pre-paint by initLocale(). */
+:lang(hi) {
+  --folio-font-sans: "Noto Sans Devanagari", "Segoe UI", -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --folio-font-display: "Noto Serif Devanagari", Georgia, "Iowan Old Style", serif;
+}
+
+:lang(ar) {
+  --folio-font-sans: "Segoe UI", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
+  --folio-font-display: "Noto Naskh Arabic", "Segoe UI", Georgia, serif;
+}

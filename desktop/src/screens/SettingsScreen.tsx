@@ -13,6 +13,7 @@ import { handleError } from "../lib/errorLog";
 import { pickBackupDestPath, pickBackupSourcePath } from "../lib/fileSource";
 import { applyUiZoom, readUiZoom, UI_ZOOM_STEPS } from "../lib/uiZoom";
 import { readContrastPref, setContrastPref, type ContrastPref } from "../lib/highContrast";
+import { LOCALES, t, useLocaleStore, type Locale } from "../i18n/i18n";
 import { readPreventSleepSetting } from "../reader/keepAwake";
 import { readJsonAsync, writeJsonAtomic } from "../store/jsonio";
 import { writeStorage, readStorage, removeStorage } from "../lib/storage";
@@ -127,6 +128,8 @@ export function SettingsScreen() {
   const [keepAwake, setKeepAwake] = useState(true);
   const [uiZoom, setUiZoom] = useState<number>(() => readUiZoom());
   const [contrast, setContrastState] = useState<ContrastPref>(() => readContrastPref());
+  const locale = useLocaleStore((s) => s.locale);
+  const setLocale = (next: Locale) => useLocaleStore.getState().setLocale(next);
   const [defaultSort, setDefaultSort] = useState<LibrarySort>(
     () => (readStorage("folio.library.sort") as LibrarySort) || "recent",
   );
@@ -612,6 +615,24 @@ export function SettingsScreen() {
               >
                 On
               </FolioChip>
+            </div>
+          }
+        />
+        <FolioSettingsRow
+          title={t("common.settingsLanguage", locale)}
+          helper={t("common.settingsLanguageHelper", locale)}
+          control={
+            <div role="group" aria-label={t("common.settingsLanguage", locale)}>
+              {LOCALES.map((l, i) => (
+                <FolioChip
+                  key={l.id}
+                  selected={locale === l.id}
+                  onClick={() => setLocale(l.id)}
+                  style={i > 0 ? { marginLeft: 8 } : undefined}
+                >
+                  {l.label}
+                </FolioChip>
+              ))}
             </div>
           }
         />

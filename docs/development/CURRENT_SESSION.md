@@ -1,37 +1,35 @@
 # Current Session Checkpoint
 
 **Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4
-Step 4.2 (X1–X5), tranches A+B code-complete**; plan at
+Step 4.2 (X1–X5) code-complete**; plan at
 `~/.opencode/plan/folio-production-readiness.md`
 **Updated:** 2026-11-16
-**Status:** Step 4.2 tranche A (X1) committed as `33e96cc`; Step 4.1 fully
-committed earlier (`c71a2fe` + `70942b9`). Tranche B (X2–X4) built:
-**X2** — `components/FolioSkeleton.tsx` (list rows + grid cards,
-`role="status"`/`aria-busy` + sr-only "Loading…", decorative
-`aria-hidden` placeholders) wired into the Library/Collections/Notes
-loading states; shimmer is pure CSS, disabled under
-`prefers-reduced-motion` with static bordered placeholders. **X3** —
-`forced-colors` block (Highlight focus, CanvasText borders on
-chips/dialogs/skeletons/buttons), `prefers-contrast: more` token lift,
-opt-in High contrast (`lib/highContrast.ts`, Settings Appearance Off/On
-chips, `folio.ui.contrast` in localStorage, `folio-high-contrast` class
-applied pre-paint in `main.tsx`), and `inert` app root while a modal is
-open (`modalStack.syncAppRootInert` called by push/pop/reset; sidebar/
-`.folio-screen`/`.folio-reader` roots inerted unless they contain the
-modal root — popModal re-syncs after React has removed the dialog node).
-**X4** — `--folio-type-micro-size` 11→12 px / line 16 px (min-text floor;
-`tests/fixtures/tokens.json` updated deliberately, tokens test green).
-Tests: `folioSkeleton` (3), `highContrast` (2), `modalStackInert` (4),
-`settings` extended to 8 (high-contrast chips; keep-awake Off click now
-scoped by group). Gates: `tsc -b` clean, ESLint 0/0, **Vitest 658 / 658
-(84 files)**, prettier clean, `vite build` green, perf 0 over budget.
-FT-038 recorded in `TASKS.md`. **Tranche B is uncommitted** — commit
-only with explicit user authorization.
-**Step 4.2 remaining:** collapsible sidebar <900 px, roving-focus
-polish, axe sweep on the four screens in both themes, X5 i18n `t()`
-catalogue (P2 — candidate to defer).
-**Exact next action:** on authorization, commit tranche B; then the
-responsive sidebar + axe sweep, and decide X5 (i18n) scope with the user.
+**Status:** Tranches A (X1, `33e96cc`) and B (X2–X4, `df7f684`) committed;
+Step 4.1 fully committed earlier (`c71a2fe` + `70942b9`). Final 4.2 tranche
+built (uncommitted): **collapsible sidebar <900 px** — CSS-only 56 px icon
+rail (`base.css` `@media (max-width: 899.98px)`), labels visually clipped
+but kept in the a11y tree, `title` tooltips in `Sidebar.tsx`. **Axe sweep**
+— axe-core 4.14.0 added as a devDependency; `tests/axeSweep.test.tsx`
+mounts all four screens (Library/Collections/Notes/Settings) with a light
+`libraryUi` mock + empty `MemoryFileStore` in both themes and asserts zero
+serious/critical violations (8 runs, all green first try; color-contrast
+rule disabled — jsdom can't evaluate it). **X5 i18n** —
+`src/i18n/i18n.ts`: catalogue + `t()` (en source of truth, hi/ar partial
+with English fallback; shell chrome covered — sidebar, palette, skeleton
+label, Settings row; screen copy stays English pending a dedicated pass),
+`useLocaleStore` (`folio.ui.locale`), pre-paint `initLocale()` in
+`main.tsx` setting `lang`/`dir` on `<html>`, Devanagari/Arabic-aware font
+stacks via `:lang(hi)`/`:lang(ar)` in `tokens.css`, RTL page progression
+(plain ArrowLeft/Right swap in `useReaderKeyboard` when the locale is RTL;
+Alt+Left/Right keep history meanings), Settings Appearance **Language**
+row (English/हिन्दी/العربية chips). Tests: `axeSweep` (8), `i18n` (11),
+`settings` → 9. Gates: `tsc -b` clean, ESLint 0/0, **Vitest 678 / 678
+(86 files)**, prettier clean, `vite build` green, perf 0 over budget,
+`cargo fmt` clean. FT-039 recorded in `TASKS.md`.
+**Exact next action:** on authorization, commit the final 4.2 tranche
+(incl. `package.json`/`pnpm-lock.yaml` for axe-core); then Phase 4
+**Step 4.3 (E4: Playwright/Tauri-WebDriver smoke + CI matrix)** from the
+plan (~line 276+).
 
 ---
 

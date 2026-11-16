@@ -234,6 +234,33 @@ describe("Settings — X3 high contrast", () => {
   });
 });
 
+describe("Settings — X5 language", () => {
+  it("renders the locale picker and switches the app locale live", async () => {
+    document.documentElement.lang = "";
+    await render();
+    expect(container!.textContent).toContain("Language");
+    expect(container!.textContent).toContain("हिन्दी");
+    await act(async () => {
+      const chip = Array.from(container!.querySelectorAll<HTMLButtonElement>("button")).find(
+        (b) => b.textContent === "हिन्दी",
+      )!;
+      chip.click();
+    });
+    expect(document.documentElement.lang).toBe("hi");
+    expect(document.documentElement.dir).toBe("ltr");
+    expect(h.memory.get("folio.ui.locale")).toBe("hi");
+    // the row's own title re-rendered in the new locale
+    expect(container!.textContent).toContain("भाषा");
+    await act(async () => {
+      const chip = Array.from(container!.querySelectorAll<HTMLButtonElement>("button")).find(
+        (b) => b.textContent === "English",
+      )!;
+      chip.click();
+    });
+    expect(h.memory.get("folio.ui.locale")).toBe("en");
+  });
+});
+
 describe("Settings — S1 reset app data", () => {
   const realLocation = window.location;
   const reload = vi.fn();

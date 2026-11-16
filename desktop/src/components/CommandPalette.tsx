@@ -11,6 +11,7 @@ import { useThemeStore, type ThemeSetting } from "../theme/theme";
 import { useRouteStore } from "../store/routeStore";
 import { useOnboarding } from "../onboarding/onboardingState";
 import { APP_WINDOW_TITLE } from "../lib/windowTitle";
+import { t, useLocaleStore, type Locale } from "../i18n/i18n";
 
 export interface PaletteCommand {
   id: string;
@@ -19,37 +20,37 @@ export interface PaletteCommand {
   run: () => void;
 }
 
-function buildCommands(): PaletteCommand[] {
+function buildCommands(locale: Locale): PaletteCommand[] {
   const routes = useRouteStore.getState();
   const commands: PaletteCommand[] = [
     {
       id: "nav-library",
-      label: "Go to Library",
-      hint: "Your books",
+      label: t("palette.goToLibrary", locale),
+      hint: t("palette.hintLibrary", locale),
       run: () => routes.setRoute("library"),
     },
     {
       id: "nav-collections",
-      label: "Go to Collections",
-      hint: "Organise your books",
+      label: t("palette.goToCollections", locale),
+      hint: t("palette.hintCollections", locale),
       run: () => routes.setRoute("collections"),
     },
     {
       id: "nav-notes",
-      label: "Go to Notes",
-      hint: "Highlights and annotations",
+      label: t("palette.goToNotes", locale),
+      hint: t("palette.hintNotes", locale),
       run: () => routes.setRoute("notes"),
     },
     {
       id: "nav-settings",
-      label: "Go to Settings",
-      hint: "Preferences and backups",
+      label: t("palette.goToSettings", locale),
+      hint: t("palette.hintSettings", locale),
       run: () => routes.setRoute("settings"),
     },
     {
       id: "theme-cycle",
-      label: "Switch appearance",
-      hint: "System → light → dark",
+      label: t("palette.switchAppearance", locale),
+      hint: t("palette.hintAppearance", locale),
       run: () => {
         const order: ThemeSetting[] = ["system", "light", "dark"];
         const current = useThemeStore.getState().setting;
@@ -59,8 +60,8 @@ function buildCommands(): PaletteCommand[] {
     },
     {
       id: "tour-replay",
-      label: "Replay the welcome tour",
-      hint: "Five-step introduction",
+      label: t("palette.replayTour", locale),
+      hint: t("palette.hintTour", locale),
       run: () => useOnboarding.getState().replayTour(),
     },
   ];
@@ -82,6 +83,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Subscribed so a locale change re-renders the command list (X5).
+  const locale = useLocaleStore((s) => s.locale);
 
   useEffect(() => {
     if (open) {
@@ -90,7 +93,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     }
   }, [open]);
 
-  const all = useMemo(() => buildCommands(), []);
+  const all = useMemo(() => buildCommands(locale), [locale]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return all;
@@ -135,8 +138,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         aria-activedescendant={
           filtered[active] ? `folio-palette-opt-${filtered[active].id}` : undefined
         }
-        aria-label="Search commands"
-        placeholder="Type a command…"
+        aria-label={t("palette.searchAria", locale)}
+        placeholder={t("palette.searchPlaceholder", locale)}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={onKeyDown}
@@ -144,7 +147,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       />
       {filtered.length === 0 ? (
         <p className="folio-palette-empty" role="status">
-          No matching commands.
+          {t("palette.noMatches", locale)}
         </p>
       ) : (
         <div

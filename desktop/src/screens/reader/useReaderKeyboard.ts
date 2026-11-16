@@ -17,6 +17,7 @@ import type { ReaderNavigationCoordinator, NavigationOutcome } from "../../reade
 import type { BookmarkResult } from "./useAnnotations";
 import type { ReaderPanel } from "./useReaderChrome";
 import { isTextEntryTarget, isActivatableTarget } from "./keyGuards";
+import { isRtlLocale, useLocaleStore } from "../../i18n/i18n";
 
 /** Text-size intents driven by Ctrl+=/−/0 (R13). */
 export type TextSizeAction = "larger" | "smaller" | "reset";
@@ -126,6 +127,10 @@ export function useReaderKeyboard({
         reportNavigation(nav.goToPercent(percent, "keyboard"), "Couldn't jump to that position.");
       };
 
+      // X5: in RTL locales (e.g. Arabic) right-to-left progression flips the
+      // plain arrow keys; Alt+Left/Right keep their history meanings.
+      const rtl = isRtlLocale(useLocaleStore.getState().locale);
+
       switch (event.key) {
         case "ArrowRight":
         case "PageDown":
@@ -135,7 +140,7 @@ export function useReaderKeyboard({
             // Alt+Right re-advances through positions abandoned by Back (X1).
             goForward();
           } else {
-            turn("next");
+            turn(rtl && event.key === "ArrowRight" ? "previous" : "next");
           }
           break;
         case "ArrowLeft":
@@ -146,7 +151,7 @@ export function useReaderKeyboard({
             // Alt+Left returns through the position history (07 §1, R4).
             goBack();
           } else {
-            turn("previous");
+            turn(rtl && event.key === "ArrowLeft" ? "next" : "previous");
           }
           break;
         case " ":

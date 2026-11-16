@@ -92,6 +92,32 @@ button {
   color: var(--folio-text-primary);
 }
 
+/* X1: narrow windows collapse the sidebar to an icon rail */
+@media (max-width: 899.98px) {
+  .folio-sidebar {
+    width: 56px;
+    padding: var(--folio-space-6) var(--folio-space-1);
+    align-items: center;
+  }
+
+  .folio-sidebar__item {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .folio-sidebar__item span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
 /* ---- Main area ---- */
 .folio-main {
   flex: 1;

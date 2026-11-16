@@ -5,6 +5,8 @@
 // shimmer is pure CSS and dies under `prefers-reduced-motion` (components.css
 // keeps the same media pattern as every other animation in the app).
 
+import { t, useLocaleStore } from "../i18n/i18n";
+
 export type SkeletonView = "list" | "grid";
 
 interface FolioSkeletonRowsProps {
@@ -37,9 +39,11 @@ function SkeletonCard() {
 }
 
 export function FolioSkeletonRows({ rows = 8, view = "list" }: FolioSkeletonRowsProps) {
+  // Subscribed so a locale change re-renders the sr-only label (X5).
+  const locale = useLocaleStore((s) => s.locale);
   return (
     <div className={`folio-skeleton folio-skeleton--${view}`} role="status" aria-busy="true">
-      <span className="folio-visually-hidden">Loading…</span>
+      <span className="folio-visually-hidden">{t("common.loading", locale)}</span>
       {view === "grid"
         ? Array.from({ length: rows }, (_, i) => <SkeletonCard key={i} />)
         : Array.from({ length: rows }, (_, i) => <SkeletonRow key={i} />)}

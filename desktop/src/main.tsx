@@ -7,6 +7,7 @@ import { installGlobalErrorHandlers } from "./lib/errorLog";
 import { removeStorage } from "./lib/storage";
 import { applyUiZoom, readUiZoom } from "./lib/uiZoom";
 import { applyContrastPref, readContrastPref } from "./lib/highContrast";
+import { initLocale } from "./i18n/i18n";
 import { PREFS_COMPLETE_KEY, TOUR_COMPLETE_KEY, useOnboarding } from "./onboarding/onboardingState";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -23,6 +24,10 @@ applyUiZoom(readUiZoom());
 
 // X3: opt-in high-contrast mode, also applied pre-paint.
 applyContrastPref(readContrastPref());
+
+// X5: app locale — sets `lang`/`dir` on <html> before the first paint (RTL
+// scripts must not paint an LTR frame first).
+initLocale();
 
 // Keep a local, rotating diagnostic trail; nothing leaves the machine.
 installGlobalErrorHandlers();
