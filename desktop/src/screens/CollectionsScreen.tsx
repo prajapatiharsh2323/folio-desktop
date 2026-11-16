@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FolioButton } from "../components/FolioButton";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioEmptyState } from "../components/FolioEmptyState";
+import { FolioSkeletonRows } from "../components/FolioSkeleton";
 import { FolioIcons } from "../components/FolioIcons";
 import { FolioRow } from "../components/FolioRow";
 import { useRouteStore, type ReaderOrigin } from "../store/routeStore";
@@ -223,7 +224,7 @@ export function CollectionsScreen() {
 
         <div className="folio-screen">
           {loading ? (
-            <p className="folio-helper">Loading…</p>
+            <FolioSkeletonRows rows={6} />
           ) : loadError ? (
             <FolioEmptyState
               title="Collections couldn't load"

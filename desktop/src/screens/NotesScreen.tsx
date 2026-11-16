@@ -3,6 +3,7 @@ import { FolioButton } from "../components/FolioButton";
 import { FolioChip } from "../components/FolioChip";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioEmptyState } from "../components/FolioEmptyState";
+import { FolioSkeletonRows } from "../components/FolioSkeleton";
 import { FolioIcons } from "../components/FolioIcons";
 import { FolioMenu, type FolioMenuItem, type ViewportRect } from "../components/FolioMenu";
 import { useRouteStore } from "../store/routeStore";
@@ -496,7 +497,7 @@ export function NotesScreen() {
 
       <div className="folio-screen">
         {loading ? (
-          <p className="folio-helper">Loading…</p>
+          <FolioSkeletonRows rows={6} />
         ) : error ? (
           <FolioEmptyState
             title="Notes couldn't load"

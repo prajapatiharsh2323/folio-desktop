@@ -3,6 +3,7 @@ import { FolioButton } from "../components/FolioButton";
 import { FolioChip } from "../components/FolioChip";
 import { FolioIcons } from "../components/FolioIcons";
 import { FolioEmptyState } from "../components/FolioEmptyState";
+import { FolioSkeletonRows } from "../components/FolioSkeleton";
 import { FolioBookRow } from "../components/FolioBookRow";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioMenu, type ViewportRect } from "../components/FolioMenu";
@@ -1123,9 +1124,7 @@ export function LibraryScreen() {
           </div>
         )}
         {loading ? (
-          <div className="folio-empty">
-            <div className="folio-empty__body">Loading…</div>
-          </div>
+          <FolioSkeletonRows view={view} />
         ) : loadError && count === 0 ? (
           <FolioEmptyState
             title="Library couldn't load"

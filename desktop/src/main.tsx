@@ -6,6 +6,7 @@ import { showMainWindow } from "./lib/appWindow";
 import { installGlobalErrorHandlers } from "./lib/errorLog";
 import { removeStorage } from "./lib/storage";
 import { applyUiZoom, readUiZoom } from "./lib/uiZoom";
+import { applyContrastPref, readContrastPref } from "./lib/highContrast";
 import { PREFS_COMPLETE_KEY, TOUR_COMPLETE_KEY, useOnboarding } from "./onboarding/onboardingState";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -19,6 +20,9 @@ initTheme();
 
 // S1: apply the persisted UI zoom (80–150%) before the first paint too.
 applyUiZoom(readUiZoom());
+
+// X3: opt-in high-contrast mode, also applied pre-paint.
+applyContrastPref(readContrastPref());
 
 // Keep a local, rotating diagnostic trail; nothing leaves the machine.
 installGlobalErrorHandlers();

@@ -12,6 +12,7 @@ import { useReaderStore } from "../store/readerStore";
 import { handleError } from "../lib/errorLog";
 import { pickBackupDestPath, pickBackupSourcePath } from "../lib/fileSource";
 import { applyUiZoom, readUiZoom, UI_ZOOM_STEPS } from "../lib/uiZoom";
+import { readContrastPref, setContrastPref, type ContrastPref } from "../lib/highContrast";
 import { readPreventSleepSetting } from "../reader/keepAwake";
 import { readJsonAsync, writeJsonAtomic } from "../store/jsonio";
 import { writeStorage, readStorage, removeStorage } from "../lib/storage";
@@ -125,6 +126,7 @@ export function SettingsScreen() {
   // ---- S1: keep-awake, UI zoom, default library sort/view, reindex ---------
   const [keepAwake, setKeepAwake] = useState(true);
   const [uiZoom, setUiZoom] = useState<number>(() => readUiZoom());
+  const [contrast, setContrastState] = useState<ContrastPref>(() => readContrastPref());
   const [defaultSort, setDefaultSort] = useState<LibrarySort>(
     () => (readStorage("folio.library.sort") as LibrarySort) || "recent",
   );
@@ -221,6 +223,10 @@ export function SettingsScreen() {
 
   const setZoom = (percent: number) => {
     setUiZoom(applyUiZoom(percent));
+  };
+
+  const setContrast = (pref: ContrastPref) => {
+    setContrastState(setContrastPref(pref));
   };
 
   const setSort = (s: LibrarySort) => {
@@ -588,6 +594,24 @@ export function SettingsScreen() {
                   {z}%
                 </FolioChip>
               ))}
+            </div>
+          }
+        />
+        <FolioSettingsRow
+          title="High contrast"
+          helper="Stronger text and border contrast on top of the current theme"
+          control={
+            <div role="group" aria-label="High contrast">
+              <FolioChip selected={contrast === "normal"} onClick={() => setContrast("normal")}>
+                Off
+              </FolioChip>
+              <FolioChip
+                selected={contrast === "high"}
+                onClick={() => setContrast("high")}
+                style={{ marginLeft: 8 }}
+              >
+                On
+              </FolioChip>
             </div>
           }
         />

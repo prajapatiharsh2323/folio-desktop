@@ -1,37 +1,37 @@
 # Current Session Checkpoint
 
 **Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4
-Step 4.2 (X1–X5), tranche A code-complete**; plan at
+Step 4.2 (X1–X5), tranches A+B code-complete**; plan at
 `~/.opencode/plan/folio-production-readiness.md`
 **Updated:** 2026-11-16
-**Status:** Step 4.1 fully committed (`c71a2fe` tranche A + `70942b9`
-remainder). Step 4.2 tranche A (X1) built: **Alt+Right forward history**
-(`ReaderNavigationCoordinator` gains a `forward` stack — Back pushes the
-position it leaves, any new absolute destination including scrubs clears
-the chain, `canGoForward`/`goForward` + `useReaderKeyboard` wiring +
-two shortcuts-guide rows); **window title = book** (`lib/windowTitle.ts`,
-`document.title` in every host + native `setTitle` under the already
-granted `core:window:allow-set-title`, resets to "Folio" on close);
-**"Reopen last book"** (`shell/reopenLast.ts`: opt-in `reopenLastBook` in
-`user/window.json`, Settings Reading row, boot hook picks the newest
-progress record still in the manifest and opens it via the normal
-openReader resume cascade); **Ctrl+K command palette**
-(`components/CommandPalette.tsx`, mounted in `Shell`, combobox+listbox
-a11y, type-to-filter, ArrowUp/Down+Enter, 6 commands: four screens,
-appearance cycle, tour replay; `Ctrl+K` row added to the shortcuts
-guide). Tests: `commandPalette` (6), `reopenLast` (6), `windowTitle`,
-forward-stack cases in `navigation` (28 total) and `readerKeyboardBack`.
-Gates: `tsc -b` clean, ESLint 0/0, **Vitest 648 / 648 (80 files)**,
-prettier clean, `vite build` green, perf 0 over budget. FT-037 recorded
-in `TASKS.md`. **Step 4.2 tranche A is uncommitted** — commit only with
-explicit user authorization.
-**Step 4.2 remaining:** collapsible sidebar <900 px; X2 skeleton rows +
-reduced-motion shimmer; X3 remainder (forced-colors + prefers-contrast
-support, high-contrast option, roving focus, `inert` app root while a
-modal is open, axe checks on the four screens in both themes); X4 min
-text 12/14 px; X5 i18n `t()` (P2 — may defer).
-**Exact next action:** on authorization, commit tranche A; then build the
-X2/X3/X4 a11y + loading tranche.
+**Status:** Step 4.2 tranche A (X1) committed as `33e96cc`; Step 4.1 fully
+committed earlier (`c71a2fe` + `70942b9`). Tranche B (X2–X4) built:
+**X2** — `components/FolioSkeleton.tsx` (list rows + grid cards,
+`role="status"`/`aria-busy` + sr-only "Loading…", decorative
+`aria-hidden` placeholders) wired into the Library/Collections/Notes
+loading states; shimmer is pure CSS, disabled under
+`prefers-reduced-motion` with static bordered placeholders. **X3** —
+`forced-colors` block (Highlight focus, CanvasText borders on
+chips/dialogs/skeletons/buttons), `prefers-contrast: more` token lift,
+opt-in High contrast (`lib/highContrast.ts`, Settings Appearance Off/On
+chips, `folio.ui.contrast` in localStorage, `folio-high-contrast` class
+applied pre-paint in `main.tsx`), and `inert` app root while a modal is
+open (`modalStack.syncAppRootInert` called by push/pop/reset; sidebar/
+`.folio-screen`/`.folio-reader` roots inerted unless they contain the
+modal root — popModal re-syncs after React has removed the dialog node).
+**X4** — `--folio-type-micro-size` 11→12 px / line 16 px (min-text floor;
+`tests/fixtures/tokens.json` updated deliberately, tokens test green).
+Tests: `folioSkeleton` (3), `highContrast` (2), `modalStackInert` (4),
+`settings` extended to 8 (high-contrast chips; keep-awake Off click now
+scoped by group). Gates: `tsc -b` clean, ESLint 0/0, **Vitest 658 / 658
+(84 files)**, prettier clean, `vite build` green, perf 0 over budget.
+FT-038 recorded in `TASKS.md`. **Tranche B is uncommitted** — commit
+only with explicit user authorization.
+**Step 4.2 remaining:** collapsible sidebar <900 px, roving-focus
+polish, axe sweep on the four screens in both themes, X5 i18n `t()`
+catalogue (P2 — candidate to defer).
+**Exact next action:** on authorization, commit tranche B; then the
+responsive sidebar + axe sweep, and decide X5 (i18n) scope with the user.
 
 ---
 

@@ -126,7 +126,7 @@ describe("Settings — S1 keep screen awake", () => {
     await render();
     expect(container!.textContent).toContain("Keep screen awake");
     await act(async () => {
-      chip("Off").click();
+      chipIn("Keep screen awake", "Off").click();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -213,6 +213,24 @@ describe("Settings — X1 reopen last book", () => {
     });
     const raw = await (h.fs as MemoryFileStore).readText("/folio-library/user/window.json");
     expect(JSON.parse(raw)).toMatchObject({ reopenLastBook: true });
+  });
+});
+
+describe("Settings — X3 high contrast", () => {
+  it("toggles the html class and persists the choice", async () => {
+    document.documentElement.classList.remove("folio-high-contrast");
+    await render();
+    expect(container!.textContent).toContain("High contrast");
+    await act(async () => {
+      chipIn("High contrast", "On").click();
+    });
+    expect(document.documentElement.classList.contains("folio-high-contrast")).toBe(true);
+    expect(h.memory.get("folio.ui.contrast")).toBe("high");
+    await act(async () => {
+      chipIn("High contrast", "Off").click();
+    });
+    expect(document.documentElement.classList.contains("folio-high-contrast")).toBe(false);
+    expect(h.memory.get("folio.ui.contrast")).toBe("normal");
   });
 });
 
