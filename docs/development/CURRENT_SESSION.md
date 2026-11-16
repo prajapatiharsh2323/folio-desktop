@@ -1,39 +1,37 @@
 # Current Session Checkpoint
 
-**Session:** `S-20261113-01` (continued) — Production-readiness **Phase 3
-Step 3.5 (L4–L11 + N1–N2) code-complete** on top of the merged PDF-support
-`main`; plan at `~/.opencode/plan/folio-production-readiness.md`
+**Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4
+Step 4.1 (S1–S3 Settings), tranche A code-complete** on the merged
+PDF-support `main`; plan at `~/.opencode/plan/folio-production-readiness.md`
 **Updated:** 2026-11-16
-**Status:** Step 3.5 done as one pass: **L4** — `FolioMenu` (anchored,
-viewport-clamped, `data-folio-modal`, Escape/outside close) on every book's
-⋯ button (Open, Add to collection, Edit details, Mark finished, Show in
-folder via new Rust `reveal_doc`, Delete); **L5** — persisted List/Grid
-toggle (card variant on `FolioBookRow`), Continue-reading shelf,
-New/Finished/Missing badges, per-row meta line, kind/status/tag filter
-chips; **L7** — real `<form>`s with Enter submit, trim + 80-char cap +
-case-insensitive duplicate validation in New-collection/Rename, inline
-"New collection… → Create & add" in the picker; **L8** — labelled
-checkboxes, Shift-click ranges, visible Select-all, bulk-delete confirm
-with title list, soft delete (~10 s Undo via toast action + pending strip);
-**L9** — search listbox a11y, scope chips, "No results" state, and
-`buildSnippetParts` structured snippets (both `dangerouslySetInnerHTML`
-uses removed); **L10** — duplicate "Apply to all remaining", recovery
-stays open with "Remove all"; **N1** — notes grouped by book (collapsible
-`<details>` groups with counts), search + sort + colour filter chips,
-chapter/date badges, per-row colour change, Export Markdown/CSV
-(`pickExportDestPath` → granted `fs_write_atomic`) + Copy-all; **N2** —
-missing docs lose Open and keep Delete; new `LibraryManager.updateMeta`
-mutator (meta.json first, manifest LAST). Post-merge gates: `tsc -b` clean,
-ESLint 0/0, **Vitest 601 / 601 (75 files)** (incl. new `notesExport`,
-`collectionsName`, extended `notesScreen`), `prettier --check` clean,
-`vite build` green, `perf.ts` budgets pass, `cargo fmt --all -- --check`
-clean. FT-035 recorded in `TASKS.md`. **All Step-3.5 changes are
-uncommitted** — commit only with explicit user authorization.
-Windows verification (menu/grid/undo flows in the real webview, native
-save-dialog export round-trip, `reveal_doc` in Explorer, plus the merge's
-PDF smoke) remains blocked on this host.
-**Exact next action:** on authorization, commit the Step 3.5 work; then
-Phase 4 Step 4.1 (S1–S3 Settings) from the plan.
+**Status:** Step 3.5 committed as `207d5d2` (authorized, not pushed);
+merge `7f7f8c1` + docs `ad42814` committed and pushed to `origin/main`.
+Step 4.1 tranche A done: **S1** — UI zoom (`src/lib/uiZoom.ts`, CSS `zoom`
+on `documentElement` at 80/90/100/110/125/150, persisted as
+`folio.ui.zoom`, applied pre-paint in `main.tsx`; `readUiZoom` treats
+null/empty as unset), keep-awake On/Off chips writing
+`preventSleepWhileReading` into `user/window.json`, default library
+sort/view persisted to the Library's own `folio.library.*` keys, full
+default-reading-prefs save (spread draft over current, unknown keys
+preserved), Rebuild search index (drop `index/text/*`, then
+`reindexDocs`); **S3** — keyboard-shortcuts row (reuses
+`KeyboardShortcutsDialog`), privacy note, licences dialog
+(`THIRD-PARTY-NOTICES.md` via Vite `?raw`), Copy diagnostics, disabled
+Check-for-updates, version row `Folio ${__APP_VERSION__}`. Tests:
+`tests/settings.test.tsx` (4) + `tests/uiZoom.test.ts` (3) — storage
+mocked with a hoisted Map (jsdom has no localStorage). Gates: `tsc -b`
+clean, ESLint 0/0, **Vitest 608 / 608 (77 files)**, prettier clean,
+`vite build` green, perf 0 over budget, `cargo fmt` clean. FT-036
+recorded in `TASKS.md`. **Step 4.1 tranche A is uncommitted** — commit
+only with explicit user authorization.
+**Step 4.1 remaining:** rolling backups + stale-backup reminder
+(`backup_export` into `user/backups/`, prune to last N, boot toast when
+stale), Reset app data behind a confirmation dialog, S2 export cancel
+(Rust `backup_cancel` + AtomicBool in `backup.rs`); re-run gates.
+Windows verification remains blocked on this host (webview zoom feel,
+keep-awake toggle, installer).
+**Exact next action:** on authorization, commit tranche A; then build the
+rolling backups + Reset app data + `backup_cancel`, re-run gates.
 
 ---
 

@@ -1528,6 +1528,17 @@
   cursor: pointer;
 }
 
+/* S3: bundled third-party licence text inside the settings dialog */
+.folio-licences {
+  max-height: 420px;
+  overflow: auto;
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  color: var(--folio-text-secondary);
+  white-space: pre-wrap;
+  margin: 0;
+}
+
 .folio-link {
   border: 0;
   padding: 0;

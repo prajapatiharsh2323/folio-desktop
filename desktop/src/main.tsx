@@ -5,6 +5,7 @@ import { initTheme, previewTheme, THEME_STORAGE_KEY, useThemeStore } from "./the
 import { showMainWindow } from "./lib/appWindow";
 import { installGlobalErrorHandlers } from "./lib/errorLog";
 import { removeStorage } from "./lib/storage";
+import { applyUiZoom, readUiZoom } from "./lib/uiZoom";
 import { PREFS_COMPLETE_KEY, TOUR_COMPLETE_KEY, useOnboarding } from "./onboarding/onboardingState";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -15,6 +16,9 @@ import "./styles/pdf.css";
 // paints a light frame first. The window itself starts hidden (tauri.conf) and
 // is shown once the first frame is ready.
 initTheme();
+
+// S1: apply the persisted UI zoom (80–150%) before the first paint too.
+applyUiZoom(readUiZoom());
 
 // Keep a local, rotating diagnostic trail; nothing leaves the machine.
 installGlobalErrorHandlers();
