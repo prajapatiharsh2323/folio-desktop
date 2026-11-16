@@ -1,7 +1,7 @@
 // S1/S3 (Phase 4): settings screen additions — UI zoom persistence, keep-awake
 // toggle writing user/window.json, default library sort/view, and the
 // diagnostics/privacy rows.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { MemoryFileStore } from "../src/lib/fileStore";
@@ -37,6 +37,7 @@ vi.mock("../src/store/libraryUi", () => ({
 import { SettingsScreen } from "../src/screens/SettingsScreen";
 import { useThemeStore } from "../src/theme/theme";
 import { readUiZoom, UI_ZOOM_KEY } from "../src/lib/uiZoom";
+import { PREFS_COMPLETE_KEY, TOUR_COMPLETE_KEY } from "../src/onboarding/onboardingState";
 
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -50,6 +51,15 @@ function chip(label: string): HTMLButtonElement {
     (b) => b.textContent?.trim() === label,
   );
   if (!found) throw new Error(`chip ${label} not found`);
+  return found;
+}
+
+/** Chip inside a labelled group (rows share labels like On/Off). */
+function chipIn(group: string, label: string): HTMLButtonElement {
+  const found = Array.from(
+    container!.querySelectorAll<HTMLButtonElement>(`div[aria-label="${group}"] .folio-chip`),
+  ).find((b) => b.textContent?.trim() === label);
+  if (!found) throw new Error(`chip ${label} not found in group ${group}`);
   return found;
 }
 
@@ -175,5 +185,78 @@ describe("Settings — S1 default reading prefs", () => {
     const written = h.prefsWrite.mock.calls[0][0];
     expect(written.pdfZoom).toBe("1");
     expect(written.unknownFutureKey).toBe("keep-me");
+  });
+});
+
+describe("Settings — S1 automatic backups", () => {
+  it("writes autoBackup into user/window.json", async () => {
+    await render();
+    expect(container!.textContent).toContain("Automatic backups");
+    await act(async () => {
+      chipIn("Automatic backups", "On").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const raw = await (h.fs as MemoryFileStore).readText("/folio-library/user/window.json");
+    expect(JSON.parse(raw)).toMatchObject({ autoBackup: true });
+  });
+});
+
+describe("Settings — S1 reset app data", () => {
+  const realLocation = window.location;
+  const reload = vi.fn();
+
+  beforeAll(() => {
+    // jsdom's location.reload is non-configurable; replace the whole object.
+    Reflect.deleteProperty(window, "location");
+    (window as unknown as { location: unknown }).location = { reload };
+  });
+
+  afterAll(() => {
+    (window as unknown as { location: unknown }).location = realLocation;
+  });
+
+  beforeEach(() => {
+    reload.mockClear();
+  });
+
+  it("requires the acknowledgement checkbox before deleting", async () => {
+    await (h.fs as MemoryFileStore).writeTextAtomic("/folio-library/library/manifest.json", "{}");
+    await (h.fs as MemoryFileStore).writeTextAtomic("/folio-library/user/window.json", "{}");
+    h.memory.set(PREFS_COMPLETE_KEY, "1");
+    h.memory.set(TOUR_COMPLETE_KEY, "1");
+    await render();
+
+    button("Reset…").click();
+    await flush();
+    const dialog = container!.querySelector(".folio-dialog")!;
+    const del = Array.from(dialog.querySelectorAll<HTMLButtonElement>("button")).find(
+      (b) => b.textContent?.trim() === "Delete everything",
+    )!;
+    expect(del.disabled).toBe(true);
+
+    const box = dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    await act(async () => {
+      box.click();
+      await Promise.resolve();
+    });
+    const del2 = Array.from(
+      container!.querySelector(".folio-dialog")!.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((b) => b.textContent?.trim() === "Delete everything")!;
+    expect(del2.disabled).toBe(false);
+    await act(async () => {
+      del2.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // every app-dir child deleted, setup flags cleared, reload triggered
+    expect(await (h.fs as MemoryFileStore).exists("/folio-library/library/manifest.json")).toBe(
+      false,
+    );
+    expect(await (h.fs as MemoryFileStore).exists("/folio-library/user/window.json")).toBe(false);
+    expect(h.memory.has(PREFS_COMPLETE_KEY)).toBe(false);
+    expect(h.memory.has(TOUR_COMPLETE_KEY)).toBe(false);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });

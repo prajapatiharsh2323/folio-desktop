@@ -14,8 +14,14 @@ import { pickBackupDestPath, pickBackupSourcePath } from "../lib/fileSource";
 import { applyUiZoom, readUiZoom, UI_ZOOM_STEPS } from "../lib/uiZoom";
 import { readPreventSleepSetting } from "../reader/keepAwake";
 import { readJsonAsync, writeJsonAtomic } from "../store/jsonio";
-import { writeStorage, readStorage } from "../lib/storage";
+import { writeStorage, readStorage, removeStorage } from "../lib/storage";
 import { reindexDocs } from "../backup/reindex";
+import {
+  appDirFromLibraryPath,
+  readAutoBackupSetting,
+  writeAutoBackupSetting,
+} from "../backup/rollingBackup";
+import { PREFS_COMPLETE_KEY, TOUR_COMPLETE_KEY } from "../onboarding/onboardingState";
 import { DEFAULT_READING_PREFS } from "../model/defaults";
 import type { LibrarySort } from "../lib/libraryView";
 import type { ReadingPrefs } from "../model/types";
@@ -30,6 +36,9 @@ import {
   type RestorePhase,
   type RestoreResult,
 } from "../backup/backupService";
+
+/** S1: the app data dir (parent of the library) for desktop-only settings. */
+const APP_DIR = appDirFromLibraryPath(LIBRARY_ROOT);
 
 /** S1: default library sort/view (persisted; the library reads these keys). */
 const SORT_OPTIONS: { value: LibrarySort; label: string }[] = [
@@ -124,6 +133,12 @@ export function SettingsScreen() {
   const [licencesOpen, setLicencesOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
+  // ---- S1: rolling backups + Reset app data --------------------------------
+  const [autoBackup, setAutoBackup] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetConfirmed, setResetConfirmed] = useState(false);
+
   const loadKeepAwake = useCallback(async () => {
     try {
       setKeepAwake(await readPreventSleepSetting(getLibraryFs()));
@@ -131,6 +146,31 @@ export function SettingsScreen() {
       handleError(e, { context: "settings.keepawake.load" });
     }
   }, []);
+
+  const loadAutoBackup = useCallback(async () => {
+    try {
+      setAutoBackup(await readAutoBackupSetting(getLibraryFs(), APP_DIR));
+    } catch (e) {
+      handleError(e, { context: "settings.autobackup.load" });
+    }
+  }, []);
+
+  const setAutoBackupPref = async (enable: boolean) => {
+    const prev = autoBackup;
+    setAutoBackup(enable);
+    try {
+      await writeAutoBackupSetting(getLibraryFs(), APP_DIR, enable);
+      setMessage(
+        enable
+          ? "Automatic backups on: Folio backs the library up daily into its own data folder."
+          : "Automatic backups are off. You will be reminded weekly.",
+      );
+    } catch (e) {
+      handleError(e, { context: "settings.autobackup.save" });
+      setAutoBackup(prev);
+      setMessage(e instanceof Error ? e.message : "That setting could not be saved.");
+    }
+  };
 
   const setPreventSleep = async (enable: boolean) => {
     setKeepAwake(enable);
@@ -245,6 +285,7 @@ export function SettingsScreen() {
     void loadPrefs();
     void loadStorage();
     void loadKeepAwake();
+    void loadAutoBackup();
     if (isTauri()) {
       void invoke<string>("library_path")
         .then(setLibPath)
@@ -253,7 +294,29 @@ export function SettingsScreen() {
         .then(setLogPath)
         .catch(() => {});
     }
-  }, [loadPrefs, loadStorage, loadKeepAwake]);
+  }, [loadPrefs, loadStorage, loadKeepAwake, loadAutoBackup]);
+
+  /** S1: erase everything under the app data dir, then reboot into setup. */
+  const resetAppData = async () => {
+    setBusy(true);
+    try {
+      const fs = getLibraryFs();
+      for (const e of await fs.list(APP_DIR)) {
+        await fs.delete(e.path);
+      }
+      // Setup/tour flags are stored outside the library; clear them too so
+      // the reload lands on the first-run setup screen.
+      removeStorage(PREFS_COMPLETE_KEY);
+      removeStorage(TOUR_COMPLETE_KEY);
+      setMessage(null);
+      window.location.reload();
+    } catch (e) {
+      handleError(e, { context: "settings.reset" });
+      setBusy(false);
+      setResetConfirmed(false);
+      setMessage(e instanceof Error ? e.message : "Folio could not be reset. Nothing was deleted.");
+    }
+  };
 
   const openPrefs = async () => {
     setMessage(null);
@@ -295,6 +358,7 @@ export function SettingsScreen() {
 
   const handleExport = async () => {
     setBusy(true);
+    setExporting(true);
     setMessage(null);
     try {
       if (isTauri()) {
@@ -339,11 +403,24 @@ export function SettingsScreen() {
         setMessage(`Backup exported (${formatBytes(bytes.length)}).`);
       }
     } catch (e) {
-      handleError(e, { context: "settings.backup.export" });
-      setMessage(e instanceof Error ? e.message : "Export failed");
+      const raw = e instanceof Error ? e.message : String(e);
+      if (raw.includes("cancelled")) {
+        // A user-initiated cancel is not an error worth logging.
+        setMessage("Backup cancelled.");
+      } else {
+        handleError(e, { context: "settings.backup.export" });
+        setMessage(raw || "Export failed");
+      }
     } finally {
       setBusy(false);
+      setExporting(false);
     }
+  };
+
+  /** S2: ask the streaming export to stop at the next entry boundary. */
+  const cancelExport = () => {
+    if (isTauri()) void invoke("backup_cancel").catch(() => {});
+    setMessage("Cancelling…");
   };
 
   const handlePickRestore = async () => {
@@ -563,12 +640,37 @@ export function SettingsScreen() {
 
         <FolioSectionHeader>Backup</FolioSectionHeader>
         <FolioSettingsRow
+          title="Automatic backups"
+          helper="Daily, into Folio's own data folder; the last 5 archives are kept"
+          control={
+            <div role="group" aria-label="Automatic backups">
+              <FolioChip selected={!autoBackup} onClick={() => void setAutoBackupPref(false)}>
+                Off
+              </FolioChip>
+              <FolioChip
+                selected={autoBackup}
+                onClick={() => void setAutoBackupPref(true)}
+                style={{ marginLeft: 8 }}
+              >
+                On
+              </FolioChip>
+            </div>
+          }
+        />
+        <FolioSettingsRow
           title="Export backup"
           helper="Save a zip of your library and settings"
           control={
-            <FolioButton variant="secondary" onClick={() => void handleExport()} disabled={busy}>
-              Export
-            </FolioButton>
+            <div>
+              <FolioButton variant="secondary" onClick={() => void handleExport()} disabled={busy}>
+                Export
+              </FolioButton>
+              {exporting && (
+                <FolioButton variant="secondary" onClick={cancelExport} style={{ marginLeft: 8 }}>
+                  Cancel
+                </FolioButton>
+              )}
+            </div>
           }
         />
         <FolioSettingsRow
@@ -614,6 +716,21 @@ export function SettingsScreen() {
               }}
             >
               Open
+            </FolioButton>
+          }
+        />
+        <FolioSettingsRow
+          title="Reset app data"
+          helper="Deletes every book, note and setting stored by Folio — permanently"
+          control={
+            <FolioButton
+              variant="secondary"
+              onClick={() => {
+                setResetConfirmed(false);
+                setResetOpen(true);
+              }}
+            >
+              Reset…
             </FolioButton>
           }
         />
@@ -818,6 +935,41 @@ export function SettingsScreen() {
         }
       >
         <pre className="folio-licences">{thirdPartyNotices}</pre>
+      </FolioDialog>
+
+      {/* S1: Reset app data — double confirmation before an unrecoverable wipe. */}
+      <FolioDialog
+        open={resetOpen}
+        onClose={() => setResetOpen(false)}
+        title="Reset app data?"
+        actions={
+          <>
+            <FolioButton variant="secondary" onClick={() => setResetOpen(false)} disabled={busy}>
+              Cancel
+            </FolioButton>
+            <FolioButton
+              variant="primary"
+              onClick={() => void resetAppData()}
+              disabled={busy || !resetConfirmed}
+            >
+              Delete everything
+            </FolioButton>
+          </>
+        }
+      >
+        <p className="folio-helper">
+          This permanently deletes every book, note, highlight, collection and setting stored by
+          Folio on this machine, and cannot be undone. Export a backup first if you might want them
+          back.
+        </p>
+        <label className="folio-check-row">
+          <input
+            type="checkbox"
+            checked={resetConfirmed}
+            onChange={(e) => setResetConfirmed(e.target.checked)}
+          />
+          <span>I understand everything will be deleted.</span>
+        </label>
       </FolioDialog>
 
       <KeyboardShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />

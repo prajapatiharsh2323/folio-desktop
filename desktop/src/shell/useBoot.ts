@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { recoverInterruptedRestore } from "../backup/backupService";
+import { autoBackupIfNeeded, checkBackupReminder } from "../backup/rollingBackup";
 import { filesFromTauriDrop, pickImportFiles } from "../lib/fileSource";
 import { onLaunch, takePendingLaunch } from "../lib/openWith";
 import { useOnboarding } from "../onboarding/onboardingState";
@@ -99,6 +100,23 @@ export function useBoot(): void {
 
         if (!disposed) await useOnboarding.getState().boot();
         if (!disposed) await handle();
+
+        // S1: rolling backups + the stale-backup reminder, best-effort after
+        // boot. Browser builds have no streaming exporter; both functions
+        // no-op there, and every failure is swallowed — backup plumbing must
+        // never block or fail app start.
+        if (!disposed) {
+          void (async () => {
+            try {
+              const fs = getLibraryFs();
+              const appDir = LIBRARY_ROOT.replace(/[\\/]+library[\\/]*$/, "") || LIBRARY_ROOT;
+              await autoBackupIfNeeded(fs, appDir);
+              await checkBackupReminder(fs, appDir);
+            } catch {
+              // boot must not fail over backup housekeeping
+            }
+          })();
+        }
       } catch {
         // Startup never fails closed; the Library screen reports storage errors.
       }

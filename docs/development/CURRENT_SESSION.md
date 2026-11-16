@@ -1,37 +1,44 @@
 # Current Session Checkpoint
 
 **Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4
-Step 4.1 (S1–S3 Settings), tranche A code-complete** on the merged
-PDF-support `main`; plan at `~/.opencode/plan/folio-production-readiness.md`
+Step 4.1 (S1–S3 Settings) code-complete** on the merged PDF-support `main`;
+plan at `~/.opencode/plan/folio-production-readiness.md`
 **Updated:** 2026-11-16
-**Status:** Step 3.5 committed as `207d5d2` (authorized, not pushed);
-merge `7f7f8c1` + docs `ad42814` committed and pushed to `origin/main`.
-Step 4.1 tranche A done: **S1** — UI zoom (`src/lib/uiZoom.ts`, CSS `zoom`
-on `documentElement` at 80/90/100/110/125/150, persisted as
-`folio.ui.zoom`, applied pre-paint in `main.tsx`; `readUiZoom` treats
-null/empty as unset), keep-awake On/Off chips writing
-`preventSleepWhileReading` into `user/window.json`, default library
-sort/view persisted to the Library's own `folio.library.*` keys, full
-default-reading-prefs save (spread draft over current, unknown keys
-preserved), Rebuild search index (drop `index/text/*`, then
-`reindexDocs`); **S3** — keyboard-shortcuts row (reuses
-`KeyboardShortcutsDialog`), privacy note, licences dialog
-(`THIRD-PARTY-NOTICES.md` via Vite `?raw`), Copy diagnostics, disabled
-Check-for-updates, version row `Folio ${__APP_VERSION__}`. Tests:
-`tests/settings.test.tsx` (4) + `tests/uiZoom.test.ts` (3) — storage
-mocked with a hoisted Map (jsdom has no localStorage). Gates: `tsc -b`
-clean, ESLint 0/0, **Vitest 608 / 608 (77 files)**, prettier clean,
-`vite build` green, perf 0 over budget, `cargo fmt` clean. FT-036
-recorded in `TASKS.md`. **Step 4.1 tranche A is uncommitted** — commit
-only with explicit user authorization.
-**Step 4.1 remaining:** rolling backups + stale-backup reminder
-(`backup_export` into `user/backups/`, prune to last N, boot toast when
-stale), Reset app data behind a confirmation dialog, S2 export cancel
-(Rust `backup_cancel` + AtomicBool in `backup.rs`); re-run gates.
-Windows verification remains blocked on this host (webview zoom feel,
-keep-awake toggle, installer).
-**Exact next action:** on authorization, commit tranche A; then build the
-rolling backups + Reset app data + `backup_cancel`, re-run gates.
+**Status:** Step 3.5 committed as `207d5d2`; Step 4.1 tranche A committed as
+`c71a2fe` (merge `7f7f8c1` + docs `ad42814` earlier pushed to `origin/main`).
+Step 4.1 now fully built: **S1** — UI zoom (`folio.ui.zoom`, CSS `zoom`
+80–150%, pre-paint in `main.tsx`), keep-awake chips
+(`user/window.json`), default library sort/view, full default-reading-prefs
+save (unknown keys preserved), Rebuild search index, **rolling backups**
+(`src/backup/rollingBackup.ts`: daily auto backup into
+`<appDir>/user/backups/` when enabled — setting `autoBackup` in
+`user/window.json`; newest archive recognised by its
+`folio-backup-<stamp>.zip` file name; prune to last 5; boot hook in
+`useBoot.ts` after onboarding boot; stale-backup reminder toast at ≥7
+days with a "Back up now" action, never for an empty library), and
+**Reset app data** behind an acknowledgement-checkbox dialog (wipes every
+app-dir child, clears setup/tour flags, reloads into setup). **S2** —
+export cancel: Rust `backup_cancel` command + module-level `AtomicBool`
+checked at every entry boundary in `backup_export_core`, partial archive
+removed, flag cleared at export start; Cancel button shows while the
+streaming export runs; a cancel is reported as "Backup cancelled." and
+not logged as an error; progress messages already `role="status"`.
+**S3** — shortcuts/licences/privacy/diagnostics/version rows. Tests:
+`tests/settings.test.tsx` (6), `tests/uiZoom.test.ts` (3),
+`tests/rollingBackup.test.ts` (17, toast host mocked); Rust
+`export_cancel_removes_partial_archive` added (fmt-only here). Gates:
+`tsc -b` clean, ESLint 0/0, **Vitest 627 / 627 (78 files)**, prettier
+clean, `vite build` green, perf 0 over budget, `cargo fmt` clean. FT-036
+recorded as done (Windows checks deferred) in `TASKS.md`. **The Step 4.1
+remainder is uncommitted** — commit only with explicit user
+authorization.
+**Step 4.1 Windows-deferred:** UI zoom feel under WebView2, keep-awake +
+auto-backup toggles, reminder toast, native save-dialog export
+round-trip incl. cancel, reset→setup flow.
+**Exact next action:** on authorization, commit the Step 4.1 remainder
+(+ docs); then Phase 4 Step 4.2 (X1–X5: reopen-last-book, Alt+Left/Right,
+Ctrl+K palette, window title, skeletons, forced-colors, i18n) from the
+plan.
 
 ---
 

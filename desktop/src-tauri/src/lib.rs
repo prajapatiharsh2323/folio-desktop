@@ -32,6 +32,7 @@ pub fn run() {
             fs::fs_read_many,
             backup::backup_export,
             backup::backup_inspect,
+            backup::backup_cancel,
             hash::sha256_file,
             zip::zip_read,
             zip::zip_write,

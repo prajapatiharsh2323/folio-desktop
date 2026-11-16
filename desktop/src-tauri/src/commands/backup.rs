@@ -33,6 +33,11 @@ const COPY_CHUNK: usize = 65536;
 /// Progress events are emitted every N entries (and at 0 and the end).
 const PROGRESS_EVERY: u64 = 16;
 
+/// S2: set by `backup_cancel` from the webview; the next entry boundary in
+/// `backup_export` aborts the write and removes the partial archive. Cleared
+/// at the start of every export so a stale signal cannot kill a new run.
+static BACKUP_CANCELLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupProgress {
@@ -213,6 +218,11 @@ fn backup_export_core(
     let mut done: u64 = 0;
 
     for rel in &rels {
+        if BACKUP_CANCELLED.load(std::sync::atomic::Ordering::SeqCst) {
+            // Drop the partial archive so no truncated zip is left behind.
+            let _ = fs::remove_file(dest);
+            return Err("backup was cancelled".to_string());
+        }
         let library = is_library_entry(rel);
         writer.start_file(rel, options).map_err(|e| e.to_string())?;
         let mut src = File::open(root.join(rel)).map_err(|e| e.to_string())?;
@@ -323,6 +333,8 @@ pub async fn backup_export(
     app: tauri::AppHandle,
     dest_path: String,
 ) -> Result<BackupSummary, String> {
+    // A fresh export always starts from a clean cancellation signal.
+    BACKUP_CANCELLED.store(false, std::sync::atomic::Ordering::SeqCst);
     tauri::async_runtime::spawn_blocking(move || {
         let dest = guard_sandboxed(&dest_path).map_err(|e| e.to_string())?;
         let root = guard_sandboxed("/folio-library/library").map_err(|e| e.to_string())?;
@@ -351,6 +363,16 @@ pub async fn backup_inspect(path: String) -> Result<BackupSummary, String> {
     })
     .await
     .map_err(|e| format!("backup task failed: {e}"))?
+}
+
+/// S2: request cancellation of a running `backup_export`. The flag is checked
+/// at every entry boundary, so a multi-gigabyte export stops within one file
+/// instead of at command return. Harmless when nothing is running: the flag is
+/// cleared when the next export starts.
+#[tauri::command]
+pub async fn backup_cancel() -> Result<(), String> {
+    BACKUP_CANCELLED.store(true, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
 }
 
 /// Central-directory-only inspection: metadata + manifest checksum, no entry
@@ -589,6 +611,29 @@ mod tests {
         assert!(err.contains("no manifest"));
         // Nothing was written on refusal.
         assert!(!dir.join("b.zip").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn export_cancel_removes_partial_archive() {
+        use std::sync::atomic::Ordering;
+
+        let dir = temp_dir("cancel");
+        let root = dir.join("library");
+        seed_library(&root);
+        let dest = dir.join("b.zip");
+
+        // Cancel before the run: the entry loop aborts and leaves no file.
+        BACKUP_CANCELLED.store(true, Ordering::SeqCst);
+        let err = backup_export_core(&root, &dest, "0.1.0", &mut no_progress).unwrap_err();
+        assert!(err.contains("cancelled"));
+        assert!(!dest.exists());
+
+        // The command clears the flag at the start of the next export, so a
+        // stale signal cannot kill a fresh run.
+        BACKUP_CANCELLED.store(false, Ordering::SeqCst);
+        backup_export_core(&root, &dest, "0.1.0", &mut no_progress).unwrap();
+        assert!(dest.exists());
         let _ = fs::remove_dir_all(&dir);
     }
 
