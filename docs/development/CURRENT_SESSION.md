@@ -1,5 +1,44 @@
 # Current Session Checkpoint
 
+**Session:** `S-20261113-01` (continued) — Production-readiness **Phase 3
+Step 3.5 (L4–L11 + N1–N2) code-complete** on top of the merged PDF-support
+`main`; plan at `~/.opencode/plan/folio-production-readiness.md`
+**Updated:** 2026-11-16
+**Status:** Step 3.5 done as one pass: **L4** — `FolioMenu` (anchored,
+viewport-clamped, `data-folio-modal`, Escape/outside close) on every book's
+⋯ button (Open, Add to collection, Edit details, Mark finished, Show in
+folder via new Rust `reveal_doc`, Delete); **L5** — persisted List/Grid
+toggle (card variant on `FolioBookRow`), Continue-reading shelf,
+New/Finished/Missing badges, per-row meta line, kind/status/tag filter
+chips; **L7** — real `<form>`s with Enter submit, trim + 80-char cap +
+case-insensitive duplicate validation in New-collection/Rename, inline
+"New collection… → Create & add" in the picker; **L8** — labelled
+checkboxes, Shift-click ranges, visible Select-all, bulk-delete confirm
+with title list, soft delete (~10 s Undo via toast action + pending strip);
+**L9** — search listbox a11y, scope chips, "No results" state, and
+`buildSnippetParts` structured snippets (both `dangerouslySetInnerHTML`
+uses removed); **L10** — duplicate "Apply to all remaining", recovery
+stays open with "Remove all"; **N1** — notes grouped by book (collapsible
+`<details>` groups with counts), search + sort + colour filter chips,
+chapter/date badges, per-row colour change, Export Markdown/CSV
+(`pickExportDestPath` → granted `fs_write_atomic`) + Copy-all; **N2** —
+missing docs lose Open and keep Delete; new `LibraryManager.updateMeta`
+mutator (meta.json first, manifest LAST). Post-merge gates: `tsc -b` clean,
+ESLint 0/0, **Vitest 601 / 601 (75 files)** (incl. new `notesExport`,
+`collectionsName`, extended `notesScreen`), `prettier --check` clean,
+`vite build` green, `perf.ts` budgets pass, `cargo fmt --all -- --check`
+clean. FT-035 recorded in `TASKS.md`. **All Step-3.5 changes are
+uncommitted** — commit only with explicit user authorization.
+Windows verification (menu/grid/undo flows in the real webview, native
+save-dialog export round-trip, `reveal_doc` in Explorer, plus the merge's
+PDF smoke) remains blocked on this host.
+**Exact next action:** on authorization, commit the Step 3.5 work; then
+Phase 4 Step 4.1 (S1–S3 Settings) from the plan.
+
+---
+
+## Previous checkpoint — `S-20261114-01`
+
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree
 (`~/.local/share/opencode/worktree/8cca39/pdf-support`) off `380e6b3`;

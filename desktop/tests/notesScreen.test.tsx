@@ -165,3 +165,78 @@ describe("Notes screen write safety", () => {
     expect(document.body.textContent).toContain("Delete this note?");
   });
 });
+
+describe("Notes screen grouping, search and colour filter (N1)", () => {
+  function type(input: HTMLInputElement, value: string) {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    setter?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  it("groups annotations by book with a count", async () => {
+    h.load.mockResolvedValue({
+      schema: 1,
+      docs: [
+        { id: "d1", slug: "dune", title: "Dune" },
+        { id: "d2", slug: "lost", title: "Lost" },
+      ],
+    });
+    h.list.mockResolvedValue([
+      NOTE,
+      { ...NOTE, id: "a2", docId: "d2", kind: "highlight", color: "green" },
+    ]);
+    await render();
+
+    const groups = container!.querySelectorAll("details.folio-notes-group");
+    expect(groups).toHaveLength(2);
+    expect(groups[0].querySelector(".folio-notes-group__title")?.textContent).toBe("Dune");
+    expect(groups[0].querySelector(".folio-notes-group__count")?.textContent).toContain("1 item");
+    expect(groups[1].querySelector(".folio-notes-group__title")?.textContent).toBe("Lost");
+  });
+
+  it("search narrows rows by quote text", async () => {
+    h.list.mockResolvedValue([NOTE, { ...NOTE, id: "a2", quote: "a completely other line" }]);
+    await render();
+
+    expect(container!.querySelectorAll(".folio-note-row")).toHaveLength(2);
+    type(container!.querySelector<HTMLInputElement>(".folio-searchbar__input")!, "remembered");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const rows = container!.querySelectorAll(".folio-note-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain("A remembered line");
+  });
+
+  it("the colour filter excludes colourless bookmarks", async () => {
+    h.list.mockResolvedValue([
+      { ...NOTE, color: "yellow" },
+      { ...NOTE, id: "a2", kind: "bookmark", color: null, quote: "a bookmark line" },
+    ]);
+    await render();
+
+    expect(container!.querySelectorAll(".folio-note-row")).toHaveLength(2);
+    await act(async () => {
+      button("Colour yellow").click();
+      await Promise.resolve();
+    });
+
+    const rows = container!.querySelectorAll(".folio-note-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain("A remembered line");
+  });
+
+  it("changes an annotation's colour straight from the row", async () => {
+    await render();
+    await act(async () => {
+      button("Set colour pink").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(h.update).toHaveBeenCalledWith(
+      "a1",
+      expect.objectContaining({ color: "pink", updatedAt: expect.any(String) }),
+    );
+  });
+});

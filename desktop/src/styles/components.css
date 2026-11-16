@@ -784,6 +784,98 @@
   padding: var(--folio-space-3) var(--folio-space-4) var(--folio-space-3) 0;
 }
 
+/* N1: collapsible per-book groups */
+.folio-notes-group {
+  border-bottom: var(--folio-divider) solid var(--folio-border);
+}
+
+.folio-notes-group > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-2);
+  min-height: 44px;
+  padding: var(--folio-space-2) var(--folio-space-4);
+  cursor: pointer;
+  list-style: none;
+}
+
+.folio-notes-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.folio-notes-group > summary:hover,
+.folio-notes-group > summary:focus-visible {
+  background: var(--folio-surface-subtle);
+}
+
+.folio-notes-group__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--folio-type-body-strong-size);
+  line-height: var(--folio-type-body-strong-line);
+  font-weight: var(--folio-type-body-strong-weight);
+  color: var(--folio-text-primary);
+  text-align: left;
+}
+
+.folio-notes-group__count {
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  color: var(--folio-text-secondary);
+  flex-shrink: 0;
+}
+
+.folio-notes-group > summary > svg {
+  flex-shrink: 0;
+  color: var(--folio-text-secondary);
+}
+
+/* N1: colour filter swatches */
+.folio-note-colours {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--folio-space-2);
+}
+
+.folio-note-colour {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--folio-border-control);
+  border-radius: var(--folio-radius-pill);
+  cursor: pointer;
+}
+
+.folio-note-colour--on {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: 1px;
+}
+
+/* N1: per-row colour change */
+.folio-note-row__swatches {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--folio-space-1);
+  padding-top: var(--folio-space-3);
+}
+
+.folio-note-row__swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--folio-border-control);
+  border-radius: var(--folio-radius-pill);
+  cursor: pointer;
+}
+
+.folio-note-row__swatch--on {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: 1px;
+}
+
 /* ---- Quote card (04 §7 P1) ---- */
 .folio-quote-card {
   display: flex;
@@ -1176,6 +1268,264 @@
 .folio-library-row__check {
   width: 20px;
   height: 20px;
+}
+
+/* ---- Step 3.5 (L4/L5/L7/L8) ------------------------------------------- */
+
+/* L5: Continue-reading shelf above the list */
+.folio-shelf {
+  margin-bottom: var(--folio-space-4);
+}
+
+.folio-shelf__label {
+  padding: var(--folio-space-2) var(--folio-space-4);
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  color: var(--folio-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.folio-shelf__rows {
+  border-top: var(--folio-divider) solid var(--folio-border);
+  border-bottom: var(--folio-divider) solid var(--folio-border);
+}
+
+/* L5: grid view — auto-filling tiles of card rows */
+.folio-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--folio-space-4);
+  padding: var(--folio-space-4);
+}
+
+.folio-library-row--grid {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-1);
+  padding: var(--folio-space-2);
+  border-radius: var(--folio-radius-control);
+}
+
+.folio-library-row--grid .folio-library-row__check {
+  position: absolute;
+  top: var(--folio-space-2);
+  left: var(--folio-space-2);
+  z-index: 1;
+}
+
+/* L5: shelf badges (New / Finished / Missing) */
+.folio-book-row__badge {
+  display: inline-block;
+  margin-left: var(--folio-space-2);
+  padding: 0 var(--folio-space-2);
+  border: 1px solid var(--folio-border-control);
+  border-radius: var(--folio-radius-pill);
+  background: var(--folio-surface-subtle);
+  font-size: var(--folio-type-micro-size);
+  line-height: 1.6;
+  font-weight: var(--folio-type-label-weight);
+  color: var(--folio-text-secondary);
+  vertical-align: baseline;
+}
+
+.folio-book-row__badge--new {
+  color: var(--folio-accent);
+  border-color: var(--folio-accent);
+  background: transparent;
+}
+
+.folio-book-row__badge--missing {
+  color: var(--folio-danger);
+  border-color: var(--folio-danger);
+  background: transparent;
+}
+
+/* L5: secondary line under the author (last read / time left). */
+.folio-book-row__metaline {
+  margin-top: var(--folio-space-1);
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  font-weight: var(--folio-type-micro-weight);
+  color: var(--folio-text-secondary);
+}
+
+/* L5: card variant (grid tile): cover on top, title/author below */
+.folio-book-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-1);
+  min-width: 0;
+}
+
+.folio-book-card__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-2);
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folio-book-card__open .folio-book-row__cover {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 56 / 78;
+}
+
+.folio-book-card__title {
+  font-size: var(--folio-type-body-strong-size);
+  line-height: var(--folio-type-body-strong-line);
+  font-weight: var(--folio-type-body-strong-weight);
+  color: var(--folio-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folio-book-card__author {
+  font-size: var(--folio-type-micro-size);
+  line-height: var(--folio-type-micro-line);
+  font-weight: var(--folio-type-micro-weight);
+  color: var(--folio-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folio-book-card__progress {
+  display: block;
+  width: 100%;
+  height: var(--folio-progress-track);
+  border-radius: var(--folio-radius-pill);
+  background: var(--folio-border);
+  overflow: hidden;
+}
+
+.folio-book-card__more {
+  align-self: flex-end;
+  margin-right: 0;
+}
+
+/* L4: anchored per-book action menu */
+.folio-menu {
+  position: fixed;
+  z-index: var(--folio-z-ctxmenu);
+  padding: var(--folio-space-1) 0;
+  background: var(--folio-surface-raised);
+  border: var(--folio-divider) solid var(--folio-border-control);
+  border-radius: var(--folio-radius-control);
+  box-shadow: 0 8px 24px rgba(20, 23, 19, 0.25);
+}
+
+.folio-menu__item {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--folio-space-4);
+  border: none;
+  background: none;
+  color: var(--folio-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folio-menu__item:hover:not(:disabled),
+.folio-menu__item:focus-visible {
+  background: var(--folio-surface-subtle);
+}
+
+.folio-menu__item--danger {
+  color: var(--folio-danger);
+}
+
+.folio-menu__item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.folio-menu__separator {
+  height: var(--folio-divider);
+  margin: var(--folio-space-1) 0;
+  background: var(--folio-border);
+}
+
+/* L7: dialog forms — labelled fields, inline errors */
+.folio-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-3);
+}
+
+.folio-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-1);
+}
+
+.folio-form__field > span {
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  font-weight: var(--folio-type-label-weight);
+  color: var(--folio-text-secondary);
+}
+
+.folio-form__error {
+  margin: 0;
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  color: var(--folio-danger);
+}
+
+.folio-picker__new {
+  margin-top: var(--folio-space-2);
+}
+
+/* L8: soft-delete pending strip with per-item Undo */
+.folio-pending-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--folio-space-2);
+  padding: var(--folio-space-2) var(--folio-space-4);
+  border-bottom: var(--folio-divider) solid var(--folio-border);
+  background: var(--folio-surface-subtle);
+}
+
+.folio-pending-strip__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--folio-space-2);
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  color: var(--folio-text-secondary);
+}
+
+/* Bulk-delete confirmation: the list of documents about to be scheduled */
+.folio-delete-titles {
+  margin: var(--folio-space-2) 0 0;
+  padding-left: 1.2em;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  color: var(--folio-text-secondary);
+}
+
+/* Labelled checkbox row (duplicate "apply to all", selection toggles) */
+.folio-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--folio-space-2);
+  margin-top: var(--folio-space-2);
+  cursor: pointer;
 }
 
 .folio-link {

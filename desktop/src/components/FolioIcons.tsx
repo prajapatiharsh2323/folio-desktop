@@ -213,6 +213,7 @@ export const FolioIcons = {
       <path d="M21 16.5l-5-4.5-6 5.5" />
     </>,
   ),
+  Download: make("Download", <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14" />),
   /** EyeOff / hide chrome */
   EyeOff: make(
     "EyeOff",

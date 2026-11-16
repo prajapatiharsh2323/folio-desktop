@@ -10,6 +10,26 @@ import { getCollectionCoverPreset } from "../lib/coverPresets";
 import { describeError, handleError } from "../lib/errorLog";
 import type { Collection, ManifestDoc } from "../model/types";
 
+/** L7: collection names are trimmed, capped, and case-insensitively unique. */
+const NAME_MAX = 80;
+
+/** Returns the inline error for a proposed name, or null when it is usable.
+ *  `excludeId` keeps a rename from clashing with its own current name. */
+export function collectionNameError(
+  raw: string,
+  collections: Collection[],
+  excludeId?: string,
+): string | null {
+  const name = raw.trim();
+  if (!name) return "Enter a collection name.";
+  if (name.length > NAME_MAX) return `Names are limited to ${NAME_MAX} characters.`;
+  const lower = name.toLowerCase();
+  if (collections.some((c) => c.id !== excludeId && c.name.trim().toLowerCase() === lower)) {
+    return "A collection with that name already exists.";
+  }
+  return null;
+}
+
 /** Collections gallery + detail (03 §5.5, 06 §1/§2). */
 export function CollectionsScreen() {
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -24,8 +44,10 @@ export function CollectionsScreen() {
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameName, setRenameName] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
@@ -89,27 +111,33 @@ export function CollectionsScreen() {
     [busy],
   );
 
-  const createCollection = () =>
-    runOp(async () => {
-      const name = createName.trim();
-      if (!name) return;
+  /** L7: validate before submitting; the dialog stays open with the inline
+   *  error so the user can fix the name instead of losing their input. */
+  const createCollection = () => {
+    const err = collectionNameError(createName, collections);
+    setCreateError(err);
+    if (err) return;
+    void runOp(async () => {
       const lm = getLibraryManager();
-      await lm.createCollection(name);
+      await lm.createCollection(createName.trim());
       setCreateName("");
       setCreateOpen(false);
       await load();
     });
+  };
 
-  const renameCollection = () =>
-    runOp(async () => {
-      if (!selected) return;
-      const name = renameName.trim();
-      if (!name) return;
+  const renameCollection = () => {
+    if (!selected) return;
+    const err = collectionNameError(renameName, collections, selected.id);
+    setRenameError(err);
+    if (err) return;
+    void runOp(async () => {
       const lm = getLibraryManager();
-      await lm.renameCollection(selected.id, name);
+      await lm.renameCollection(selected.id, renameName.trim());
       setRenameOpen(false);
       await load();
     });
+  };
 
   const deleteCollection = () =>
     runOp(async () => {
@@ -183,7 +211,11 @@ export function CollectionsScreen() {
             type="button"
             className="folio-iconbtn"
             aria-label="New collection"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => {
+              setCreateName("");
+              setCreateError(null);
+              setCreateOpen(true);
+            }}
           >
             <FolioIcons.Plus />
           </button>
@@ -259,15 +291,36 @@ export function CollectionsScreen() {
             </>
           }
         >
-          <input
-            type="text"
-            className="folio-note-input"
-            style={{ minHeight: 44 }}
-            value={createName}
-            onChange={(e) => setCreateName(e.target.value)}
-            placeholder="Collection name"
-            autoFocus
-          />
+          <form
+            className="folio-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              createCollection();
+            }}
+          >
+            <input
+              type="text"
+              className="folio-note-input"
+              style={{ minHeight: 44 }}
+              value={createName}
+              onChange={(e) => {
+                setCreateName(e.target.value);
+                if (createError) setCreateError(null);
+              }}
+              placeholder="Collection name"
+              maxLength={NAME_MAX}
+              aria-invalid={createError ? true : undefined}
+              aria-describedby={createError ? "folio-collection-create-error" : undefined}
+              autoFocus
+            />
+            {createError && (
+              <p className="folio-form__error" id="folio-collection-create-error" role="alert">
+                {createError}
+              </p>
+            )}
+            {/* Enter submits; the visible actions live in the dialog footer. */}
+            <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+          </form>
         </FolioDialog>
       </>
     );
@@ -313,6 +366,7 @@ export function CollectionsScreen() {
           aria-label="Rename"
           onClick={() => {
             setRenameName(selected.name);
+            setRenameError(null);
             setRenameOpen(true);
           }}
         >
@@ -412,14 +466,35 @@ export function CollectionsScreen() {
           </>
         }
       >
-        <input
-          type="text"
-          className="folio-note-input"
-          style={{ minHeight: 44 }}
-          value={renameName}
-          onChange={(e) => setRenameName(e.target.value)}
-          autoFocus
-        />
+        <form
+          className="folio-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            renameCollection();
+          }}
+        >
+          <input
+            type="text"
+            className="folio-note-input"
+            style={{ minHeight: 44 }}
+            value={renameName}
+            onChange={(e) => {
+              setRenameName(e.target.value);
+              if (renameError) setRenameError(null);
+            }}
+            maxLength={NAME_MAX}
+            aria-invalid={renameError ? true : undefined}
+            aria-describedby={renameError ? "folio-collection-rename-error" : undefined}
+            aria-label="Collection name"
+            autoFocus
+          />
+          {renameError && (
+            <p className="folio-form__error" id="folio-collection-rename-error" role="alert">
+              {renameError}
+            </p>
+          )}
+          <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+        </form>
       </FolioDialog>
 
       <FolioDialog
