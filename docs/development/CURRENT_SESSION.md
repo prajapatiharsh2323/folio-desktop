@@ -50,8 +50,9 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
   Appearance spread radio shown for paginated EPUB. **5.2c** line-focus
   reading band — session state (`L` toggles, Escape closes; EPUB only),
   `.folio-linefocus` fixed-band overlay (pointer-events none), shortcuts
-  guide row. **5.2b page-turn animation NOT implemented** — no Readium
-  pref exists; Windows-pending navigator research, no fake toggle.
+  guide row. **5.2b page-turn animation DROPPED by user decision**
+  (2026-11-17) — no Readium pref exists and a truthful toggle would need
+  runtime navigator research; the item is closed, not pending.
   **5.2d** — maxWidth already honored; per-book hyphenation already
   works; per-book language blocked (`EpubPreferences` has no `language`
   field). Tests: spread matrix + resize in `reader` (59), line-focus
@@ -75,10 +76,12 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
     **Status addendum (2026-11-17):** Step 5.3 committed as `82fa264`.
     **Phase 5 is complete** (5.1 `746f168`, 5.2 `cc47cc5`, 5.3 `82fa264`);
     plan marked done and `REMAINING.md` gained a Phase 5 section with the
-    Windows-pending follow-ups (5.2b page-turn animation research,
-    watch-folder decision, spread runtime verdict, per-book language
-    blocked upstream). Remaining §11 items (F3 TTS, F5 add-from-URL, F6,
-    F10, F1 Markdown/CBZ) stay out of scope pending a product decision.
+    Windows-pending follow-ups (watch-folder decision, spread runtime
+    verdict, per-book language blocked upstream). **The page-turn
+    animation (5.2b) was dropped by user decision** — closed, not
+    pending; do not re-scope without asking. Remaining §11 items (F3
+    TTS, F5 add-from-URL, F6, F10, F1 Markdown/CBZ) stay out of scope
+    pending a product decision.
     **Exact next action:** nothing in flight — scope the next tranche with
     the user, or hand off to a Windows session for the recorded runbooks.
 

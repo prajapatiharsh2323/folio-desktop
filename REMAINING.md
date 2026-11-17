@@ -122,10 +122,10 @@ Shipped and committed (see `docs/development/TASKS.md` FT-043/044/045):
 
 Windows-pending follow-ups from this phase:
 
-- **5.2b page-turn animation** — no Readium preference exists; a truthful
-  toggle needs a runtime navigator/webview experiment on Windows (does
-  the toolkit animate paginated turns, can CSS injection animate without
-  breaking FramePoolManager?). Do not fake a toggle.
+- **Page-turn animation — dropped by decision (2026-11-17).** No Readium
+  preference exists and a truthful toggle would need runtime navigator
+  research; the user chose to drop the item rather than keep it pending.
+  Do not re-scope without asking.
 - **Watch-folder auto-import** — deliberate product decision, not built
   (long-lived grant + background watcher).
 - EPUB spread `auto`/`both` runtime column behavior in the real webview
