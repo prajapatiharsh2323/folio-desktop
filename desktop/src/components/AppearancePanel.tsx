@@ -527,6 +527,27 @@ export function AppearancePanel({
           />
         </section>
 
+        {/* F9 5.2a: page layout (two-page spread) — paginated reflowable and
+            fixed layouts both honor the same `spread` pref (EPUB maps it to
+            Readium column counts; PDF to per-page layout). Scrolled reflow
+            spreads nothing, so the row hides there; fixed layout always shows
+            it (its flow is effectively paginated regardless of stored prefs). */}
+        {(prefs.flow === "paginated" || fixed) && (
+          <section className="folio-appearance__group">
+            <FolioSectionHeader>Page layout</FolioSectionHeader>
+            <FolioRadioGroup
+              label="Page layout"
+              className="folio-wrap-row"
+              value={prefs.spread}
+              options={SPREAD_OPTIONS.map((o) => ({ ...o }))}
+              onChange={(spread) => patch({ spread: spread as ReadingSpread })}
+            />
+            <p className="folio-helper folio-helper--muted">
+              Auto shows two-page spreads when the window is wide enough.
+            </p>
+          </section>
+        )}
+
         {/* Fixed layout: zoom mode + page layout (PDF plan §8.4). Zoom lives
             in the engine, not ReadingPrefs (pdfZoom is a byte-compat dead
             field), so these call back into the engine seam. */}
@@ -547,20 +568,6 @@ export function AppearancePanel({
               <p className="folio-helper folio-helper--muted">
                 Fit width keeps the whole page width in view; zooming with the controls above
                 switches to a specific zoom until you pick a fit mode again.
-              </p>
-            </section>
-
-            <section className="folio-appearance__group">
-              <FolioSectionHeader>Page layout</FolioSectionHeader>
-              <FolioRadioGroup
-                label="Page layout"
-                className="folio-wrap-row"
-                value={prefs.spread}
-                options={SPREAD_OPTIONS.map((o) => ({ ...o }))}
-                onChange={(spread) => patch({ spread: spread as ReadingSpread })}
-              />
-              <p className="folio-helper folio-helper--muted">
-                Auto shows two-page spreads when the window is wide enough.
               </p>
             </section>
           </>

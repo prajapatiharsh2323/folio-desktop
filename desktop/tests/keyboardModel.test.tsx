@@ -28,6 +28,7 @@ describe("reader keyboard model (R13)", () => {
     togglePanel: ReturnType<typeof vi.fn>;
     toggleSearch: ReturnType<typeof vi.fn>;
     toggleFocusMode: ReturnType<typeof vi.fn>;
+    toggleLineFocus: ReturnType<typeof vi.fn>;
     onTextSize: ReturnType<typeof vi.fn>;
     stepChapter: ReturnType<typeof vi.fn>;
     clearSelection: ReturnType<typeof vi.fn>;
@@ -41,6 +42,7 @@ describe("reader keyboard model (R13)", () => {
       togglePanel: vi.fn(),
       toggleSearch: vi.fn(),
       toggleFocusMode: vi.fn(),
+      toggleLineFocus: vi.fn(),
       onTextSize: vi.fn(),
       stepChapter: vi.fn(),
       clearSelection: vi.fn(),
@@ -63,6 +65,8 @@ describe("reader keyboard model (R13)", () => {
         isFocusMode: false,
         toggleFocusMode: calls.toggleFocusMode,
         exitFocusMode: noop,
+        lineFocusOpen: false,
+        toggleLineFocus: calls.toggleLineFocus,
         panel: null,
         closePanel: noop,
         togglePanel: calls.togglePanel,
@@ -133,6 +137,63 @@ describe("reader keyboard model (R13)", () => {
     expect(calls.toggleFocusMode).toHaveBeenCalledTimes(1);
   });
 
+  it("F9 5.2c: bare L toggles the line-focus band; combos are ignored", () => {
+    press("l");
+    press("L", { shiftKey: true });
+    expect(calls.toggleLineFocus).toHaveBeenCalledTimes(2);
+
+    press("l", { ctrlKey: true });
+    press("l", { altKey: true });
+    expect(calls.toggleLineFocus).toHaveBeenCalledTimes(2); // unchanged
+  });
+
+  it("the Escape ladder clears the line-focus band before distraction-free", () => {
+    act(() => root!.unmount());
+    function Harness() {
+      useReaderKeyboard({
+        doc: { docId: "d" } as unknown as ReaderDoc,
+        engineRef: { current: {} as ReaderEngine },
+        navRef: { current: null },
+        chromeRef: { current: null },
+        bookmarkToggleRef: { current: () => Promise.resolve("added" as BookmarkResult) },
+        isFocusMode: true,
+        toggleFocusMode: noop,
+        exitFocusMode: calls.toggleFocusMode, // spy: must NOT fire for line focus
+        lineFocusOpen: true,
+        toggleLineFocus: calls.toggleLineFocus,
+        panel: null,
+        closePanel: noop,
+        togglePanel: noop,
+        menuOpenRef: { current: false },
+        setMenu: noop,
+        toggleSearch: noop,
+        searchNext: noop,
+        searchPrev: noop,
+        goBack: noop,
+        goForward: noop,
+        onTextSize: noop,
+        stepChapter: noop,
+        clearSelection: calls.clearSelection,
+        ctxMenu: null,
+        clearCtxMenu: noop,
+        setShortcutsGuideOpen: noop,
+        reportNavigation: noop,
+        showNavNotice: noop,
+        announceBookmark: noop,
+        setChromeVisible: noop,
+      });
+      return null;
+    }
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => root!.render(<Harness />));
+    press("Escape");
+    expect(calls.toggleLineFocus).toHaveBeenCalledTimes(1);
+    expect(calls.toggleFocusMode).not.toHaveBeenCalled();
+    expect(calls.clearSelection).not.toHaveBeenCalled();
+  });
+
   it("Ctrl+=/−/0 drive text size; bare keys and plain digits do nothing", () => {
     press("=", { ctrlKey: true });
     press("+", { ctrlKey: true });
@@ -178,6 +239,8 @@ describe("reader keyboard model (R13)", () => {
         isFocusMode: false,
         toggleFocusMode: noop,
         exitFocusMode: noop,
+        lineFocusOpen: false,
+        toggleLineFocus: noop,
         panel: null,
         closePanel: noop,
         togglePanel: noop,

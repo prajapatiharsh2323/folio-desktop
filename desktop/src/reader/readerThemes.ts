@@ -71,6 +71,29 @@ export function toNavigatorPreferences(prefs: ReadingPrefs, theme: ResolvedTheme
     letterSpacing: prefs.letterSpacing,
     paragraphSpacing: prefs.paragraphSpacing,
     scroll: prefs.flow === "scrolled",
-    columnCount: prefs.flow === "scrolled" ? 1 : undefined,
+    columnCount: resolveEpubColumnCount(
+      prefs,
+      typeof window !== "undefined" ? window.innerWidth : 0,
+    ),
   };
+}
+
+/**
+ * F9 5.2a: EPUB two-page spread from the existing `spread` pref (PDF already
+ * honors it). Scrolled flow is always single-column; paginated flow maps
+ * `both` → 2 columns and `auto` → 2 columns only on a wide viewport
+ * (Readium degrades the request to 1 column when the window is too narrow,
+ * but we gate `auto` ourselves so the default window width behaves like PDF's
+ * landscape rule). `none` (the default) stays single-column.
+ */
+export const EPUB_SPREAD_MIN_WIDTH = 1200;
+
+export function resolveEpubColumnCount(
+  prefs: ReadingPrefs,
+  viewportWidth: number,
+): 1 | 2 | undefined {
+  if (prefs.flow === "scrolled") return 1;
+  if (prefs.spread === "both") return 2;
+  if (prefs.spread === "auto") return viewportWidth >= EPUB_SPREAD_MIN_WIDTH ? 2 : 1;
+  return undefined;
 }

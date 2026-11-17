@@ -123,6 +123,9 @@ export function ReaderScreen() {
 
   const [prefs, setPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS);
   const [chromeVisible, setChromeVisible] = useState(true);
+  /** F9 5.2c: line-focus reading band — session state like focus mode (not a
+   *  persisted pref; it's a momentary aid, not an appearance setting). */
+  const [lineFocusOpen, setLineFocusOpen] = useState(false);
 
   const [selection, setSelection] = useState<TextSelectionInfo | null>(null);
   const [quoteSelection, setQuoteSelection] = useState<TextSelectionInfo | null>(null);
@@ -633,6 +636,14 @@ export function ReaderScreen() {
     [activePrefs, handlePrefsChange, showNavNotice],
   );
 
+  /** F9 5.2c: toggle the line-focus reading band (`L`). EPUB (reflowable)
+   *  only — a fixed PDF page already fills its layout, and a ruler over it
+   *  would cover artwork the layout intends to show whole. */
+  const toggleLineFocus = useCallback(() => {
+    if (!doc || doc.format === "pdf") return;
+    setLineFocusOpen((open) => !open);
+  }, [doc]);
+
   /** R13: `[` / `]` step chapter by chapter in the TOC order; adjacent
    *  TOC entries sharing the current chapter's href count as one stop. */
   const stepChapter = useCallback(
@@ -684,6 +695,8 @@ export function ReaderScreen() {
     isFocusMode: chrome.isFocusMode,
     toggleFocusMode: chrome.toggleFocusMode,
     exitFocusMode: chrome.exitFocusMode,
+    lineFocusOpen,
+    toggleLineFocus,
     panel: chrome.panel,
     closePanel: chrome.closePanel,
     togglePanel: chrome.togglePanel,
@@ -1012,6 +1025,14 @@ export function ReaderScreen() {
         style={{ opacity: scrimAlpha(activePrefs.brightness) }}
         aria-hidden="true"
       />
+
+      {/* F9 5.2c: line-focus reading band (EPUB only). Decorative overlay —
+          the whole page remains interactive; it just dims around the band. */}
+      {lineFocusOpen && !isPdf && (
+        <div className="folio-linefocus" aria-hidden="true">
+          <div className="folio-linefocus__band" />
+        </div>
+      )}
 
       {doc && (
         <>

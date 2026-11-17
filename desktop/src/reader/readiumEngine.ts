@@ -90,6 +90,12 @@ export class ReadiumEngine implements ReaderEngine {
   private searchIndexPromise: Promise<MiniSearch | null> | null = null;
   /** per-chapter word-scan structures for occurrence lookup (R2) */
   private searchCorpora = new Map<string, TextCorpus>();
+  /** F9 5.2a: `spread: "auto"` must re-resolve when the viewport crosses the
+   *  spread width; the navigator's own ResizeObserver only re-flows. */
+  private readonly resizeHandler = (): void => {
+    if (this.prefs.flow !== "paginated" || this.prefs.spread !== "auto") return;
+    void this.applyPrefs(this.prefs);
+  };
 
   constructor(
     private epubBytes: Uint8Array,
@@ -97,8 +103,13 @@ export class ReadiumEngine implements ReaderEngine {
     private initial: ReaderOpenTarget | null = null,
     private positionsCache?: PositionsCacheHook,
   ) {
-    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-      this.systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (typeof window !== "undefined") {
+      if (typeof window.matchMedia === "function") {
+        this.systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      }
+      // F9 5.2a: `spread: "auto"` re-resolves on viewport changes; the
+      // handler no-ops unless prefs are paginated + auto.
+      window.addEventListener("resize", this.resizeHandler);
     }
   }
 
@@ -184,6 +195,9 @@ export class ReadiumEngine implements ReaderEngine {
   }
 
   async destroy(): Promise<void> {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("resize", this.resizeHandler);
+    }
     for (const wnd of this.frameWindows) {
       try {
         wnd.removeEventListener("pointermove", this.framePointerMove);

@@ -1936,3 +1936,32 @@
     animation-duration: 1.6s !important;
   }
 }
+
+/* ---- Line-focus reading band (F9 5.2c) — a fixed reading-window ruler:
+   the page content scrolls under a transparent band while everything above
+   and below is dimmed. Pointer-events none (selection and page turns keep
+   working); sits over the scrim (15) but under the chrome (20). The band is
+   fixed rather than pointer-following because the publication lives in an
+   iframe and the app surface never sees pointer moves over the text. */
+.folio-linefocus {
+  position: absolute;
+  inset: 0;
+  z-index: 17;
+  pointer-events: none;
+}
+
+.folio-linefocus__band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 42%;
+  height: 7rem;
+  transform: translateY(-50%);
+  /* Two huge zero-blur spread shadows paint the dim masks above and below
+     the band; the band itself stays clear. */
+  box-shadow:
+    0 -100vmax 0 100vmax var(--folio-linefocus-dim, rgba(15, 17, 14, 0.42)),
+    0 100vmax 0 100vmax var(--folio-linefocus-dim, rgba(15, 17, 14, 0.42));
+  border-top: 1px solid rgba(128, 128, 128, 0.4);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.4);
+}

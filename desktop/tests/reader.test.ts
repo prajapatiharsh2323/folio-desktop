@@ -18,6 +18,8 @@ import {
   readerEdgeZoneWidth,
 } from "../src/reader/chrome";
 import {
+  EPUB_SPREAD_MIN_WIDTH,
+  resolveEpubColumnCount,
   resolveReaderTheme,
   typefaceStack,
   scrimAlpha,
@@ -618,10 +620,56 @@ describe("readerThemes", () => {
     expect(mapped.fontSize).toBeCloseTo(18 / 16);
     expect(mapped.scroll).toBe(true);
     expect(mapped.textAlign).toBe("justify");
+    expect(mapped.columnCount).toBe(1); // scrolled is always single-column
+  });
+
+  it("F9 5.2a: EPUB column count follows the spread pref and viewport", () => {
+    const paginated = { ...DEFAULT_READING_PREFS, flow: "paginated" as const };
+    const scrolled = { ...DEFAULT_READING_PREFS, flow: "scrolled" as const };
+
+    // scrolled flow spreads nothing, even with the spread pref on "both"
+    expect(resolveEpubColumnCount({ ...scrolled, spread: "both" }, 1920)).toBe(1);
+    // "both" forces two columns on any width
+    expect(resolveEpubColumnCount({ ...paginated, spread: "both" }, 800)).toBe(2);
+    // "none" leaves the toolkit default in place (undefined)
+    expect(resolveEpubColumnCount({ ...paginated, spread: "none" }, 1920)).toBeUndefined();
+    // "auto" mirrors PDF's landscape rule: two columns only when wide
+    expect(
+      resolveEpubColumnCount({ ...paginated, spread: "auto" }, EPUB_SPREAD_MIN_WIDTH - 1),
+    ).toBe(1);
+    expect(resolveEpubColumnCount({ ...paginated, spread: "auto" }, EPUB_SPREAD_MIN_WIDTH)).toBe(2);
+    // the mapping carries it into the navigator prefs (jsdom width 1024)
+    const theme = resolveReaderTheme("light", false);
+    expect(toNavigatorPreferences({ ...paginated, spread: "auto" }, theme).columnCount).toBe(1);
+    expect(toNavigatorPreferences({ ...paginated, spread: "both" }, theme).columnCount).toBe(2);
   });
 });
 
 describe("ReadiumEngine search and lifecycle", () => {
+  it("F9 5.2a: window resize re-applies prefs for paginated auto spread, and only then", async () => {
+    const auto = { ...DEFAULT_READING_PREFS, flow: "paginated" as const, spread: "auto" as const };
+    const engine = createReadiumEngine({ epubBytes: new Uint8Array(0), prefs: auto });
+    const spy = vi.spyOn(engine, "applyPrefs").mockResolvedValue(undefined);
+    window.dispatchEvent(new Event("resize"));
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // destroy removes the listener
+    await engine.destroy();
+    spy.mockClear();
+    window.dispatchEvent(new Event("resize"));
+    expect(spy).not.toHaveBeenCalled();
+
+    // scrolled flow never needs a re-apply (column count is width-independent)
+    const scrolledEngine = createReadiumEngine({
+      epubBytes: new Uint8Array(0),
+      prefs: { ...auto, flow: "scrolled" },
+    });
+    const scrolledSpy = vi.spyOn(scrolledEngine, "applyPrefs").mockResolvedValue(undefined);
+    window.dispatchEvent(new Event("resize"));
+    expect(scrolledSpy).not.toHaveBeenCalled();
+    await scrolledEngine.destroy();
+  });
+
   it("reuses cached search index across successive searches and clears on destroy", async () => {
     if (!globalThis.ResizeObserver) {
       globalThis.ResizeObserver = class {

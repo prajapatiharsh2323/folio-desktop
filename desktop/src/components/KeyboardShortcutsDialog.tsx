@@ -42,6 +42,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["Ctrl", "K"], description: "Command palette (from any screen)" },
       { keys: ["M"], description: "Toggle reading controls (toolbar & dock)" },
       { keys: ["F"], description: "Toggle Distraction-free reading" },
+      { keys: ["L"], description: "Toggle the line-focus reading band" },
       { keys: ["?"], description: "Open this keyboard shortcuts guide" },
       { keys: ["Escape"], description: "Dismiss open menu, panel, dialog, or search" },
     ],

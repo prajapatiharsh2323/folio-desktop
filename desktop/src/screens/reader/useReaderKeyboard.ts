@@ -1,8 +1,8 @@
 // The reader keyboard matrix (07 §1, R13): page turns, jumps, chapters,
 // panels, bookmark, chrome toggle, Ctrl+F, text size, distraction-free mode,
-// shortcuts guide and the Escape ladder. Everything is injected so the hook
-// stays a pure input→intent mapping; all navigation still flows through the
-// coordinator via `reportNavigation`.
+// line-focus band, shortcuts guide and the Escape ladder. Everything is
+// injected so the hook stays a pure input→intent mapping; all navigation
+// still flows through the coordinator via `reportNavigation`.
 //
 // Modal Escape never reaches this hook: FolioDialog/FolioPanel close
 // themselves through the modal stack (capture-phase, stopPropagation), so
@@ -33,6 +33,9 @@ interface UseReaderKeyboardOptions {
   isFocusMode: boolean;
   toggleFocusMode: () => void;
   exitFocusMode: () => void;
+  /** F9 5.2c: line-focus reading band — session state, `L` toggles. */
+  lineFocusOpen: boolean;
+  toggleLineFocus: () => void;
   panel: ReaderPanel | null;
   closePanel: () => void;
   togglePanel: (panel: ReaderPanel) => void;
@@ -78,6 +81,8 @@ export function useReaderKeyboard({
   isFocusMode,
   toggleFocusMode,
   exitFocusMode,
+  lineFocusOpen,
+  toggleLineFocus,
   panel,
   closePanel,
   togglePanel,
@@ -224,6 +229,14 @@ export function useReaderKeyboard({
           chromeRef.current?.toggle();
           setChromeVisible(chromeRef.current?.visible ?? false);
           break;
+        case "l":
+        case "L":
+          // F9 5.2c: line-focus reading band (the screen's toggle no-ops for
+          // fixed layout, where a ruler over the page would hide artwork).
+          if (!bare) break;
+          event.preventDefault();
+          toggleLineFocus();
+          break;
         case "f":
         case "F":
           if (menu) {
@@ -249,7 +262,7 @@ export function useReaderKeyboard({
         case "Escape":
           // Close topmost non-modal interaction (modals close themselves via
           // the modal stack): Menu → Ctx menu → Panel (incl. Search) →
-          // Distraction-free → Selection
+          // Line focus → Distraction-free → Selection
           if (menuOpenRef.current) {
             setMenu(false);
             document.getElementById("folio-reader-more")?.focus();
@@ -257,6 +270,8 @@ export function useReaderKeyboard({
             clearCtxMenu();
           } else if (panel) {
             closePanel();
+          } else if (lineFocusOpen) {
+            toggleLineFocus();
           } else if (isFocusMode) {
             exitFocusMode();
             showNavNotice("Exited distraction-free mode.");
@@ -276,6 +291,7 @@ export function useReaderKeyboard({
     toggleSearch,
     ctxMenu,
     isFocusMode,
+    lineFocusOpen,
     engineRef,
     navRef,
     chromeRef,
@@ -283,6 +299,7 @@ export function useReaderKeyboard({
     menuOpenRef,
     toggleFocusMode,
     exitFocusMode,
+    toggleLineFocus,
     closePanel,
     togglePanel,
     setMenu,

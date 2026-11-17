@@ -37,14 +37,30 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
   folder import, F9 reader extras, F2 Insights** — plan drafted at
   `~/.opencode/plan/folio-phase5.md` (F3/F5/F6/F10 and F1 Markdown/CBZ
   stay out of scope; F1-PDF, F4, F8, F11 already shipped).
-  **Step 5.1 (F7 folder import) code-complete (uncommitted, FT-043)**:
+  **Step 5.1 (F7 folder import) committed as `746f168`** (FT-043):
   Rust `pick_import_folder` (blocking_pick_folder + grant), TS
   `lib/folderImport.ts` recursive walk (extension filter, depth/file
   caps, skip-hidden), Library "Import folder…" toolbar button feeding
-  the shared import queue; tests `folderImport` (7) + `libraryFolderImport`
-  (2); gates green (Vitest 698 / 698, 90 files). **Next:** on
-  authorization commit 5.1 (incl. the plan-reference checkpoint), then
-  Step 5.2 (F9: EPUB spread mapping first).
+  the shared import queue.
+  **Step 5.2 (F9 reader extras, subset) code-complete (uncommitted,
+  FT-044)**: **5.2a** EPUB two-page spread — `resolveEpubColumnCount` +
+  `EPUB_SPREAD_MIN_WIDTH` in `readerThemes.ts` (scrolled → 1; paginated
+  `both` → 2, `auto` → 2 at ≥1200 px, `none` → toolkit default), resize
+  re-apply in `ReadiumEngine` (`resizeHandler`, removed in `destroy()`),
+  Appearance spread radio shown for paginated EPUB. **5.2c** line-focus
+  reading band — session state (`L` toggles, Escape closes; EPUB only),
+  `.folio-linefocus` fixed-band overlay (pointer-events none), shortcuts
+  guide row. **5.2b page-turn animation NOT implemented** — no Readium
+  pref exists; Windows-pending navigator research, no fake toggle.
+  **5.2d** — maxWidth already honored; per-book hyphenation already
+  works; per-book language blocked (`EpubPreferences` has no `language`
+  field). Tests: spread matrix + resize in `reader` (59), line-focus
+  keys + Escape ladder in `keyboardModel`, spread radio in
+  `appearancePanel`. Gates: `tsc` clean, ESLint 0/0, prettier clean,
+  **Vitest 702 / 702 (90 files)**, `vite build` green, perf 0 over
+  budget, `cargo fmt` clean. **Next:** on authorization commit 5.2;
+  then Step 5.3 (F2 Insights: `user/reading-log.json` + `insights`
+  route per the plan).
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

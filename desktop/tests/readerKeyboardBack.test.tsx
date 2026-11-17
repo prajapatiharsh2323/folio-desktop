@@ -40,6 +40,8 @@ function renderHarness(opts: {
       isFocusMode: false,
       toggleFocusMode: noop,
       exitFocusMode: noop,
+      lineFocusOpen: false,
+      toggleLineFocus: noop,
       panel: null,
       closePanel: noop,
       togglePanel: noop,

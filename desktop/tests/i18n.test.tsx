@@ -156,6 +156,8 @@ describe("RTL page progression (X5)", () => {
         isFocusMode: false,
         toggleFocusMode: noop,
         exitFocusMode: noop,
+        lineFocusOpen: false,
+        toggleLineFocus: noop,
         panel: null,
         closePanel: noop,
         togglePanel: noop,
