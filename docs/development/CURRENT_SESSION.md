@@ -71,9 +71,16 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
     `readingLog` (16), `insightsScreen` (5), palette/shell/axeSweep
     extended (sweep now five screens). Gates: `tsc` clean, ESLint 0/0,
     prettier clean, **Vitest 725 / 725 (92 files)**, `vite build` green,
-    perf 0 over budget, `cargo fmt` clean. **Next:** on authorization
-    commit 5.3; then Phase 5 wrap-up (plan status + REMAINING.md) and
-    scope anything further with the user.
+    perf 0 over budget, `cargo fmt` clean.
+    **Status addendum (2026-11-17):** Step 5.3 committed as `82fa264`.
+    **Phase 5 is complete** (5.1 `746f168`, 5.2 `cc47cc5`, 5.3 `82fa264`);
+    plan marked done and `REMAINING.md` gained a Phase 5 section with the
+    Windows-pending follow-ups (5.2b page-turn animation research,
+    watch-folder decision, spread runtime verdict, per-book language
+    blocked upstream). Remaining §11 items (F3 TTS, F5 add-from-URL, F6,
+    F10, F1 Markdown/CBZ) stay out of scope pending a product decision.
+    **Exact next action:** nothing in flight — scope the next tranche with
+    the user, or hand off to a Windows session for the recorded runbooks.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree
