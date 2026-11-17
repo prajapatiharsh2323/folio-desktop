@@ -40,7 +40,7 @@ pub async fn zip_read(path: String) -> Result<Vec<ZipEntry>, String> {
         let mut total: u64 = 0;
         for i in 0..archive.len() {
             let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-            let name = entry.name().to_string();
+            let name = entry.name().map_err(|e| e.to_string())?.into_owned();
             let size = entry.size();
             if size > MAX_ENTRY_UNCOMPRESSED {
                 return Err("Archive entry is too large to read".to_string());

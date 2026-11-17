@@ -1,0 +1,3 @@
+# Normalize line endings: the repo is authored LF, and prettier's default
+# `endOfLine: lf` gate fails when a Windows runner checks out CRLF.
+* text=auto eol=lf

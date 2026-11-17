@@ -102,10 +102,21 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       `working-directory: desktop`. Gates: clippy `-D warnings`
       (windows-gnu) clean, `cargo check --all-targets` (windows-gnu)
       clean, `cargo fmt --check` clean, foliocore linux tests 14/14,
-      `pnpm audit --prod` clean, tsc/prettier clean. **Exact next
-      action:** commit this tranche; then push (on authorization) to
-      trigger the first CI run — the remaining CI unknowns are the NSIS
-      build and the windows-host `cargo test`.
+      `pnpm audit --prod` clean, tsc/prettier clean. Committed as
+      `eb8af89` and **pushed** (user-authorized): the first CI run
+      `44053322345` confirmed the diagnosis — Typecheck/ESLint/
+      `pnpm audit` now pass, but two NEW steps failed: (1) Windows
+      Prettier (no `.gitattributes` → CRLF checkout vs `endOfLine: lf`;
+      added `.gitattributes` `* text=auto eol=lf`, renormalization was a
+      no-op), (2) RustSec audit-check (missing `checks: write`
+      permission; plus 4 real advisories in `zip` 2.6.1, all in
+      `ZipArchive::extract()` symlink handling — Folio never calls
+      `extract()`, entry-by-entry behind the path guard, but the gate
+      fails on presence → upgraded `zip` to 9.6.1, three `name()` call
+      sites adjusted for the new `Result<Cow<str>>` return). **Exact
+      next action:** commit this fix tranche and push again (on
+      authorization) — the remaining first-run unknowns are the NSIS
+      build and windows-host `cargo test`.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

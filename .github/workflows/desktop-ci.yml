@@ -103,6 +103,10 @@ jobs:
       run:
         # pnpm-lock.yaml lives in desktop/ (the repo root has no manifest).
         working-directory: desktop
+    permissions:
+      # rustsec/audit-check posts findings as a check run.
+      checks: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 

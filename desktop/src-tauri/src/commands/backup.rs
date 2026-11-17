@@ -412,7 +412,7 @@ fn backup_inspect_core(path: &Path) -> Result<BackupSummary, String> {
     let mut names: Vec<String> = Vec::new();
     for i in 0..archive.len() {
         let entry = archive.by_index_raw(i).map_err(|e| e.to_string())?;
-        let name = entry.name().to_string();
+        let name = entry.name().map_err(|e| e.to_string())?.into_owned();
         if name.ends_with('/') {
             continue;
         }
@@ -588,7 +588,14 @@ mod tests {
         let file = File::open(&dest).unwrap();
         let mut archive = ZipArchive::new(file).unwrap();
         let names: Vec<String> = (0..archive.len())
-            .map(|i| archive.by_index_raw(i).unwrap().name().to_string())
+            .map(|i| {
+                archive
+                    .by_index_raw(i)
+                    .unwrap()
+                    .name()
+                    .unwrap()
+                    .into_owned()
+            })
             .collect();
         assert!(names.contains(&MANIFEST_NAME.to_string()));
         assert!(names.contains(&BACKUP_META_NAME.to_string()));
