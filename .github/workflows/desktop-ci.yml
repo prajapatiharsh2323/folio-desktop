@@ -84,14 +84,21 @@ jobs:
 
       - name: Build NSIS installer
         # The signing secrets are optional (updater runbook P-20261116-02).
-        # Tauri attempts to sign whenever TAURI_SIGNING_PRIVATE_KEY is set —
-        # even empty — and fails to decode; drop the empty vars so an
-        # unsigned CI build works until the secrets are configured.
+        # Tauri signs whenever TAURI_SIGNING_PRIVATE_KEY is set — even empty —
+        # and the bundled `plugins.updater.pubkey` (currently a placeholder)
+        # makes the bundler demand a private key. For an unsigned CI build,
+        # drop the empty env vars and strip the placeholder pubkey from the
+        # CI workspace copy of the config (never committed); the real key
+        # lands via the updater runbook and then CI signs automatically.
         shell: pwsh
         run: |
           if ([string]::IsNullOrEmpty($env:TAURI_SIGNING_PRIVATE_KEY)) {
             Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
             Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
+            $confPath = "src-tauri/tauri.conf.json"
+            $conf = Get-Content $confPath -Raw | ConvertFrom-Json
+            $conf.plugins.updater.PSObject.Properties.Remove("pubkey")
+            $conf | ConvertTo-Json -Depth 100 | Set-Content $confPath -Encoding utf8
           }
           pnpm tauri:build
         env:

@@ -159,7 +159,13 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       commit and push (on authorization) for CI run #6 — expected
       fully green; afterwards only the WINDOWS-REMAINING.md checklist
       (hardware QA, perf verdicts, updater signing, WebDriver smoke)
-      remains.
+      remains. Run #6 (`44118982290`): the empty-env guard worked but the
+      placeholder `plugins.updater.pubkey` in `tauri.conf.json` itself
+      makes the bundler demand a private key. The unsigned-CI branch
+      now also strips `pubkey` from the CI-workspace config copy
+      (ephemeral, never committed; FT-052). **Exact next action:**
+      commit and push (on authorization) for CI run #7 — expected
+      fully green.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree
