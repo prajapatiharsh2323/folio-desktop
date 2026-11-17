@@ -33,8 +33,18 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
   production-readiness plan's scope (Phases 1–4) is exhausted; `REMAINING.md`
   was refreshed with the production-readiness section and the Windows-pending
   runbooks (`P-20261116-01`, `P-20261116-02`).
-  **Exact next action:** Phase 5 (§11 feature backlog) was explicitly out of
-  the plan's scope — scope the next tranche with the user before touching it.
+  **Exact next action:** Phase 5 scoped with the user (2026-11-17): **F7
+  folder import, F9 reader extras, F2 Insights** — plan drafted at
+  `~/.opencode/plan/folio-phase5.md` (F3/F5/F6/F10 and F1 Markdown/CBZ
+  stay out of scope; F1-PDF, F4, F8, F11 already shipped).
+  **Step 5.1 (F7 folder import) code-complete (uncommitted, FT-043)**:
+  Rust `pick_import_folder` (blocking_pick_folder + grant), TS
+  `lib/folderImport.ts` recursive walk (extension filter, depth/file
+  caps, skip-hidden), Library "Import folder…" toolbar button feeding
+  the shared import queue; tests `folderImport` (7) + `libraryFolderImport`
+  (2); gates green (Vitest 698 / 698, 90 files). **Next:** on
+  authorization commit 5.1 (incl. the plan-reference checkpoint), then
+  Step 5.2 (F9: EPUB spread mapping first).
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

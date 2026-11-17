@@ -101,6 +101,23 @@ pub async fn pick_import_files(app: AppHandle) -> Result<Vec<String>, String> {
     .await
 }
 
+/// F7: folder-import picker. Picking a folder grants it this session, which
+/// (per `sandbox.grant`) covers its contents, so the webview can enumerate
+/// and read it recursively through the existing `fs_*` commands.
+#[tauri::command]
+pub async fn pick_import_folder(app: AppHandle) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let picked = app
+            .dialog()
+            .file()
+            .set_title("Choose a folder to import")
+            .blocking_pick_folder();
+        Ok(picked.and_then(grant_and_string))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Restore picker: a single .zip backup to read.
 #[tauri::command]
 pub async fn pick_backup_source(app: AppHandle) -> Result<Option<String>, String> {

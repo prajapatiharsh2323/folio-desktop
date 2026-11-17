@@ -9,7 +9,13 @@ import { FolioDialog } from "../components/FolioDialog";
 import { FolioMenu, type ViewportRect } from "../components/FolioMenu";
 import { useLibraryUi, getLibraryFs, getLibraryManager } from "../store/libraryUi";
 import { useRouteStore } from "../store/routeStore";
-import { onDroppedFiles, pickImportFiles, filesFromDataTransfer } from "../lib/fileSource";
+import {
+  onDroppedFiles,
+  pickImportFiles,
+  pickImportFolder,
+  filesFromDataTransfer,
+} from "../lib/fileSource";
+import { scanFolderForImport, FolderScanError } from "../lib/folderImport";
 import { MiniSearch, type SearchDoc } from "../search/miniSearch";
 import { buildLibraryIndex } from "../search/libraryIndex";
 import { reportError } from "../lib/errorLog";
@@ -310,6 +316,36 @@ export function LibraryScreen() {
   const onImport = useCallback(async () => {
     const files = await pickImportFiles();
     await importPicked(files);
+  }, [importPicked]);
+
+  // F7: folder import — one granted directory → recursive walk → the same
+  // import queue. Scan failures (no importable files, >500 cap) are toasts,
+  // never thrown at the screen.
+  const onImportFolder = useCallback(async () => {
+    const folder = await pickImportFolder();
+    if (!folder) return;
+    try {
+      const scan = await scanFolderForImport(getLibraryFs(), folder);
+      await importPicked(scan.files);
+      if (scan.truncated) {
+        pushToast({
+          tone: "info",
+          text: "The first 500 files were imported; import the rest in parts.",
+        });
+      } else if (scan.skippedCount > 0) {
+        pushToast({
+          tone: "info",
+          text: `${scan.skippedCount} folder(s) could not be read and were skipped.`,
+        });
+      }
+    } catch (e) {
+      if (e instanceof FolderScanError) {
+        pushToast({ tone: "error", text: e.message });
+      } else {
+        reportError(e, "library.importFolder");
+        pushToast({ tone: "error", text: "The folder could not be read." });
+      }
+    }
   }, [importPicked]);
 
   // Global library keys (07 §1 matrix): "/" and Ctrl+F search, Ctrl+I import.
@@ -952,6 +988,15 @@ export function LibraryScreen() {
             <FolioIcons.Import size="sm" />
             Import
           </FolioButton>
+          <button
+            type="button"
+            className="folio-iconbtn"
+            aria-label="Import folder…"
+            title="Import folder…"
+            onClick={() => void onImportFolder()}
+          >
+            <FolioIcons.Folder size="sm" />
+          </button>
           <div style={{ flex: 1 }} />
           <select
             className="folio-filter-select"

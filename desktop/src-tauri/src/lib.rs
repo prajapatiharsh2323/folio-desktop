@@ -48,6 +48,7 @@ pub fn run() {
             logging::open_log_dir,
             power::prevent_display_sleep,
             pick::pick_import_files,
+            pick::pick_import_folder,
             pick::pick_backup_source,
             pick::pick_backup_dest,
             pick::pick_image_dest,

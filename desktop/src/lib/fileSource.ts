@@ -79,6 +79,17 @@ function lazyPickedFile(path: string, size: number | null): PickedFile {
   };
 }
 
+/**
+ * F7: native folder picker for bulk import. Returns the picked folder path
+ * (granted this session by the Rust picker) or null on cancel; the recursive
+ * enumeration lives in `folderImport.ts`. Browser dev mode has no folder
+ * picker — returns null so callers show a no-op message.
+ */
+export async function pickImportFolder(): Promise<string | null> {
+  if (!isTauri()) return null;
+  return await invoke<string | null>("pick_import_folder");
+}
+
 /** Native save dialog for the backup archive. Returns null when cancelled. */
 export async function pickBackupDestPath(defaultName: string): Promise<string | null> {
   if (!isTauri()) return null;
