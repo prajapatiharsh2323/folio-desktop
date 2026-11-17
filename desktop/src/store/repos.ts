@@ -168,6 +168,90 @@ export class CollectionsRepo {
   }
 }
 
+/**
+ * F2 (Phase 5): daily reading log (`user/reading-log.json`). Additive file —
+ * the day and per-doc buckets accumulate credited reading time (the same
+ * wall-clock `ReadingPaceStats` credits, so idle/skip time never lands here),
+ * written through the progress-flush cadence. Unknown keys of the file and of
+ * each day record are preserved on rewrite, and the file backs up with the
+ * rest of `user/**`.
+ */
+export interface ReadingLogDay {
+  /** Credited reading time for the local day, in ms. */
+  ms: number;
+  /** Optional per-doc split (docId → ms); trimmed on doc deletion. */
+  perDoc?: Record<string, number>;
+}
+
+export interface ReadingLogFile {
+  schema: 1;
+  days: Record<string, ReadingLogDay>;
+}
+
+export class ReadingLogRepo {
+  constructor(
+    private fs: FileStore,
+    private root: string,
+  ) {}
+
+  private p(): string {
+    return L.readingLog(this.root);
+  }
+
+  private async readRaw(): Promise<Record<string, unknown>> {
+    const raw = await readJsonAsync<Record<string, unknown>>(this.fs, this.p());
+    return raw && typeof raw === "object" ? raw : {};
+  }
+
+  async all(): Promise<ReadingLogFile> {
+    const raw = await this.readRaw();
+    const days =
+      raw.days && typeof raw.days === "object" ? (raw.days as ReadingLogFile["days"]) : {};
+    return { schema: 1, days };
+  }
+
+  /** Credit `deltaMs` of reading to `docId` on the local day `dateKey`.
+   *  Non-positive deltas are ignored (the log only ever grows). */
+  async addMs(dateKey: string, docId: string, deltaMs: number): Promise<void> {
+    if (!Number.isFinite(deltaMs) || deltaMs <= 0) return;
+    const raw = await this.readRaw();
+    const days: Record<string, ReadingLogDay> =
+      raw.days && typeof raw.days === "object"
+        ? { ...(raw.days as Record<string, ReadingLogDay>) }
+        : {};
+    const prev: ReadingLogDay =
+      days[dateKey] && typeof days[dateKey] === "object"
+        ? (days[dateKey] as ReadingLogDay)
+        : { ms: 0 };
+    const perDoc = { ...(prev.perDoc ?? {}) };
+    perDoc[docId] = (perDoc[docId] ?? 0) + deltaMs;
+    // Round-trip through numbers so stale fractional drift can't accumulate.
+    const total = Math.round((prev.ms ?? 0) + deltaMs);
+    days[dateKey] = { ...prev, ms: total, perDoc };
+    await writeJsonAtomic(this.fs, this.p(), { ...raw, schema: 1, days });
+  }
+
+  /** Cascade-deletion hygiene: drop a doc from every perDoc bucket. */
+  async removeDoc(docId: string): Promise<void> {
+    const raw = await this.readRaw();
+    const days = raw.days;
+    if (!days || typeof days !== "object") return;
+    let changed = false;
+    const next: Record<string, ReadingLogDay> = {};
+    for (const [key, day] of Object.entries(days as Record<string, ReadingLogDay>)) {
+      if (day?.perDoc && docId in day.perDoc) {
+        const perDoc = { ...day.perDoc };
+        delete perDoc[docId];
+        next[key] = Object.keys(perDoc).length === 0 ? { ms: day.ms } : { ...day, perDoc };
+        changed = true;
+      } else {
+        next[key] = day;
+      }
+    }
+    if (changed) await writeJsonAtomic(this.fs, this.p(), { ...raw, days: next });
+  }
+}
+
 export class PrefsRepo {
   constructor(
     private fs: FileStore,

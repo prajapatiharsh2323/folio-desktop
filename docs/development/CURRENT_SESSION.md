@@ -42,8 +42,8 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
   `lib/folderImport.ts` recursive walk (extension filter, depth/file
   caps, skip-hidden), Library "Import folder…" toolbar button feeding
   the shared import queue.
-  **Step 5.2 (F9 reader extras, subset) code-complete (uncommitted,
-  FT-044)**: **5.2a** EPUB two-page spread — `resolveEpubColumnCount` +
+  **Step 5.2 (F9 reader extras, subset) committed as `cc47cc5`**
+  (FT-044): **5.2a** EPUB two-page spread — `resolveEpubColumnCount` +
   `EPUB_SPREAD_MIN_WIDTH` in `readerThemes.ts` (scrolled → 1; paginated
   `both` → 2, `auto` → 2 at ≥1200 px, `none` → toolkit default), resize
   re-apply in `ReadiumEngine` (`resizeHandler`, removed in `destroy()`),
@@ -58,9 +58,22 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
   keys + Escape ladder in `keyboardModel`, spread radio in
   `appearancePanel`. Gates: `tsc` clean, ESLint 0/0, prettier clean,
   **Vitest 702 / 702 (90 files)**, `vite build` green, perf 0 over
-  budget, `cargo fmt` clean. **Next:** on authorization commit 5.2;
-  then Step 5.3 (F2 Insights: `user/reading-log.json` + `insights`
-  route per the plan).
+  budget, `cargo fmt` clean.
+  **Step 5.3 (F2 Insights) code-complete (uncommitted, FT-045)**:
+  additive `user/reading-log.json` (`ReadingLogRepo`; daily credited ms
+  - perDoc split, unknown keys preserved, cascade removeDoc, backs up
+    via `user/**`) credited from the pace delta in
+    `readerStore.persistProgress`; pure math in `lib/readingLog.ts`
+    (day keys, window sums, streak, top books, formatting); new
+    `insights` route (Sidebar, Ctrl+1–5, palette, en/hi/ar keys);
+    `InsightsScreen` (Today/7d/30d cards, streak, optional daily goal
+    stored app-locally, top books, skeleton/error/empty states). Tests:
+    `readingLog` (16), `insightsScreen` (5), palette/shell/axeSweep
+    extended (sweep now five screens). Gates: `tsc` clean, ESLint 0/0,
+    prettier clean, **Vitest 725 / 725 (92 files)**, `vite build` green,
+    perf 0 over budget, `cargo fmt` clean. **Next:** on authorization
+    commit 5.3; then Phase 5 wrap-up (plan status + REMAINING.md) and
+    scope anything further with the user.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

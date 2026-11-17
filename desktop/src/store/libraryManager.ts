@@ -7,7 +7,7 @@ import type { FileStore } from "../lib/fileStore";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { ManifestRepo } from "./repos";
 import { DocMetaRepo } from "./docMetaRepo";
-import { AnnotationsRepo, CollectionsRepo, PrefsRepo, ProgressRepo } from "./repos";
+import { AnnotationsRepo, CollectionsRepo, PrefsRepo, ProgressRepo, ReadingLogRepo } from "./repos";
 import type {
   Collection,
   DocKind,
@@ -34,6 +34,7 @@ export class LibraryManager {
   readonly progress: ProgressRepo;
   readonly collections: CollectionsRepo;
   readonly prefs: PrefsRepo;
+  readonly readingLog: ReadingLogRepo;
 
   constructor(
     private fs: FileStore,
@@ -45,6 +46,7 @@ export class LibraryManager {
     this.progress = new ProgressRepo(fs, root);
     this.collections = new CollectionsRepo(fs, root);
     this.prefs = new PrefsRepo(fs, root);
+    this.readingLog = new ReadingLogRepo(fs, root);
   }
 
   /** Read manifest; null when missing/unreadable → caller enters Recovery. */
@@ -113,6 +115,7 @@ export class LibraryManager {
       // 3) user files
       await this.annotations.removeAllForDoc(docId);
       await this.progress.removeForDoc(docId);
+      await this.readingLog.removeDoc(docId);
       const collections = await this.collections.list();
       let collectionsChanged = false;
       for (const c of collections) {

@@ -46,6 +46,7 @@ describe("CommandPalette (X1 Ctrl+K)", () => {
     expect(labels.join("\n")).toContain("Go to Library");
     expect(labels.join("\n")).toContain("Go to Collections");
     expect(labels.join("\n")).toContain("Go to Notes");
+    expect(labels.join("\n")).toContain("Go to Insights");
     expect(labels.join("\n")).toContain("Go to Settings");
     expect(labels.join("\n")).toContain("Switch appearance");
   });

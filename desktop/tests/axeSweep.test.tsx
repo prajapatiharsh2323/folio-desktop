@@ -87,6 +87,7 @@ vi.mock("../src/store/libraryUi", async () => {
 import { LibraryScreen } from "../src/screens/LibraryScreen";
 import { CollectionsScreen } from "../src/screens/CollectionsScreen";
 import { NotesScreen } from "../src/screens/NotesScreen";
+import { InsightsScreen } from "../src/screens/InsightsScreen";
 import { SettingsScreen } from "../src/screens/SettingsScreen";
 import { useThemeStore } from "../src/theme/theme";
 import { useRouteStore } from "../src/store/routeStore";
@@ -124,6 +125,7 @@ const SCREENS: [string, React.ReactElement][] = [
   ["LibraryScreen", <LibraryScreen />],
   ["CollectionsScreen", <CollectionsScreen />],
   ["NotesScreen", <NotesScreen />],
+  ["InsightsScreen", <InsightsScreen />],
   ["SettingsScreen", <SettingsScreen />],
 ];
 

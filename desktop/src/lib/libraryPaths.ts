@@ -12,6 +12,7 @@ export interface LibraryPaths {
  *   manifest.json
  *   docs/<slug>/…
  *   user/annotations.json | progress.json | collections.json | settings.json | doc-settings.json
+ *   user/reading-log.json (F2: daily reading minutes; additive, backed up like the rest of user/)
  *   index/text/<docId>.json
  */
 export const libraryLayout = {
@@ -31,6 +32,7 @@ export const libraryLayout = {
   collections: (root: string) => join(root, "user", "collections.json"),
   settings: (root: string) => join(root, "user", "settings.json"),
   docSettings: (root: string) => join(root, "user", "doc-settings.json"),
+  readingLog: (root: string) => join(root, "user", "reading-log.json"),
 
   indexText: (root: string, docId: string) => join(root, "index", "text", `${docId}.json`),
 

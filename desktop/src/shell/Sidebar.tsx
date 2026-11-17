@@ -1,7 +1,7 @@
 import { FolioIcons } from "../components/FolioIcons";
 import { t, useLocaleStore, type TranslationKey } from "../i18n/i18n";
 
-export type Route = "library" | "reader" | "collections" | "notes" | "settings";
+export type Route = "library" | "reader" | "collections" | "notes" | "insights" | "settings";
 
 interface NavItem {
   route: Route;
@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { route: "library", labelKey: "nav.library", icon: FolioIcons.Book },
   { route: "collections", labelKey: "nav.collections", icon: FolioIcons.Collections },
   { route: "notes", labelKey: "nav.notes", icon: FolioIcons.Notes },
+  { route: "insights", labelKey: "nav.insights", icon: FolioIcons.Clock },
   { route: "settings", labelKey: "nav.settings", icon: FolioIcons.Settings },
 ];
 

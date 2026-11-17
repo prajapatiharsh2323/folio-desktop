@@ -30,11 +30,11 @@ describe("shell", () => {
     };
   });
 
-  it("renders the four nav destinations", () => {
+  it("renders the five nav destinations", () => {
     const labels = Array.from(document.querySelectorAll(".folio-sidebar__item span")).map(
       (el) => el.textContent,
     );
-    expect(labels).toEqual(["Library", "Collections", "Notes", "Settings"]);
+    expect(labels).toEqual(["Library", "Collections", "Notes", "Insights", "Settings"]);
   });
 
   it("marks Library active by default", () => {

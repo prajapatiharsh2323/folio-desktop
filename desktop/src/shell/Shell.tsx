@@ -4,6 +4,7 @@ import { Sidebar, type Route } from "./Sidebar";
 import { LibraryScreen } from "../screens/LibraryScreen";
 import { CollectionsScreen } from "../screens/CollectionsScreen";
 import { NotesScreen } from "../screens/NotesScreen";
+import { InsightsScreen } from "../screens/InsightsScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { ReaderScreen } from "../screens/ReaderScreen";
 import { exitFullscreen, toggleFullscreen } from "../lib/fullscreen";
@@ -58,9 +59,9 @@ export function Shell() {
         setRoute("settings");
         return;
       }
-      if (!inReader && (e.ctrlKey || e.metaKey) && /^[1-4]$/.test(e.key)) {
+      if (!inReader && (e.ctrlKey || e.metaKey) && /^[1-5]$/.test(e.key)) {
         e.preventDefault();
-        const routes = ["library", "collections", "notes", "settings"] as const;
+        const routes = ["library", "collections", "notes", "insights", "settings"] as const;
         setRoute(routes[Number(e.key) - 1]);
         return;
       }
@@ -80,6 +81,7 @@ export function Shell() {
           {route === "library" && <LibraryScreen />}
           {route === "collections" && <CollectionsScreen />}
           {route === "notes" && <NotesScreen />}
+          {route === "insights" && <InsightsScreen />}
           {route === "settings" && <SettingsScreen />}
           {route === "reader" && (
             <ErrorBoundary variant="reader" onRecover={() => setRoute("library")}>

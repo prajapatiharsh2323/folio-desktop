@@ -42,6 +42,12 @@ function buildCommands(locale: Locale): PaletteCommand[] {
       run: () => routes.setRoute("notes"),
     },
     {
+      id: "nav-insights",
+      label: t("palette.goToInsights", locale),
+      hint: t("palette.hintInsights", locale),
+      run: () => routes.setRoute("insights"),
+    },
+    {
       id: "nav-settings",
       label: t("palette.goToSettings", locale),
       hint: t("palette.hintSettings", locale),

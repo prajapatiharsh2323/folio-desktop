@@ -10,6 +10,8 @@ import { nowIso } from "../model/ids";
 import { FEATURES } from "../lib/features";
 import type { ReaderOpenRequest } from "./routeStore";
 import type { PaceState } from "../reader/pace";
+import { dateKeyOf } from "../lib/readingLog";
+import { reportError } from "../lib/errorLog";
 
 export interface ReaderDoc {
   docId: string;
@@ -162,14 +164,26 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
   persistProgress: async (snapshot) => {
     const doc = get().doc;
     if (!doc) return;
+    const prevPace = doc.progress?.pace ?? null;
+    const pace = snapshot.pace ?? prevPace;
     const progress: Progress = {
       docId: doc.docId,
       location: snapshot.location,
       percent: snapshot.percent,
       updatedAt: nowIso(),
-      pace: snapshot.pace ?? doc.progress?.pace ?? null,
+      pace,
     };
     await getLibraryManager().progress.put(progress);
+    // F2: credit the daily reading log with the time this snapshot newly
+    // accrued (`ReadingPaceStats` already credits only real, forward reading,
+    // so the delta is honest). The log write must never break progress
+    // persistence, so failures are reported, not thrown.
+    const deltaMs = (pace?.sessionsMs ?? 0) - (prevPace?.sessionsMs ?? 0);
+    if (deltaMs > 0) {
+      void getLibraryManager()
+        .readingLog.addMs(dateKeyOf(new Date()), doc.docId, deltaMs)
+        .catch((e: unknown) => reportError(e, "readingLog.add"));
+    }
     const latest = get().doc;
     if (latest && latest.docId === doc.docId) {
       set({ doc: { ...latest, progress } });
