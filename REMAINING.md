@@ -130,12 +130,15 @@ Windows-pending follow-ups from this phase:
   (long-lived grant + background watcher).
 - EPUB spread `auto`/`both` runtime column behavior in the real webview
   (code + tests verified; Readium degradation verified on Windows only).
-- Per-book reading language — blocked upstream (`EpubPreferences` has no
-  `language` field in navigator 2.14.0); revisit if Readium adds it.
+- **Per-book reading language — dropped by decision (2026-11-17).** Was
+  blocked upstream anyway (`EpubPreferences` has no `language` field in
+  navigator 2.14.0); do not re-scope without asking.
 
-Still out of scope (unchanged §11 items): F3 TTS, F5 add-from-URL
-(needs a network-use product decision), F6 lookup (removed by decision),
-F10 multiple windows, F1 Markdown/CBZ rendering.
+Still out of scope (§11 items closed by decision, 2026-11-17): F3
+text-to-speech, F5 add-from-URL/clipboard (also needed a network-use
+decision), F1 Markdown/CBZ rendering (PDF is done), and F6 lookup
+(removed earlier). **F10 multiple windows** is the only §11 item not
+formally scoped or dropped — revisit only on request.
 
 ## Known limitations
 

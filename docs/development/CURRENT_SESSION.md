@@ -77,13 +77,14 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
     **Phase 5 is complete** (5.1 `746f168`, 5.2 `cc47cc5`, 5.3 `82fa264`);
     plan marked done and `REMAINING.md` gained a Phase 5 section with the
     Windows-pending follow-ups (watch-folder decision, spread runtime
-    verdict, per-book language blocked upstream). **The page-turn
-    animation (5.2b) was dropped by user decision** — closed, not
-    pending; do not re-scope without asking. Remaining §11 items (F3
-    TTS, F5 add-from-URL, F6, F10, F1 Markdown/CBZ) stay out of scope
-    pending a product decision.
-    **Exact next action:** nothing in flight — scope the next tranche with
-    the user, or hand off to a Windows session for the recorded runbooks.
+    verdict). **Dropped by user decision, 2026-11-17:** page-turn
+    animation (5.2b), per-book reading language (5.2d, upstream-blocked
+    anyway), F3 text-to-speech, F5 add-from-URL, F1 Markdown/CBZ. F6 was
+    removed by an earlier decision; **F10 multiple windows is the only
+    §11 item neither shipped nor dropped** (revisit on request).
+    **Exact next action:** nothing in flight — the useful next step is a
+    Windows/CI session for the recorded runbooks, or scope new work with
+    the user.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree
