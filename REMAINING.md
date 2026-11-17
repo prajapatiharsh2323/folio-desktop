@@ -106,6 +106,37 @@ FT-03x rows and `docs/development/CURRENT_SESSION.md`):
   - First CI run on `windows-latest` (clippy `-D warnings` may need fixes).
   - §12 manual QA: Narrator, display scaling, jump-list taskbar behaviour.
 
+## Phase 5 — feature backlog (Nov 2026)
+
+Shipped and committed (see `docs/development/TASKS.md` FT-043/044/045):
+
+- **F7 folder import** (`746f168`): `pick_import_folder` Rust command +
+  recursive TS walk feeding the existing import queue. The folder-picker
+  dialog itself needs a Windows run for final verdict.
+- **F9 reader extras** (`cc47cc5`): EPUB two-page spread (existing
+  `spread` pref → Readium columns, auto at ≥1200 px, resize re-apply),
+  line-focus reading band (`L`, Escape ladder, EPUB only).
+- **F2 Insights** (`82fa264`): `user/reading-log.json` (daily credited
+  reading time, per-book split, backed up), `insights` route with
+  today/7-day/30-day totals, streak, optional daily goal, top books.
+
+Windows-pending follow-ups from this phase:
+
+- **5.2b page-turn animation** — no Readium preference exists; a truthful
+  toggle needs a runtime navigator/webview experiment on Windows (does
+  the toolkit animate paginated turns, can CSS injection animate without
+  breaking FramePoolManager?). Do not fake a toggle.
+- **Watch-folder auto-import** — deliberate product decision, not built
+  (long-lived grant + background watcher).
+- EPUB spread `auto`/`both` runtime column behavior in the real webview
+  (code + tests verified; Readium degradation verified on Windows only).
+- Per-book reading language — blocked upstream (`EpubPreferences` has no
+  `language` field in navigator 2.14.0); revisit if Readium adds it.
+
+Still out of scope (unchanged §11 items): F3 TTS, F5 add-from-URL
+(needs a network-use product decision), F6 lookup (removed by decision),
+F10 multiple windows, F1 Markdown/CBZ rendering.
+
 ## Known limitations
 
 - OS display-scaling checks (100/125/150/200%) need real hardware.
