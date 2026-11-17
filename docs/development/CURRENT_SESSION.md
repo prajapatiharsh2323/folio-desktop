@@ -28,9 +28,13 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
   anti-pattern replaced with a real `beforeEach`. Gates: `tsc` clean,
   ESLint 0/0, prettier clean, **Vitest 689 / 689 (88 files)**, `vite build`
   green, perf 0 over budget, `cargo fmt` clean. FT-042 recorded.
-  **Exact next action:** on authorization, commit the E6+E7 tranche; then
-  Phase 4 wrap-up (REMAINING.md refresh) and Phase 5 (features backlog)
-  from the plan.
+  **Status addendum (2026-11-17):** the E6+E7 tranche is committed as
+  `330b1de`. **Phase 4 (Steps 4.1–4.5) is complete** and the
+  production-readiness plan's scope (Phases 1–4) is exhausted; `REMAINING.md`
+  was refreshed with the production-readiness section and the Windows-pending
+  runbooks (`P-20261116-01`, `P-20261116-02`).
+  **Exact next action:** Phase 5 (§11 feature backlog) was explicitly out of
+  the plan's scope — scope the next tranche with the user before touching it.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

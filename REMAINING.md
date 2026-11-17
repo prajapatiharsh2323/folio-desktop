@@ -1,7 +1,8 @@
 # Folio Desktop — Remaining Work (Windows / CI)
 
-Status as of the Windows pass. Items are checked when implemented **and**
-verified locally (tests/build); runtime-only checks are called out explicitly.
+Status as of the production-readiness pass (2026-11-17). Items are checked
+when implemented **and** verified locally (tests/build); runtime-only checks
+are called out explicitly.
 
 ## Build / platform (Phase 11)
 
@@ -58,8 +59,8 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
 
 - ~~Bundle the SQLite pack produced by `mobile/tools/build_dict.py`~~
   (superseded by the removal).
-- ~~`dict_sqlite_query` / `dict_lookup` / `dict_status`~~ *(removed)*.
-- ~~Meaning card, Settings→About dictionary rows~~ *(removed)*.
+- ~~`dict_sqlite_query` / `dict_lookup` / `dict_status`~~ _(removed)_.
+- ~~Meaning card, Settings→About dictionary rows~~ _(removed)_.
 - `tests/noDictionary.test.ts` now guards against re-introduction.
 
 ## Phase 11 — Polish
@@ -68,14 +69,42 @@ verified locally (tests/build); runtime-only checks are called out explicitly.
       200 highlights ≤ 400 ms — harness + method + Linux baseline done
       (`scripts/perf.ts`; reader-parse 316 ms). **Runtime verdicts still need
       a real Windows run** (procedure in `docs/development/audits/results/`).
-- [ ] Accessibility pass (03 §7): focus rings, tab order, ARIA, contrast.
+      CI now fails the build when a budget is exceeded (perf-report artifact).
+- [x] Accessibility pass (03 §7): focus rings, tab order, ARIA, contrast —
+      code-side pass complete (Phase 4 X2–X4: axe sweep over all four screens
+      in both themes, forced-colors + high-contrast support, inert app root
+      under modals, 12 px min text, skeleton a11y). **Screen-reader runtime
+      verdict (Narrator) still needs a real Windows run.**
 - [x] CI workflow (`.github/workflows/desktop-ci.yml`): Windows runner, pnpm,
-      tsc, Vitest, Vite build, `cargo fmt --check`, `cargo test`, NSIS build,
-      installer artifact.
+      tsc, ESLint, Prettier check, Vitest, Vite build, perf budgets,
+      `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, NSIS
+      build + installer artifact; separate ubuntu `audits` job
+      (`pnpm audit --prod` + RustSec `audit-check`). **First CI run may need
+      clippy fixes** (Rust compile checks are Windows-only).
 - [x] `cargo test` parity for path guard, fs commands, app-dir mapping,
       window-state clamping, launch parsing, (the dictionary tests were
       removed with the feature, 2026-10-31; OAuth helpers were removed with
       Drive sync, 2026-10-31).
+
+## Production-readiness pass (Nov 2026, Phases 1–4)
+
+Completed and committed through `330b1de` (see `docs/development/TASKS.md`
+FT-03x rows and `docs/development/CURRENT_SESSION.md`):
+
+- Phases 1–3 (stabilise, reader navigation/navigation UX,
+  performance/library) and Phase 4 (X1–X5 shell/a11y/i18n, E4 CI matrix,
+  E5 updater wiring + README/notices, E6+E7 fail-loudly startup, session
+  tick, synced prefs into the backed-up `user/window.json`, manager cache).
+- X5 i18n covers shell chrome (en/hi/ar catalogue, RTL page turns); screen
+  copy translation is a deliberate later pass.
+- **Windows-pending items (exact runbooks recorded):**
+  - `P-20261116-01` — WebDriver smoke (tauri-driver; first run → import →
+    open → highlight → resume → backup): `docs/development/runbooks/E4-webdriver-smoke.md`.
+  - `P-20261116-02` — updater signing keys, CI secrets, release flow,
+    tamper check, Authenticode: `docs/development/runbooks/E5-updater-signing.md`
+    (the `plugins.updater.pubkey` placeholder must be replaced first).
+  - First CI run on `windows-latest` (clippy `-D warnings` may need fixes).
+  - §12 manual QA: Narrator, display scaling, jump-list taskbar behaviour.
 
 ## Known limitations
 
