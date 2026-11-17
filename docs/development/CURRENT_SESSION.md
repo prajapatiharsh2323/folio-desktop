@@ -128,7 +128,19 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       Windows-session checklist (committed `b7d1b98`). Gates for the fix
       tranche: clippy windows-gnu clean, fmt clean, foliocore 14/14.
       **Exact next action:** commit and push (on authorization) for CI
-      run #3 — only the NSIS build remains unverified.
+      run #3 — only the NSIS build remains unverified. CI run #3 (`44097760493`): 28 passed / 3 failed — the lock
+      fixes worked; the rest was Windows 8.3 short names
+      (`env::temp_dir()` short `RUNNER~1` vs canonicalize long form) so
+      the guard's raw fallback for not-yet-existing parents never
+      matched its own app dir. Fixed properly in foliocore
+      `guard.rs`: `canonical_for_check` now resolves the deepest
+      existing ancestor via `canonicalize_best_effort` + verbatim
+      strip on both sides (production-grade, not test scaffolding);
+      `read_many` test also locked (grants race). Gates: clippy
+      windows-gnu clean, fmt clean, foliocore 14/14. **Exact next
+      action:** commit and push (on authorization) for CI run #4 —
+      expect green through `cargo test`, then only the NSIS build
+      remains.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

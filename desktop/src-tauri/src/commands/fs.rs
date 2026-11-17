@@ -458,6 +458,8 @@ mod tests {
 
     #[test]
     fn read_many_returns_none_for_missing_and_bytes_for_present() {
+        // Grants are process-wide test state; see write_read_roundtrip.
+        let _lock = crate::appdir::lock_app_dir_for_tests();
         let dir = temp_dir("readmany");
         crate::sandbox::grant(&dir);
         fs_write_atomic_sync(s(&dir.join("a.json")).as_str(), b"{}").unwrap();

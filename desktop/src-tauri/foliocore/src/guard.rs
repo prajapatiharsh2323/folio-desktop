@@ -53,20 +53,14 @@ pub fn guard_user_path(input: &str) -> Result<PathBuf, GuardError> {
 }
 
 /// Canonicalize a path whose final component may not exist yet (atomic
-/// writes, moves): the existing part is resolved through the filesystem so
-/// symlink and junction aliases collapse, then the file name is re-attached.
+/// writes, moves). Resolve the deepest existing ancestor through the
+/// filesystem — collapsing symlinks, junctions and Windows 8.3 short names —
+/// then re-attach the missing tail. This matters because `canonicalize()`
+/// expands `C:\Users\RUNNE~1\…` to the long form while `env::temp_dir()` (or
+/// any stored path) may still be short: a raw fallback path would never
+/// prefix-match its own canonicalized app dir on Windows.
 fn canonical_for_check(path: &Path) -> PathBuf {
-    let canonical = if let Ok(c) = path.canonicalize() {
-        c
-    } else if let (Some(parent), Some(file)) = (path.parent(), path.file_name()) {
-        if let Ok(c) = parent.canonicalize() {
-            return strip_verbatim(&c.join(file));
-        }
-        path.to_path_buf()
-    } else {
-        path.to_path_buf()
-    };
-    strip_verbatim(&canonical)
+    strip_verbatim(&crate::sandbox::canonicalize_best_effort(path))
 }
 
 /// Windows: `canonicalize()` returns verbatim `\\?\C:\…` (or
