@@ -1,7 +1,10 @@
 // PdfSession (non-DOM document state, PDF plan §7) against the real pdf.js
 // loader. Node environment (jsdom has no worker support).
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+// Real pdf.js parsing takes >5s on slow CI runners (Windows): lift the
+// default test timeout for this file's real-parse tests.
+vi.setConfig({ testTimeout: 30_000 });
 import { openPdf } from "../src/pdf/pdfjsAdapter";
 import { PdfSession } from "../src/pdf/pdfSession";
 import { buildSyntheticPdf } from "../src/perf/synthPdf";

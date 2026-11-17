@@ -2,7 +2,10 @@
 // generated in-repo by src/perf/synthPdf.ts — no third-party files. Cover
 // rendering is browser-only and exercised by the later engine tests.
 // @vitest-environment node
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+// Real pdf.js parsing takes >5s on slow CI runners (Windows): lift the
+// default test timeout for this file's real-parse tests.
+vi.setConfig({ testTimeout: 30_000 });
 import { buildSyntheticPdf } from "../src/perf/synthPdf";
 import { parsePdf } from "../src/pdf/parsePdf";
 import { COPY, ImportError } from "../src/import/fileDetector";

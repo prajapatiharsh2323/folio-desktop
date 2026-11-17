@@ -140,7 +140,14 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       windows-gnu clean, fmt clean, foliocore 14/14. **Exact next
       action:** commit and push (on authorization) for CI run #4 —
       expect green through `cargo test`, then only the NSIS build
-      remains.
+      remains. Run #4 (`44103800638`) failed EARLIER — at Vitest, before Rust
+      even ran (so the 8.3 fix is untested by CI yet): the real-pdf.js
+      `importPdf` test hit the default 5s `testTimeout` at ~10.5s on a
+      slow runner (flaky edge; passed in #2/#3). Lifted the timeout to
+      30s per-file (`vi.setConfig`) in `importPdf`/`parsePdf`/
+      `pdfSession` (FT-050). **Exact next action:** commit and push (on
+      authorization) for CI run #5 — watches Rust `cargo test` with the
+      8.3 fix, then the NSIS build.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

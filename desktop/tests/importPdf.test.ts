@@ -2,7 +2,10 @@
 // §6.2/§6.3). Node environment: pdf.js needs Node; jsdom has no worker
 // support. EPUB/HTML/TXT cases live in import.test.ts / importBaseline.
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+// Real pdf.js parsing takes >5s on slow CI runners (Windows): lift the
+// default test timeout for this file's real-parse tests.
+vi.setConfig({ testTimeout: 30_000 });
 import { MemoryFileStore } from "../src/lib/fileStore";
 import { LibraryManager } from "../src/store/libraryManager";
 import { importFile, replaceDoc } from "../src/import/importService";
