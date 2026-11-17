@@ -116,7 +116,19 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       sites adjusted for the new `Result<Cow<str>>` return). **Exact
       next action:** commit this fix tranche and push again (on
       authorization) — the remaining first-run unknowns are the NSIS
-      build and windows-host `cargo test`.
+      build and windows-host `cargo test`. CI run #2 (`44092325860`) verdict: audits job fully green (RustSec clean
+      on zip 9.6.1, permissions fix worked); Windows job green through
+      clippy but **Rust tests failed** — two Windows-only root causes
+      fixed in FT-048: (1) foliocore `guard.rs` verbatim-prefix asymmetry
+      (`\\?\` canonicalize vs plain paths made every not-yet-created
+      parent read as outside the sandbox; both sides now stripped), (2)
+      parallel-test races on process-wide state (fs grants wiped by
+      `clear_grants`, global `BACKUP_CANCELLED` — locks added). Also:
+      `WINDOWS-REMAINING.md` added at the repo root as the actionable
+      Windows-session checklist (committed `b7d1b98`). Gates for the fix
+      tranche: clippy windows-gnu clean, fmt clean, foliocore 14/14.
+      **Exact next action:** commit and push (on authorization) for CI
+      run #3 — only the NSIS build remains unverified.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

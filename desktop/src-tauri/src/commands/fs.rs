@@ -405,6 +405,9 @@ mod tests {
 
     #[test]
     fn write_read_roundtrip_and_overwrite() {
+        // Grants are process-wide test state; the lock serializes this test
+        // against tests that clear them (Windows runs tests in parallel).
+        let _lock = crate::appdir::lock_app_dir_for_tests();
         let dir = temp_dir("roundtrip");
         crate::sandbox::grant(&dir);
         let file = dir.join("nested").join("data.bin");
@@ -466,6 +469,8 @@ mod tests {
 
     #[test]
     fn stat_list_move_delete() {
+        // Grants are process-wide test state; see write_read_roundtrip.
+        let _lock = crate::appdir::lock_app_dir_for_tests();
         let dir = temp_dir("ops");
         crate::sandbox::grant(&dir);
         let a = dir.join("a.txt");

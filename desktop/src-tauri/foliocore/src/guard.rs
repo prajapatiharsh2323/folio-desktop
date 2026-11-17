@@ -56,15 +56,40 @@ pub fn guard_user_path(input: &str) -> Result<PathBuf, GuardError> {
 /// writes, moves): the existing part is resolved through the filesystem so
 /// symlink and junction aliases collapse, then the file name is re-attached.
 fn canonical_for_check(path: &Path) -> PathBuf {
-    if let Ok(c) = path.canonicalize() {
-        return c;
-    }
-    if let (Some(parent), Some(file)) = (path.parent(), path.file_name()) {
+    let canonical = if let Ok(c) = path.canonicalize() {
+        c
+    } else if let (Some(parent), Some(file)) = (path.parent(), path.file_name()) {
         if let Ok(c) = parent.canonicalize() {
-            return c.join(file);
+            return strip_verbatim(&c.join(file));
         }
+        path.to_path_buf()
+    } else {
+        path.to_path_buf()
+    };
+    strip_verbatim(&canonical)
+}
+
+/// Windows: `canonicalize()` returns verbatim `\\?\C:\…` (or
+/// `\\?\UNC\server\share`) paths, so a `starts_with` against a plain path —
+/// or vice versa — always fails and every file lands "outside the app
+/// directory". Both sides of the check go through here, so strip the prefix
+/// to make the comparison plain-path vs plain-path.
+fn strip_verbatim(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let text = path.as_os_str().to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest.to_string());
+        }
+        path.to_path_buf()
     }
-    path.to_path_buf()
+    #[cfg(not(windows))]
+    {
+        path.to_path_buf()
+    }
 }
 
 /// Full confinement check for every file command:

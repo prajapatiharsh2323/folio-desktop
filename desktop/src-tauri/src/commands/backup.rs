@@ -558,8 +558,15 @@ mod tests {
 
     fn no_progress(_done: u64, _total: u64, _current: &str) {}
 
+    /// BACKUP_CANCELLED is process-wide; the export and cancel tests run in
+    /// parallel threads on Windows, so serialize them.
+    static TEST_BACKUP_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn export_streams_and_verifies_then_inspect_matches() {
+        let _lock = TEST_BACKUP_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        // A cancelled signal from another test must not kill this export.
+        BACKUP_CANCELLED.store(false, std::sync::atomic::Ordering::SeqCst);
         let dir = temp_dir("roundtrip");
         let root = dir.join("library");
         seed_library(&root);
@@ -624,6 +631,7 @@ mod tests {
     fn export_cancel_removes_partial_archive() {
         use std::sync::atomic::Ordering;
 
+        let _lock = TEST_BACKUP_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let dir = temp_dir("cancel");
         let root = dir.join("library");
         seed_library(&root);
