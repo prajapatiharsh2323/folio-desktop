@@ -321,7 +321,7 @@ mod tests {
         dir
     }
 
-    fn s(p: &PathBuf) -> String {
+    fn s(p: &std::path::Path) -> String {
         p.to_string_lossy().to_string()
     }
 

@@ -183,7 +183,7 @@ mod tests {
         assert_eq!(tasks[0].title, "Open Folio");
         assert!(tasks[0].args.is_none());
         assert_eq!(tasks[1].title, "Import file…");
-        assert_eq!(tasks[1].args.as_deref(), Some("--import"));
+        assert_eq!(tasks[1].args, Some("--import"));
     }
 
     #[test]

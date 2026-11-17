@@ -17,10 +17,9 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
 use std::io::{BufWriter, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
-use tauri::Manager;
 use zip::write::SimpleFileOptions;
 use zip::ZipArchive;
 
@@ -245,7 +244,7 @@ fn backup_export_core(
             manifest_sha = hasher;
         }
         done += 1;
-        if done % PROGRESS_EVERY == 0 {
+        if done.is_multiple_of(PROGRESS_EVERY) {
             on_progress(done, total, rel);
         }
     }
@@ -424,8 +423,7 @@ fn backup_inspect_core(path: &Path) -> Result<BackupSummary, String> {
         }
     }
 
-    let mut manifest_sha_actual = String::new();
-    {
+    let manifest_sha_actual = {
         let mut manifest = archive
             .by_name(MANIFEST_NAME)
             .map_err(|_| "This backup has no manifest.json.".to_string())?;
@@ -438,8 +436,8 @@ fn backup_inspect_core(path: &Path) -> Result<BackupSummary, String> {
             }
             hasher.update(&buf[..n]);
         }
-        manifest_sha_actual = format!("{:x}", hasher.finalize());
-    }
+        format!("{:x}", hasher.finalize())
+    };
     if !manifest_sha_recorded.is_empty() {
         if manifest_sha_recorded != manifest_sha_actual {
             return Err(
@@ -530,6 +528,7 @@ fn read_entry(archive: &mut ZipArchive<File>, name: &str, max: usize) -> Result<
 mod tests {
     use super::*;
     use crate::appdir;
+    use std::path::PathBuf;
 
     fn temp_dir(tag: &str) -> PathBuf {
         let nanos = SystemTime::now()

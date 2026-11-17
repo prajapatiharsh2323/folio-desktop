@@ -85,6 +85,27 @@ zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
     **Exact next action:** nothing in flight — the useful next step is a
     Windows/CI session for the recorded runbooks, or scope new work with
     the user.
+    **Post-plan readiness (2026-11-17, FT-046, uncommitted):** ran the
+    CI-grade clippy locally against `x86_64-pc-windows-gnu` (mingw gcc
+    installed via sudo; use `CARGO_TARGET_DIR=/tmp/opencode/rust-target`
+    — `/home` is a 4.8G partition at 100%, never build into
+    `src-tauri/target` here). It found a **pre-existing compile error**:
+    `lib.rs` referenced `backup::…` in the invoke handler without
+    importing it (`use commands::{...}` lacked `backup`) — the Tauri lib
+    never compiled on Linux, so CI would have caught it first. Fixed
+    that plus 6 clippy lints (`backup.rs` unused imports + shadow-reuse
+    - `is_multiple_of`; `fs.rs` `&Path`; `jumplist.rs` `as_deref`;
+      `window_state.rs` `clamp_rect` 8 args → two rect tuples; `zip.rs`
+      tests now await the async commands via `tauri::async_runtime::
+block_on`) and one **CI workflow bug**: the `audits` job ran
+      `pnpm audit --prod` at the repo root (no `package.json`) — now
+      `working-directory: desktop`. Gates: clippy `-D warnings`
+      (windows-gnu) clean, `cargo check --all-targets` (windows-gnu)
+      clean, `cargo fmt --check` clean, foliocore linux tests 14/14,
+      `pnpm audit --prod` clean, tsc/prettier clean. **Exact next
+      action:** commit this tranche; then push (on authorization) to
+      trigger the first CI run — the remaining CI unknowns are the NSIS
+      build and the windows-host `cargo test`.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

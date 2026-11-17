@@ -118,18 +118,21 @@ mod tests {
         let app = temp_path("app");
         crate::appdir::set_app_dir(app.clone());
         let zip_path = format!("{}/backup/folio.zip", crate::appdir::VIRTUAL_APP_DIR);
-        zip_write(
-            zip_path.clone(),
-            vec![ZipEntry {
-                name: "one.txt".into(),
-                data: b"hello".to_vec(),
-            }],
-        )
-        .unwrap();
-        let entries = zip_read(zip_path).unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].name, "one.txt");
-        assert_eq!(entries[0].data, b"hello");
+        tauri::async_runtime::block_on(async {
+            zip_write(
+                zip_path.clone(),
+                vec![ZipEntry {
+                    name: "one.txt".into(),
+                    data: b"hello".to_vec(),
+                }],
+            )
+            .await
+            .unwrap();
+            let entries = zip_read(zip_path).await.unwrap();
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].name, "one.txt");
+            assert_eq!(entries[0].data, b"hello");
+        });
         crate::appdir::set_app_dir(std::path::PathBuf::from(crate::appdir::VIRTUAL_APP_DIR));
         let _ = std::fs::remove_dir_all(&app);
     }
@@ -138,15 +141,20 @@ mod tests {
     fn rejects_paths_outside_the_sandbox() {
         let dir = temp_path("outside");
         let outside_zip = dir.join("outside.zip");
-        assert!(zip_write(
-            outside_zip.to_string_lossy().to_string(),
-            vec![ZipEntry {
-                name: "x".into(),
-                data: b"x".to_vec(),
-            }],
-        )
-        .is_err());
-        assert!(zip_read(outside_zip.to_string_lossy().to_string()).is_err());
+        tauri::async_runtime::block_on(async {
+            assert!(zip_write(
+                outside_zip.to_string_lossy().to_string(),
+                vec![ZipEntry {
+                    name: "x".into(),
+                    data: b"x".to_vec(),
+                }],
+            )
+            .await
+            .is_err());
+            assert!(zip_read(outside_zip.to_string_lossy().to_string())
+                .await
+                .is_err());
+        });
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

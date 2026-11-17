@@ -129,20 +129,17 @@ fn clamp_to_work_area(
     let wa_w = wa.size.width;
     let wa_h = wa.size.height;
 
-    Some(clamp_rect(sx, sy, width, height, wa_x, wa_y, wa_w, wa_h))
+    Some(clamp_rect(
+        (sx, sy, width, height),
+        (wa_x, wa_y, wa_w, wa_h),
+    ))
 }
 
-/// Pure clamping rule, unit-testable without a real window.
-fn clamp_rect(
-    sx: i32,
-    sy: i32,
-    width: u32,
-    height: u32,
-    wa_x: i32,
-    wa_y: i32,
-    wa_w: u32,
-    wa_h: u32,
-) -> (i32, i32, u32, u32) {
+/// Pure clamping rule, unit-testable without a real window. The saved and
+/// work-area rects travel as `(x, y, width, height)` tuples.
+fn clamp_rect(win: (i32, i32, u32, u32), work_area: (i32, i32, u32, u32)) -> (i32, i32, u32, u32) {
+    let (sx, sy, width, height) = win;
+    let (wa_x, wa_y, wa_w, wa_h) = work_area;
     // Enforce the app minimum before fitting the window to the monitor, so a
     // saved 400x300 (or a corrupt 1x1) cannot reopen unusably small. A work
     // area below the minimum still wins: the window must never exceed it.
@@ -200,7 +197,7 @@ mod tests {
     #[test]
     fn clamp_keeps_offscreen_window_reachable() {
         // Saved far off the left edge → at least 120 px remains visible.
-        let (x, y, w, h) = clamp_rect(-5000, 100, 1100, 760, 0, 0, 1920, 1040);
+        let (x, y, w, h) = clamp_rect((-5000, 100, 1100, 760), (0, 0, 1920, 1040));
         assert_eq!(x, -980);
         assert_eq!(y, 100);
         assert_eq!((w, h), (1100, 760));
@@ -208,28 +205,28 @@ mod tests {
 
     #[test]
     fn clamp_fits_oversized_window_to_work_area() {
-        let (x, y, w, h) = clamp_rect(100, 100, 4000, 3000, 0, 0, 1920, 1040);
+        let (x, y, w, h) = clamp_rect((100, 100, 4000, 3000), (0, 0, 1920, 1040));
         assert_eq!((w, h), (1920, 1040));
         assert_eq!((x, y), (100, 100));
     }
 
     #[test]
     fn clamp_keeps_title_bar_on_screen() {
-        let (_, y, _, _) = clamp_rect(100, 99999, 1100, 760, 0, 0, 1920, 1040);
+        let (_, y, _, _) = clamp_rect((100, 99999, 1100, 760), (0, 0, 1920, 1040));
         assert_eq!(y, 1000);
     }
 
     #[test]
     fn clamp_promotes_a_saved_size_below_the_app_minimum() {
         // A stale or hand-edited 400x300 must reopen at the 720x560 minimum.
-        let (x, y, w, h) = clamp_rect(-5000, 100, 400, 300, 0, 0, 1920, 1040);
+        let (x, y, w, h) = clamp_rect((-5000, 100, 400, 300), (0, 0, 1920, 1040));
         assert_eq!((w, h), (MIN_WIDTH, MIN_HEIGHT));
         // The off-screen rule uses the promoted width, leaving 120 px visible.
         assert_eq!(x, -600);
         assert_eq!(y, 100);
 
         // Corrupt zero-size entries are treated the same way.
-        let (_, _, w, h) = clamp_rect(0, 0, 0, 0, 0, 0, 1920, 1040);
+        let (_, _, w, h) = clamp_rect((0, 0, 0, 0), (0, 0, 1920, 1040));
         assert_eq!((w, h), (MIN_WIDTH, MIN_HEIGHT));
     }
 
@@ -237,7 +234,7 @@ mod tests {
     fn clamp_still_fits_a_work_area_smaller_than_the_minimum() {
         // The monitor wins over the minimum; never restore a window larger
         // than the usable desktop (e.g. a 640x480 remote session).
-        let (_, _, w, h) = clamp_rect(0, 0, 1100, 760, 0, 0, 640, 480);
+        let (_, _, w, h) = clamp_rect((0, 0, 1100, 760), (0, 0, 640, 480));
         assert_eq!((w, h), (640, 480));
     }
 }

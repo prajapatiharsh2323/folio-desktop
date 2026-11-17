@@ -8,7 +8,7 @@ mod window_state;
 // keep resolving inside the Tauri crate.
 pub use foliocore::{appdir, guard, sandbox};
 
-use commands::{fs, hash, logging, pick, power, shell, zip};
+use commands::{backup, fs, hash, logging, pick, power, shell, zip};
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {

@@ -99,6 +99,10 @@ jobs:
   audits:
     name: Dependency audits
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # pnpm-lock.yaml lives in desktop/ (the repo root has no manifest).
+        working-directory: desktop
     steps:
       - uses: actions/checkout@v4
 
