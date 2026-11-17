@@ -59,8 +59,26 @@ pub fn run() {
             // %APPDATA%/Folio — the default app dir (02 §4).
             let tauri_data = app.path().app_data_dir().ok();
             let app_dir = appdir::default_app_dir(tauri_data);
-            let _ = std::fs::create_dir_all(app_dir.join("library"));
-            let _ = std::fs::create_dir_all(app_dir.join("user"));
+            // E6: fail loudly. If the app dir can't be created (permissions,
+            // roaming profile, full disk) every later operation would fail
+            // with obscure errors, so show a blocking plain-language dialog
+            // and exit instead.
+            let ensure_dir = |sub: &str| std::fs::create_dir_all(app_dir.join(sub));
+            if let Err(e) = ensure_dir("library").and_then(|()| ensure_dir("user")) {
+                use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+                app.dialog()
+                    .message(format!(
+                        "Folio could not create its data folder:\n{}\n\n\
+                         Check folder permissions or free disk space, then try again. \
+                         The app will now close.",
+                        e
+                    ))
+                    .title("Folio")
+                    .kind(MessageDialogKind::Error)
+                    .buttons(MessageDialogButtons::Ok)
+                    .blocking_show();
+                std::process::exit(1);
+            }
             appdir::set_app_dir(app_dir);
 
             // Open-with / command-line paths for this first launch. `args_os`

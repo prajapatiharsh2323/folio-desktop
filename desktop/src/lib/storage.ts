@@ -34,6 +34,7 @@ export function writeStorage(key: string, value: string): void {
   } catch {
     /* storage unavailable — session-only */
   }
+  mirror?.(key, value);
 }
 
 export function removeStorage(key: string): void {
@@ -42,4 +43,18 @@ export function removeStorage(key: string): void {
   } catch {
     /* storage unavailable */
   }
+  mirror?.(key, null);
+}
+
+/**
+ * Optional change observer for E7's synced-prefs mirror. Set once at boot
+ * (main.tsx) so selected user-facing keys also land in the backed-up
+ * `user/window.json`; `null` clears it. Never called for unrelated keys
+ * unless the observer decides — the mirror filters.
+ */
+type StorageMirror = (key: string, value: string | null) => void;
+let mirror: StorageMirror | null = null;
+
+export function setStorageMirror(fn: StorageMirror | null): void {
+  mirror = fn;
 }

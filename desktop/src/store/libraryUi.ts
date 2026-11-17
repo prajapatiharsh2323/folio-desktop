@@ -121,8 +121,44 @@ function revokeCoverUrl(url: string): void {
 
 export const LIBRARY_ROOT = "/folio-library/library";
 
+/**
+ * E7: the manager is a stateless facade over the file store, but every call
+ * used to build six fresh repos; cache it per root so screens stop paying
+ * construction costs. `getLibraryFs()` is itself a singleton, so identity is
+ * stable for the app's lifetime.
+ */
+let cachedManager: LibraryManager | null = null;
+
 export function getLibraryManager(): LibraryManager {
-  return new LibraryManager(getLibraryFs(), LIBRARY_ROOT);
+  if (!cachedManager || cachedManager.root !== LIBRARY_ROOT) {
+    cachedManager = new LibraryManager(getLibraryFs(), LIBRARY_ROOT);
+  }
+  return cachedManager;
+}
+
+/**
+ * E7: change events for consumers that don't live in the Zustand store
+ * (Notes/Collections screens re-load when the library manifest changes).
+ * Listeners never see each other's failures.
+ */
+type LibraryChangeListener = () => void;
+const libraryChangeListeners = new Set<LibraryChangeListener>();
+
+export function subscribeLibraryChanges(fn: LibraryChangeListener): () => void {
+  libraryChangeListeners.add(fn);
+  return () => {
+    libraryChangeListeners.delete(fn);
+  };
+}
+
+export function notifyLibraryChanged(): void {
+  for (const fn of [...libraryChangeListeners]) {
+    try {
+      fn();
+    } catch {
+      /* a listener must never break the mutation that reported */
+    }
+  }
 }
 
 function libraryManager(): LibraryManager {
@@ -385,6 +421,10 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
       const message = e instanceof Error ? e.message : "Library load failed";
       set({ loading: false, refreshing: false, error: message });
       pushToast({ tone: "error", text: message });
+    } finally {
+      // E7: anything outside the store (Notes/Collections re-reads) learns
+      // that the manifest may have changed, including after a failed pass.
+      notifyLibraryChanged();
     }
   },
 
@@ -434,6 +474,8 @@ export const useLibraryUi = create<LibraryUiState>((set, get) => ({
       // The incremental patch is an optimization: fall back to a full refresh.
       handleError(e, { context: "library.refreshDocs" });
       await get().refresh();
+    } finally {
+      notifyLibraryChanged();
     }
   },
 

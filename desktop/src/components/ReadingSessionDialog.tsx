@@ -1,3 +1,4 @@
+import { useEffect, useReducer } from "react";
 import { FolioDialog } from "./FolioDialog";
 import { FolioButton } from "./FolioButton";
 import { FolioIcons } from "./FolioIcons";
@@ -41,6 +42,15 @@ export function ReadingSessionDialog({
   totalChapters,
 }: ReadingSessionDialogProps) {
   const roundedPercent = Math.round(Math.min(100, Math.max(0, percent)));
+  // E7: the duration is computed from `Date.now()` by the parent on every
+  // render, so re-render once a second while the dialog is open and the
+  // session time visibly ticks instead of freezing at the open moment.
+  const [, tick] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    if (!open) return;
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [open]);
 
   return (
     <FolioDialog

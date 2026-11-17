@@ -78,6 +78,9 @@ vi.mock("../src/store/libraryUi", async () => {
     getLibraryFs: () => new MemoryFileStore(),
     getLibraryManager: () => manager,
     useLibraryUi,
+    // E7: screens subscribe to manifest changes; nothing fires in tests.
+    subscribeLibraryChanges: () => () => {},
+    notifyLibraryChanged: () => {},
   };
 });
 

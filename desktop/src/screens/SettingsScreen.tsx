@@ -608,13 +608,12 @@ export function SettingsScreen() {
           title="App appearance"
           helper="Light, dark, or follow your system setting"
           control={
-            <div role="group" aria-label="App appearance">
+            <div className="folio-chip-row" role="group" aria-label="App appearance">
               {THEME_OPTIONS.map((o) => (
                 <FolioChip
                   key={o.value}
                   selected={setting === o.value}
                   onClick={() => setSetting(o.value)}
-                  style={{ marginRight: 8 }}
                 >
                   {o.label}
                 </FolioChip>
@@ -626,14 +625,9 @@ export function SettingsScreen() {
           title="Interface zoom"
           helper="Scales Folio's controls and text from 80% to 150%"
           control={
-            <div role="group" aria-label="Interface zoom">
+            <div className="folio-chip-row" role="group" aria-label="Interface zoom">
               {UI_ZOOM_STEPS.map((z) => (
-                <FolioChip
-                  key={z}
-                  selected={uiZoom === z}
-                  onClick={() => setZoom(z)}
-                  style={{ marginRight: 8 }}
-                >
+                <FolioChip key={z} selected={uiZoom === z} onClick={() => setZoom(z)}>
                   {z}%
                 </FolioChip>
               ))}
@@ -644,15 +638,11 @@ export function SettingsScreen() {
           title="High contrast"
           helper="Stronger text and border contrast on top of the current theme"
           control={
-            <div role="group" aria-label="High contrast">
+            <div className="folio-chip-row" role="group" aria-label="High contrast">
               <FolioChip selected={contrast === "normal"} onClick={() => setContrast("normal")}>
                 Off
               </FolioChip>
-              <FolioChip
-                selected={contrast === "high"}
-                onClick={() => setContrast("high")}
-                style={{ marginLeft: 8 }}
-              >
+              <FolioChip selected={contrast === "high"} onClick={() => setContrast("high")}>
                 On
               </FolioChip>
             </div>
@@ -662,14 +652,13 @@ export function SettingsScreen() {
           title={t("common.settingsLanguage", locale)}
           helper={t("common.settingsLanguageHelper", locale)}
           control={
-            <div role="group" aria-label={t("common.settingsLanguage", locale)}>
-              {LOCALES.map((l, i) => (
-                <FolioChip
-                  key={l.id}
-                  selected={locale === l.id}
-                  onClick={() => setLocale(l.id)}
-                  style={i > 0 ? { marginLeft: 8 } : undefined}
-                >
+            <div
+              className="folio-chip-row"
+              role="group"
+              aria-label={t("common.settingsLanguage", locale)}
+            >
+              {LOCALES.map((l) => (
+                <FolioChip key={l.id} selected={locale === l.id} onClick={() => setLocale(l.id)}>
                   {l.label}
                 </FolioChip>
               ))}
@@ -691,15 +680,11 @@ export function SettingsScreen() {
           title="Keep screen awake"
           helper="While you are actively reading, keep the display from sleeping"
           control={
-            <div role="group" aria-label="Keep screen awake">
+            <div className="folio-chip-row" role="group" aria-label="Keep screen awake">
               <FolioChip selected={keepAwake} onClick={() => void setPreventSleep(true)}>
                 On
               </FolioChip>
-              <FolioChip
-                selected={!keepAwake}
-                onClick={() => void setPreventSleep(false)}
-                style={{ marginLeft: 8 }}
-              >
+              <FolioChip selected={!keepAwake} onClick={() => void setPreventSleep(false)}>
                 Off
               </FolioChip>
             </div>
@@ -710,15 +695,11 @@ export function SettingsScreen() {
           title="Reopen last book"
           helper="When Folio starts, open the book you read last at your saved position"
           control={
-            <div role="group" aria-label="Reopen last book">
+            <div className="folio-chip-row" role="group" aria-label="Reopen last book">
               <FolioChip selected={!reopenLast} onClick={() => void setReopenLastPref(false)}>
                 Off
               </FolioChip>
-              <FolioChip
-                selected={reopenLast}
-                onClick={() => void setReopenLastPref(true)}
-                style={{ marginLeft: 8 }}
-              >
+              <FolioChip selected={reopenLast} onClick={() => void setReopenLastPref(true)}>
                 On
               </FolioChip>
             </div>
@@ -748,15 +729,11 @@ export function SettingsScreen() {
           title="Default view"
           helper="List rows or the cover grid"
           control={
-            <div role="group" aria-label="Default library view">
+            <div className="folio-chip-row" role="group" aria-label="Default library view">
               <FolioChip selected={defaultView === "list"} onClick={() => setView("list")}>
                 List
               </FolioChip>
-              <FolioChip
-                selected={defaultView === "grid"}
-                onClick={() => setView("grid")}
-                style={{ marginLeft: 8 }}
-              >
+              <FolioChip selected={defaultView === "grid"} onClick={() => setView("grid")}>
                 Grid
               </FolioChip>
             </div>
@@ -777,15 +754,11 @@ export function SettingsScreen() {
           title="Automatic backups"
           helper="Daily, into Folio's own data folder; the last 5 archives are kept"
           control={
-            <div role="group" aria-label="Automatic backups">
+            <div className="folio-chip-row" role="group" aria-label="Automatic backups">
               <FolioChip selected={!autoBackup} onClick={() => void setAutoBackupPref(false)}>
                 Off
               </FolioChip>
-              <FolioChip
-                selected={autoBackup}
-                onClick={() => void setAutoBackupPref(true)}
-                style={{ marginLeft: 8 }}
-              >
+              <FolioChip selected={autoBackup} onClick={() => void setAutoBackupPref(true)}>
                 On
               </FolioChip>
             </div>
@@ -795,12 +768,12 @@ export function SettingsScreen() {
           title="Export backup"
           helper="Save a zip of your library and settings"
           control={
-            <div>
+            <div className="folio-chip-row">
               <FolioButton variant="secondary" onClick={() => void handleExport()} disabled={busy}>
                 Export
               </FolioButton>
               {exporting && (
-                <FolioButton variant="secondary" onClick={cancelExport} style={{ marginLeft: 8 }}>
+                <FolioButton variant="secondary" onClick={cancelExport}>
                   Cancel
                 </FolioButton>
               )}
@@ -1003,7 +976,7 @@ export function SettingsScreen() {
         }
       >
         {restoreSummary && (
-          <div className="folio-helper" style={{ marginBottom: 12 }}>
+          <div className="folio-helper folio-stack-12">
             <div>
               Backup from {formatDate(restoreSummary.createdAt)}
               {restoreSummary.appVersion ? ` · Folio ${restoreSummary.appVersion}` : ""}
@@ -1019,11 +992,7 @@ export function SettingsScreen() {
           </div>
         )}
 
-        <div
-          role="group"
-          aria-label="Restore mode"
-          style={{ display: "flex", gap: 8, marginBottom: 12 }}
-        >
+        <div className="folio-chip-row folio-stack-12" role="group" aria-label="Restore mode">
           <FolioChip
             selected={restoreMode === "merge"}
             onClick={() => setRestoreMode("merge")}
@@ -1049,7 +1018,7 @@ export function SettingsScreen() {
         </p>
 
         {restoreMode === "replace" && !busy && (
-          <label className="folio-helper" style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <label className="folio-helper folio-chip-row folio-gap-top-12">
             <input
               type="checkbox"
               checked={replaceConfirmed}
@@ -1060,17 +1029,13 @@ export function SettingsScreen() {
         )}
 
         {busy && restorePhase && (
-          <p className="folio-helper" role="status" style={{ marginTop: 12 }}>
+          <p className="folio-helper folio-gap-top-12" role="status">
             {PHASE_LABEL[restorePhase]}
           </p>
         )}
 
         {restoreError && (
-          <p
-            className="folio-helper"
-            role="alert"
-            style={{ marginTop: 12, color: "var(--folio-danger)" }}
-          >
+          <p className="folio-helper folio-gap-top-12 folio-text-danger" role="alert">
             {restoreError}
           </p>
         )}

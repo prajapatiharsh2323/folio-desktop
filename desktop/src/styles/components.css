@@ -438,6 +438,13 @@
   outline: none;
 }
 
+/* E7: dialog close button position (was an inline style) */
+.folio-dialog__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
 @keyframes folio-dialog-in {
   from {
     transform: translate(-50%, calc(-50% + 16px));
@@ -2232,4 +2239,25 @@
   .folio-setup__preview {
     transition: none;
   }
+}
+
+/* E7: shared chip/button row gap + small layout utilities (replaces the
+   inline marginRight/marginLeft/flex styles that used to live in screens). */
+.folio-chip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--folio-space-2);
+  flex-wrap: wrap;
+}
+
+.folio-stack-12 {
+  margin-bottom: 12px;
+}
+
+.folio-gap-top-12 {
+  margin-top: 12px;
+}
+
+.folio-text-danger {
+  color: var(--folio-danger);
 }

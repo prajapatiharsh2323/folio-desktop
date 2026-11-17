@@ -6,7 +6,7 @@ import { FolioSkeletonRows } from "../components/FolioSkeleton";
 import { FolioIcons } from "../components/FolioIcons";
 import { FolioRow } from "../components/FolioRow";
 import { useRouteStore, type ReaderOrigin } from "../store/routeStore";
-import { getLibraryManager } from "../store/libraryUi";
+import { getLibraryManager, subscribeLibraryChanges } from "../store/libraryUi";
 import { getCollectionCoverPreset } from "../lib/coverPresets";
 import { describeError, handleError } from "../lib/errorLog";
 import type { Collection, ManifestDoc } from "../model/types";
@@ -83,6 +83,8 @@ export function CollectionsScreen() {
 
   useEffect(() => {
     void load();
+    // E7: re-load when the library manifest changes (import/restore/delete).
+    return subscribeLibraryChanges(() => void load());
   }, [load]);
 
   const selected = collections.find((c) => c.id === selectedId) ?? null;

@@ -20,6 +20,9 @@ vi.mock("../src/store/libraryUi", () => ({
       remove: h.remove,
     },
   }),
+  // E7: the screen subscribes to manifest changes; nothing fires in tests.
+  subscribeLibraryChanges: () => () => {},
+  notifyLibraryChanged: () => {},
 }));
 
 import { NotesScreen } from "../src/screens/NotesScreen";

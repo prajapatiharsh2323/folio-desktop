@@ -1,34 +1,36 @@
 # Current Session Checkpoint
 
 **Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4:
-Steps 4.2–4.4 code-complete**; plan at
+Steps 4.2–4.5 code-complete**; plan at
 `~/.opencode/plan/folio-production-readiness.md`
 **Updated:** 2026-11-16
 **Status:** Step 4.2 complete (`33e96cc`, `df7f684`, `255bf43`); Step 4.3
 CI matrix committed (`c36b2cd`, FT-040; WebDriver smoke recorded
-Windows-pending per runbook `P-20261116-01`). Step 4.4 (E5) built
-(uncommitted): **updater wired** — `tauri-plugin-updater` +
-`tauri-plugin-process` (Cargo/lib.rs/capabilities), `createUpdaterArtifacts:
-true`, `plugins.updater` config with a pubkey placeholder + GitHub-releases
-endpoint, `lib/updater.ts` (`checkForUpdates`, `downloadAndInstallUpdate` +
-relaunch), Settings **Check for updates** row (user-initiated only,
-offer-then-confirm install). **README/env** — root README PDF claims fixed,
-platform matrix restated; `desktop/README.md` Drive setup replaced with
-removal pointers, Layout corrected; `desktop/.env.example` deleted;
-`THIRD-PARTY-NOTICES.md` extended with the Tauri API + dialog/updater/
-process plugins; **LICENSE deliberately skipped (user decision pending)**.
-Signing + updater e2e recorded Windows-blocked per runbook
-`docs/development/runbooks/E5-updater-signing.md` (`P-20261116-02`).
-Tests: `settings` → 10 (E5 row). Gates: `tsc` clean, ESLint 0/0, **Vitest
-679 / 679 (86 files)**, prettier clean, `vite build` green, perf 0 over
-budget, `cargo fmt` clean. FT-041 recorded.
-**Exact next action:** on authorization, commit the E5 tranche; then
-Phase 4 **Step 4.5 (E6 fail-loudly app-dir dialog + E7 minor fixes)** from
-the plan.
+Windows-pending per runbook `P-20261116-01`); Step 4.4 committed
+(`1c22d35`, FT-041; updater wired, signing e2e Windows-pending per
+runbook `P-20261116-02`). **Step 4.5 (E6 + E7) code-complete
+(uncommitted)**: **E6** — fail-loudly startup dialog + `exit(1)` when the
+app dir can't be created (`lib.rs` setup, `tauri_plugin_dialog`
+`blocking_show`). **E7** — `ReadingSessionDialog` ticks 1/s while open
+(`useReducer` + interval); `FolioDialog` close button →
+`.folio-dialog__close`; `SettingsScreen` inline styles → utility classes
+(`.folio-chip-row`, `.folio-stack-12`, `.folio-gap-top-12`,
+`.folio-text-danger`); **synced prefs** (`lib/syncedPrefs.ts` +
+`setStorageMirror` in `storage.ts`): six appearance/sort keys mirrored
+debounced into the backed-up `user/window.json` (unknown keys preserved),
+`restoreSyncedPrefs()` in `useBoot` fills missing keys + re-applies
+zoom/contrast/locale; **manager cache**: `getLibraryManager()` singleton
 
----
-
-## Previous checkpoint — `S-20261114-01`
+- `subscribeLibraryChanges`/`notifyLibraryChanged` (fired in
+  `refresh`/`refreshDocs` `finally`; Notes/Collections re-load). Tests: new
+  `syncedPrefs` (6), `libraryManagerCache` (4); `axeSweep` + `notesScreen`
+  mocks extended with `subscribeLibraryChanges`; `beforeEachShadow()`
+  anti-pattern replaced with a real `beforeEach`. Gates: `tsc` clean,
+  ESLint 0/0, prettier clean, **Vitest 689 / 689 (88 files)**, `vite build`
+  green, perf 0 over budget, `cargo fmt` clean. FT-042 recorded.
+  **Exact next action:** on authorization, commit the E6+E7 tranche; then
+  Phase 4 wrap-up (REMAINING.md refresh) and Phase 5 (features backlog)
+  from the plan.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree

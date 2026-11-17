@@ -7,6 +7,7 @@ import { onLaunch, takePendingLaunch } from "../lib/openWith";
 import { useOnboarding } from "../onboarding/onboardingState";
 import { useRouteStore } from "../store/routeStore";
 import { getLibraryFs, LIBRARY_ROOT, useLibraryUi } from "../store/libraryUi";
+import { restoreSyncedPrefs } from "../lib/syncedPrefs";
 
 /**
  * True once the shell can act on a launch request. Setup and the tour own the
@@ -86,6 +87,17 @@ export function useBoot(): void {
           if (recovered && !disposed) await useLibraryUi.getState().refresh();
         } catch {
           // Best-effort: a failed cleanup must not block app start.
+        }
+
+        // E7: appearance/sort prefs mirrored into user/window.json come back
+        // when the local store lacks them (fresh machine after a restore).
+        // Never blocks or fails boot.
+        if (!disposed) {
+          try {
+            await restoreSyncedPrefs();
+          } catch {
+            /* local defaults stay in effect */
+          }
         }
 
         // Crash recovery for PDF text indexes (plan §6.4): enqueue any PDF

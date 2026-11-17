@@ -7,7 +7,7 @@ import { FolioSkeletonRows } from "../components/FolioSkeleton";
 import { FolioIcons } from "../components/FolioIcons";
 import { FolioMenu, type FolioMenuItem, type ViewportRect } from "../components/FolioMenu";
 import { useRouteStore } from "../store/routeStore";
-import { getLibraryFs, getLibraryManager } from "../store/libraryUi";
+import { getLibraryFs, getLibraryManager, subscribeLibraryChanges } from "../store/libraryUi";
 import { pickExportDestPath } from "../lib/fileSource";
 import { pushToast } from "../shell/toasts";
 import type { Annotation, Chapter, HighlightColor } from "../model/types";
@@ -173,6 +173,8 @@ export function NotesScreen() {
 
   useEffect(() => {
     void refresh();
+    // E7: re-load when the library manifest changes (import/restore/delete).
+    return subscribeLibraryChanges(() => void refresh());
   }, [refresh]);
 
   /** Chapter display name for a row (N1); null when unknown. */

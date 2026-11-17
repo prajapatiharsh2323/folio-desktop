@@ -70,10 +70,9 @@ export function FolioDialog({ open, onClose, title, actions, children }: FolioDi
         {actions && <div className="folio-dialog__actions">{actions}</div>}
         <button
           type="button"
-          className="folio-iconbtn"
+          className="folio-iconbtn folio-dialog__close"
           onClick={onClose}
           aria-label="Close dialog"
-          style={{ position: "absolute", top: 8, right: 8 }}
         >
           <FolioIcons.Close size="sm" />
         </button>

@@ -8,6 +8,9 @@ import { removeStorage } from "./lib/storage";
 import { applyUiZoom, readUiZoom } from "./lib/uiZoom";
 import { applyContrastPref, readContrastPref } from "./lib/highContrast";
 import { initLocale } from "./i18n/i18n";
+import { initSyncedPrefs, mirrorStorageChange } from "./lib/syncedPrefs";
+import { setStorageMirror } from "./lib/storage";
+import { getLibraryFs, LIBRARY_ROOT } from "./store/libraryUi";
 import { PREFS_COMPLETE_KEY, TOUR_COMPLETE_KEY, useOnboarding } from "./onboarding/onboardingState";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -28,6 +31,14 @@ applyContrastPref(readContrastPref());
 // X5: app locale — sets `lang`/`dir` on <html> before the first paint (RTL
 // scripts must not paint an LTR frame first).
 initLocale();
+
+// E7: mirror synced appearance keys into user/window.json (the backup ships
+// user/**) so a restored backup on a fresh machine brings its settings back.
+initSyncedPrefs({
+  fs: getLibraryFs(),
+  appDir: LIBRARY_ROOT.replace(/[\\/]+library[\\/]*$/, "") || LIBRARY_ROOT,
+});
+setStorageMirror(mirrorStorageChange);
 
 // Keep a local, rotating diagnostic trail; nothing leaves the machine.
 installGlobalErrorHandlers();
