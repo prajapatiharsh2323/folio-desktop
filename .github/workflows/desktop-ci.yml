@@ -83,7 +83,17 @@ jobs:
         run: cargo test --all-targets
 
       - name: Build NSIS installer
-        run: pnpm tauri:build
+        # The signing secrets are optional (updater runbook P-20261116-02).
+        # Tauri attempts to sign whenever TAURI_SIGNING_PRIVATE_KEY is set —
+        # even empty — and fails to decode; drop the empty vars so an
+        # unsigned CI build works until the secrets are configured.
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrEmpty($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
+            Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
+          }
+          pnpm tauri:build
         env:
           # Optional: ship a signed build in CI by providing the signing keys.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

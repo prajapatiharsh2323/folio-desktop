@@ -148,6 +148,18 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       `pdfSession` (FT-050). **Exact next action:** commit and push (on
       authorization) for CI run #5 — watches Rust `cargo test` with the
       8.3 fix, then the NSIS build.
+      Run #5 (`44115545406`): **Rust tests GREEN** — the 8.3 short-name
+      fix is confirmed on the windows host; every Rust gate is now
+      CI-verified. The only failure left was the NSIS build: Tauri
+      tried to sign because GitHub passes an EMPTY
+      `TAURI_SIGNING_PRIVATE_KEY` for the not-yet-configured secret
+      ("Missing comment in secret key") — the build step now strips
+      empty signing env vars (FT-051), so CI builds unsigned until the
+      updater secrets land (P-20261116-02). **Exact next action:**
+      commit and push (on authorization) for CI run #6 — expected
+      fully green; afterwards only the WINDOWS-REMAINING.md checklist
+      (hardware QA, perf verdicts, updater signing, WebDriver smoke)
+      remains.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree
