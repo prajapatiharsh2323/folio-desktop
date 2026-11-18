@@ -4,21 +4,25 @@ Everything that **cannot be finished on the Linux dev box** — a Windows
 machine must run these to declare the app production-ready. Work top to
 bottom; each item records its exact procedure and pass criteria.
 
-Updated: 2026-11-17 (after FT-046/FT-047; first CI run in progress).
+Updated: 2026-11-18 — **CI is fully green** (run `44259919408`); items 2–8 below remain.
 
-## 1. First CI run — watch, then confirm locally
+## 1. CI run — ✅ fully green (2026-11-18)
 
-The `desktop-ci` workflow (`windows-latest`) now has every prior failure
-fixed (unresolved `backup::`, clippy lints, CRLF prettier, zip advisories,
-audit permissions). Remaining unverified steps are only:
+Run `44259919408`: both jobs passed on `windows-latest` — tsc, ESLint,
+Prettier, Vitest 725/725, Vite build, perf budgets, `cargo fmt --check`,
+`cargo clippy -D warnings`, `cargo test --all-targets` (windows host), NSIS
+build + installer upload, and the ubuntu audits job. All earlier failures
+(unresolved `backup::`, clippy lints, CRLF prettier, zip advisories, audit
+permissions, 8.3 short-name guard, Vitest timeouts/midnight flake, updater
+signing demands) were fixed in FT-046…FT-055.
 
-- [ ] **NSIS installer build in CI** — first time it runs with the final
-      config. Artifact: `desktop/src-tauri/target/release/bundle/nsis/*.exe`.
-- [ ] **`cargo test --all-targets` on a windows host** — the zip 9.6.1
-      upgrade and the async `zip.rs` test awaits compile clean locally but
-      have never _executed_ on Windows.
+- [x] **NSIS installer build in CI** — artifact `folio-windows-nsis`
+      (9.88 MiB); locally `desktop/src-tauri/target/release/bundle/nsis/*.exe`.
+- [x] **`cargo test --all-targets` on a windows host** — zip 9.6.1 upgrade
+      and async `zip.rs` test awaits all executed in CI.
 
-If CI is red: fix forward, commit, push (authorize with the user first).
+CI builds unsigned via `pnpm exec tauri build --no-sign` until the updater
+keys are configured (item 5); drop the flag then to sign automatically.
 
 ## 2. Release smoke on real Windows hardware
 

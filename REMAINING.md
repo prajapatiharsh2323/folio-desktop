@@ -83,8 +83,13 @@ are called out explicitly.
       is verified clean locally against `x86_64-pc-windows-gnu`** (2026-11-17,
       FT-046), including a pre-existing unresolved-`backup` compile error that
       would have failed the first run; the `audits` job also had a missing
-      `working-directory: desktop` (fixed). Remaining first-run unknowns are
-      the NSIS build and the windows-host `cargo test`.
+      `working-directory: desktop` (fixed). **Full CI is green end-to-end**
+      as of 2026-11-18 (run `44259919408`, both jobs): tsc/ESLint/Prettier/
+      Vitest 725/725/Vite build/perf/clippy/fmt/windows-host `cargo test`/
+      NSIS build, plus the ubuntu audits job; the installer artifact
+      (`folio-windows-nsis`, 9.88 MiB) was uploaded. CI builds unsigned via
+      `pnpm exec tauri build --no-sign` until the updater keys are configured
+      (runbook `P-20261116-02`); drop the flag to sign automatically.
 - [x] `cargo test` parity for path guard, fs commands, app-dir mapping,
       window-state clamping, launch parsing, (the dictionary tests were
       removed with the feature, 2026-10-31; OAuth helpers were removed with
@@ -107,9 +112,9 @@ FT-03x rows and `docs/development/CURRENT_SESSION.md`):
   - `P-20261116-02` — updater signing keys, CI secrets, release flow,
     tamper check, Authenticode: `docs/development/runbooks/E5-updater-signing.md`
     (the `plugins.updater.pubkey` placeholder must be replaced first).
-  - First CI run on `windows-latest` — clippy `-D warnings` **verified clean
-    locally** against `x86_64-pc-windows-gnu` (FT-046); remaining unknowns are
-    the NSIS build and windows-host `cargo test`.
+  - First CI run on `windows-latest` — **fully green** 2026-11-18 (run
+    `44259919408`, FT-046…FT-055): clippy, windows-host `cargo test`, NSIS
+    build + installer artifact and the audits job all verified in CI.
   - §12 manual QA: Narrator, display scaling, jump-list taskbar behaviour.
 
 ## Phase 5 — feature backlog (Nov 2026)

@@ -192,6 +192,17 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       underlying cargo build. Fixed with `pnpm exec tauri build
 --no-sign` (FT-055). **Exact next action:** push (on
       authorization) for CI run #10 — expected fully green.
+      CI run #10 (`44259919408`): **FULLY GREEN, both jobs** — the whole
+      pipeline is CI-verified end-to-end, including windows-host `cargo test`,
+      the NSIS installer build (`pnpm exec tauri build --no-sign`) and the
+      `folio-windows-nsis` artifact (9.88 MiB). FT-046…FT-055 closed the CI
+      ladder. `REMAINING.md` and `WINDOWS-REMAINING.md` updated with the CI
+      items checked. Remaining work is entirely in `WINDOWS-REMAINING.md`:
+      real-hardware release smoke, §12 manual QA (jump list/Narrator/scaling),
+      runtime perf verdicts, updater signing, WebDriver smoke, Phase-5 runtime
+      verdicts, plus the open product decisions (watch-folder auto-import,
+      F10 multiple windows). **Exact next action:** commit the bookkeeping
+      (on authorization); no further Linux-side code changes are pending.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree
