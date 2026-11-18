@@ -165,6 +165,17 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       now also strips `pubkey` from the CI-workspace config copy
       (ephemeral, never committed; FT-052). **Exact next action:**
       commit and push (on authorization) for CI run #7 — expected
+      fully green. Run #7 (`44122832625`): two failures. (1) NSIS — the
+      `pubkey` removal broke the updater plugin config parse (the
+      field is required by the schema). Verified against tauri-cli
+      2.12.4 source: `--no-sign` skips updater signing entirely, so
+      the pwsh config surgery was replaced with
+      `pnpm tauri:build -- --no-sign` (FT-053; drop the flag once
+      updater secrets land). (2) audit-check posted the scan result
+      (`found=false, count=0` — zip clean) but its check-run UPDATE
+      call 404'd; config unchanged since five green runs → transient
+      GitHub API failure, re-exercised by run #8. **Exact next
+      action:** push (on authorization) for CI run #8 — expected
       fully green.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
