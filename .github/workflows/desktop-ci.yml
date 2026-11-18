@@ -91,7 +91,11 @@ jobs:
         # `--no-sign` skips updater signing entirely, so unsigned CI builds
         # work; drop the flag when the secrets are configured and CI signs
         # automatically.
-        run: pnpm tauri:build -- --no-sign
+        # Note: `pnpm tauri:build -- --no-sign` does NOT work — pnpm forwards
+        # the bare `--` to the script and tauri hands everything after it to
+        # the underlying cargo build, which rejects the flag (CI run
+        # 44252807356). Invoke the CLI directly so `--no-sign` reaches tauri.
+        run: pnpm exec tauri build --no-sign
         env:
           # Optional: ship a signed build in CI by providing the signing keys.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

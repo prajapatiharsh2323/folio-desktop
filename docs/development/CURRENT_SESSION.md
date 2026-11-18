@@ -186,7 +186,12 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       Fixed in FT-054 with `previousDayKey(today)` chains.
       **Exact next action:** push (on authorization) for CI run #9 —
       expected fully green (NSIS with `--no-sign` is the last
-      unverified step).
+      unverified step). Run #9 (`44252807356`): audits + Vitest clean (FT-054 held);
+      NSIS failed at once — `pnpm tauri:build -- --no-sign` forwards
+      the bare `--` and tauri hands it (with `--no-sign`) to the
+      underlying cargo build. Fixed with `pnpm exec tauri build
+--no-sign` (FT-055). **Exact next action:** push (on
+      authorization) for CI run #10 — expected fully green.
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree
