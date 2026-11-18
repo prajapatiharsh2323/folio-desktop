@@ -41,7 +41,7 @@ vi.mock("../src/store/libraryUi", async () => {
 import { InsightsScreen } from "../src/screens/InsightsScreen";
 import { useReaderStore } from "../src/store/readerStore";
 import { getLibraryManager } from "../src/store/libraryUi";
-import { dateKeyOf } from "../src/lib/readingLog";
+import { dateKeyOf, previousDayKey } from "../src/lib/readingLog";
 import type { ReaderDoc } from "../src/store/readerStore";
 import type { PaceState } from "../src/reader/pace";
 
@@ -121,9 +121,13 @@ describe("Insights screen (F2)", () => {
         updatedAt: "2026-11-17T00:00:00.000Z",
         pace: { sessionsMs: 83 * 60_000, percentRead: 35 },
       });
-      await lm.readingLog.addMs(dateKeyOf(new Date()), "d1", 25 * 60_000);
-      await lm.readingLog.addMs("2026-11-16", "d1", 20 * 60_000);
-      await lm.readingLog.addMs("2026-11-15", "d1", 20 * 60_000);
+      // Relative day keys — hardcoding calendar dates made the streak
+      // assertion fail the first time this test ran past local midnight
+      // (CI run 44250562552).
+      const today = dateKeyOf(new Date());
+      await lm.readingLog.addMs(today, "d1", 25 * 60_000);
+      await lm.readingLog.addMs(previousDayKey(today), "d1", 20 * 60_000);
+      await lm.readingLog.addMs(previousDayKey(previousDayKey(today)), "d1", 20 * 60_000);
     });
     memory.set("folio.insights.goal", "30");
 

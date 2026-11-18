@@ -177,6 +177,16 @@ block_on`) and one **CI workflow bug**: the `audits` job ran
       GitHub API failure, re-exercised by run #8. **Exact next
       action:** push (on authorization) for CI run #8 — expected
       fully green.
+      Run #8 (`44250562552`, Nov 18): audits job GREEN — the run-#7
+      check-run 404 was transient. Rust gates passed again; the NSIS
+      build never reached (failed earlier at Vitest): a genuine
+      midnight flake — the Insights streak test hardcoded the two
+      streak days as calendar dates (2026-11-16/15, correct only on
+      Nov 17), so after local midnight the streak read 1 day.
+      Fixed in FT-054 with `previousDayKey(today)` chains.
+      **Exact next action:** push (on authorization) for CI run #9 —
+      expected fully green (NSIS with `--no-sign` is the last
+      unverified step).
 
 **Session:** `S-20261114-01` — PDF support feature (Phases 0–3 + hardening),
 implemented in the `pdf-support` git worktree
