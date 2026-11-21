@@ -22,7 +22,7 @@ cd src-tauri
 cargo install tauri-driver --locked
 cd ..
 pnpm install
-pnpm tauri:build          # produces target/release/folio.exe + NSIS installer
+pnpm tauri:build          # produces target/release/folio-desktop.exe + NSIS installer
 ```
 
 ## 2. Enable the global Tauri API for the smoke build
@@ -50,7 +50,7 @@ import { Builder, Capabilities, until, By } from "selenium-webdriver";
 
 const capabilities = new Capabilities();
 capabilities.set("tauri:options", {
-  application: "../src-tauri/target/release/folio.exe",
+  application: "../src-tauri/target/release/folio-desktop.exe",
 });
 const driver = await new Builder()
   .usingServer("http://localhost:4444")

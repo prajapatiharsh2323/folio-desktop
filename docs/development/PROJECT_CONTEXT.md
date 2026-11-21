@@ -5,18 +5,18 @@ Verified against the repository on **2026-10-29** at commit `242778b`
 
 ## Repository map
 
-| Path | Role |
-|---|---|
-| `desktop/` | The application (frontend + Tauri shell). **Run all app commands here.** |
-| `desktop/src/` | React/TypeScript app code: screens, components, stores, reader, import, search. (Drive sync was removed 2026-10-31; the dictionary the same day, D-20261031-05.) |
-| `desktop/src-tauri/` | Thin Rust core: filesystem/zip/hash commands, path guard, app-dir mapping, window state. (OAuth was removed with sync; the dictionary bridge with D-20261031-05.) |
-| `desktop/tests/` | Vitest suites and exact JSON fixtures. |
-| `.docs/01–09` | Product, architecture, UI/UX, reader, data-model, feature, keyboard, prompt-pack, and platform specs. |
-| `.github/workflows/desktop-ci.yml` | Windows-only CI. |
-| `REMAINING.md` | Current open work (authoritative status list at the repo root). |
-| `desktop/README.md` | Historical phase-by-phase implementation log. |
-| `docs/development/` | This knowledge base. |
-| `desktop/dist/`, `desktop/src-tauri/target/` | Generated outputs; ignored by Git. Do not edit. |
+| Path                                         | Role                                                                                                                                                              |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `desktop/`                                   | The application (frontend + Tauri shell). **Run all app commands here.**                                                                                          |
+| `desktop/src/`                               | React/TypeScript app code: screens, components, stores, reader, import, search. (Drive sync was removed 2026-10-31; the dictionary the same day, D-20261031-05.)  |
+| `desktop/src-tauri/`                         | Thin Rust core: filesystem/zip/hash commands, path guard, app-dir mapping, window state. (OAuth was removed with sync; the dictionary bridge with D-20261031-05.) |
+| `desktop/tests/`                             | Vitest suites and exact JSON fixtures.                                                                                                                            |
+| `.docs/01–09`                                | Product, architecture, UI/UX, reader, data-model, feature, keyboard, prompt-pack, and platform specs.                                                             |
+| `.github/workflows/desktop-ci.yml`           | Windows-only CI.                                                                                                                                                  |
+| `REMAINING.md`                               | Current open work (authoritative status list at the repo root).                                                                                                   |
+| `desktop/README.md`                          | Historical phase-by-phase implementation log.                                                                                                                     |
+| `docs/development/`                          | This knowledge base.                                                                                                                                              |
+| `desktop/dist/`, `desktop/src-tauri/target/` | Generated outputs; ignored by Git. Do not edit.                                                                                                                   |
 
 There is no root package manifest, no monorepo tool, no ESLint/Prettier config.
 `desktop` is a single pnpm project with a `pnpm-workspace.yaml` used only for
@@ -54,20 +54,23 @@ cargo fmt --all -- --check
 The CI order is: `tsc -b` → `vitest run` → `vite build` → `cargo test` →
 `cargo fmt --check` → `tauri build` (artifact upload).
 
-If `pnpm` is not installed (it is absent in this Linux VM) but `node_modules`
-exists, use `./node_modules/.bin/tsc -b`, `./node_modules/.bin/vitest run`, and
+If `pnpm` is not installed but `node_modules` exists, use
+`./node_modules/.bin/tsc -b`, `./node_modules/.bin/vitest run`, and
 `./node_modules/.bin/vite build` from `desktop/`.
 
 ## Environment constraints
 
-- **Full builds are Windows-only.** Linux lacks `webkit2gtk`/`gtk3`. `cargo test` and
-  `pnpm tauri:*` are not valid Linux verification here. Do not claim they
-  passed. (The sync-only `keyring`/`reqwest` crates were removed with Drive
-  sync, 2026-10-31 — see D-20261031-03.)
+- **Full builds are Windows-only.** A Windows 11 host with the Rust toolchain
+  runs the complete gate natively (2026-11-20:
+  `docs/development/audits/results/R-20261120-01-windows-production-build.md`).
+  A Linux host lacks `webkit2gtk`/`gtk3`, so there `cargo test` and
+  `pnpm tauri:*` are not valid verification here. Do not claim they passed.
+  (The sync-only `keyring`/`reqwest` crates were removed with Drive sync,
+  2026-10-31 — see D-20261031-03.)
 - **`foliocore` sub-crate** (`src-tauri/foliocore/`: appdir, guard, sandbox)
   has no Tauri/GUI dependencies, so its tests DO run on Linux: `cargo test -p
-  foliocore --all-targets`. Cross-check the full crate with `CARGO_TARGET_DIR=
-  /tmp/<dir> cargo check --all-targets --target x86_64-pc-windows-gnu`
+foliocore --all-targets`. Cross-check the full crate with `CARGO_TARGET_DIR=
+/tmp/<dir> cargo check --all-targets --target x86_64-pc-windows-gnu`
   (mingw-w64 required; keep the target dir off `/home` — it fills up and
   rustc dies with SIGBUS).
 - Linux-safe verification: `tsc -b`, Vitest, `vite build`.
@@ -167,8 +170,9 @@ Source of truth: `.docs/05-data-model-and-compat.md` and
   not failures.
 - There is no integration/E2E suite and no required external service for the
   Vitest run.
-- Last verified locally: **107 tests in 11 files** passing, `tsc -b` clean,
-  `vite build` successful.
+- Last verified locally: **725 tests in 92 files** passing, `tsc -b` clean,
+  `vite build` successful on a Windows 11 host (2026-11-20,
+  `R-20261120-01`).
 
 ## Documentation and stale references
 

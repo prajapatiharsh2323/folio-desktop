@@ -1,8 +1,10 @@
 # Folio Desktop 0.1.0 — Release Verification
 
 **Release:** 0.1.0 · **Target:** Windows 10/11 (x64), NSIS per-user installer
-**Status of this document:** procedures and Linux evidence are current; the
-Windows installer/runtime checks must still be executed on a Windows host.
+**Status of this document:** procedures current; the automated gate and the
+NSIS production build were executed on a Windows 11 host on 2026-11-20
+(`R-20261120-01`). Interactive runtime checks (Narrator, display scaling,
+jump-list taskbar, updater signing) remain manual.
 
 ## Artifact
 
@@ -19,13 +21,13 @@ same `.exe` as the `folio-windows-nsis` artifact on every successful
 
 One version lives in five places; never edit them by hand:
 
-| File | Used for |
-|---|---|
-| `desktop/package.json` | Vite `__APP_VERSION__` (Settings → About) |
-| `desktop/src-tauri/tauri.conf.json` | installer name/version and window metadata |
-| `desktop/src-tauri/Cargo.toml` | Rust crate version |
-| `desktop/src-tauri/Cargo.lock` | locked `folio-desktop` entry |
-| `desktop/src/backup/backupSchema.ts` | `appVersion` written into backups |
+| File                                 | Used for                                   |
+| ------------------------------------ | ------------------------------------------ |
+| `desktop/package.json`               | Vite `__APP_VERSION__` (Settings → About)  |
+| `desktop/src-tauri/tauri.conf.json`  | installer name/version and window metadata |
+| `desktop/src-tauri/Cargo.toml`       | Rust crate version                         |
+| `desktop/src-tauri/Cargo.lock`       | locked `folio-desktop` entry               |
+| `desktop/src/backup/backupSchema.ts` | `appVersion` written into backups          |
 
 Bump all five and fail the build on drift:
 
@@ -40,13 +42,25 @@ exits non-zero on a malformed version or a missing pattern.
 
 ## Automated gate (must be green before building)
 
-Linux (this repository's development host):
+Windows host (verified 2026-11-20, Windows 11 + Node 24 + pnpm 11.9 +
+Rust 1.97.1):
 
-```bash
+```powershell
 cd desktop
+pnpm install
 pnpm exec tsc -b
+pnpm run lint
+pnpm run format:check
 pnpm exec vitest run
 pnpm exec vite build
+pnpm perf
+cd src-tauri
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --all-targets
+cargo test -p foliocore --all-targets
+cd ..
+pnpm exec tauri build --no-sign   # drop --no-sign once updater keys exist
 ```
 
 Windows / CI (`windows-latest`, also run by `.github/workflows/desktop-ci.yml`):
@@ -64,10 +78,12 @@ cd ..
 pnpm tauri:build
 ```
 
-Record the test count and installer size in the release notes. The current
-Linux baseline is **315 Vitest tests / 43 files**, `tsc -b` clean, `vite build`
-successful. Rust/Tauri commands cannot run on this Linux host (no Rust
-toolchain, no webkit2gtk), so CI is the authoritative Rust gate.
+Record the test count and installer size in the release notes. The Windows
+baseline (2026-11-20) is **725 Vitest tests / 92 files**, `tsc -b` clean,
+ESLint 0/0, Prettier clean, `vite build` green, `cargo test --all-targets`
+31 passed (plus foliocore 15), `cargo clippy -D warnings` clean, and an
+unsigned NSIS installer. CI (`windows-latest`) remains the authoritative
+cross-check; see [`R-20261120-01`](audits/results/R-20261120-01-windows-production-build.md).
 
 ## Windows installer checklist
 
@@ -126,10 +142,12 @@ library. Tick each item in the release issue.
       backup or restore (check the webview devtools Network panel; the only
       `connect-src` entries are IPC/dev-server URLs).
 - [ ] Release CSP is
-      `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
-      img-src 'self' asset: data: blob:; font-src 'self' data:;
-      frame-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost`
-      with no `https:` image source.
+      `default-src 'self'; script-src 'self' 'wasm-unsafe-eval';
+worker-src 'self'; style-src 'self' 'unsafe-inline';
+img-src 'self' asset: data: blob:; font-src 'self' data:;
+frame-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost`
+      with no `https:` image source. (`'wasm-unsafe-eval'` is required by
+      pdf.js's WASM image/canvas decoding.)
 - [ ] An HTML article containing a remote `<img>` renders without loading it
       (the sanitizer drops the element).
 - [ ] External `http(s)` links open in the system browser; other schemes do
@@ -149,13 +167,17 @@ library. Tick each item in the release issue.
 
 ## Known limitations for 0.1.0
 
-- PDF files are deliberately rejected with a clear message.
+- Encrypted PDFs are refused at import with a clear message; unencrypted PDFs
+  are imported and read (PDF support shipped in `I-20261114-01`).
 - Google Drive sync was removed (2026-10-31); the app is local-only and makes
   no network requests.
 - Non-Unicode file names passed via launch arguments are skipped rather than
   opened (the frontend path model is UTF-8).
-- Runtime, installer, Narrator and display-scaling verdicts remain unverified
-  on this Linux development host; use the checklist above on Windows.
+- The 0.1.0 installer is unsigned until the updater signing keys are created
+  and configured (`P-20261116-02`), so SmartScreen may warn. Narrator,
+  display-scaling, jump-list taskbar and in-webview performance verdicts are
+  manual checks on the target hardware; the automated gate is green
+  (`R-20261120-01`).
 
 ## Rollback
 

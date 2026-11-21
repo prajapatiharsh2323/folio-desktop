@@ -67,8 +67,10 @@ are called out explicitly.
 
 - [x] Performance budget checks (04 §12): cold open ≤ 1.2 s, page turn ≤ 80 ms,
       200 highlights ≤ 400 ms — harness + method + Linux baseline done
-      (`scripts/perf.ts`; reader-parse 316 ms). **Runtime verdicts still need
-      a real Windows run** (procedure in `docs/development/audits/results/`).
+      (`scripts/perf.ts`; reader-parse 316 ms). **Windows 11 host baseline
+      (2026-11-20): reader-parse 421 ms, locator decode 0.13 ms — within
+      budget.** The **in-webview runtime verdicts** still need a real app
+      session (procedure in `docs/development/audits/results/`).
       CI now fails the build when a budget is exceeded (perf-report artifact).
 - [x] Accessibility pass (03 §7): focus rings, tab order, ARIA, contrast —
       code-side pass complete (Phase 4 X2–X4: axe sweep over all four screens
@@ -90,6 +92,13 @@ are called out explicitly.
       (`folio-windows-nsis`, 9.88 MiB) was uploaded. CI builds unsigned via
       `pnpm exec tauri build --no-sign` until the updater keys are configured
       (runbook `P-20261116-02`); drop the flag to sign automatically.
+- [x] **Windows 11 host native rerun (2026-11-20/21)** — the full gate ran on
+      real hardware: tsc, ESLint 0/0, Prettier, Vitest **725/725 (92 files)**,
+      Vite build, perf within budget, `cargo fmt`, clippy `-D warnings`,
+      `cargo test --all-targets` **31 passed**, foliocore **15 passed**, and
+      `pnpm exec tauri build --no-sign` produced the 9.89 MiB installer with a
+      successful silent install + launch smoke
+      ([`R-20261120-01`](docs/development/audits/results/R-20261120-01-windows-production-build.md)).
 - [x] `cargo test` parity for path guard, fs commands, app-dir mapping,
       window-state clamping, launch parsing, (the dictionary tests were
       removed with the feature, 2026-10-31; OAuth helpers were removed with
@@ -116,6 +125,10 @@ FT-03x rows and `docs/development/CURRENT_SESSION.md`):
     `44259919408`, FT-046…FT-055): clippy, windows-host `cargo test`, NSIS
     build + installer artifact and the audits job all verified in CI.
   - §12 manual QA: Narrator, display scaling, jump-list taskbar behaviour.
+  - Release smoke (2026-11-20): NSIS build, silent install/upgrade, installed
+    binary launch and single-instance hand-off verified
+    (`R-20261120-01`); open-with, drag-drop, `tauri:dev` and the in-app
+    import → read → resume flow remain manual.
 
 ## Phase 5 — feature backlog (Nov 2026)
 
@@ -160,9 +173,10 @@ formally scoped or dropped — revisit only on request.
   D-20261031-05); an earlier install's `%APPDATA%/Folio/dict/` copy is
   orphaned and can be deleted manually.
 - Perf/a11y: code-side audit + harness are recorded (`A-20261031-01`,
-  `R-20261031-02`); the **runtime** halves (performance verdicts, screen
-  reader, jump-list taskbar behaviour) still need a real Windows run (P2;
-  jump list is P1 per 09 §3).
+  `R-20261031-02`); the Windows host baseline is `R-20261120-01`. The
+  **interactive** halves (in-webview performance verdicts, Narrator,
+  jump-list taskbar behaviour, display scaling) still need a real desktop
+  session (P2; jump list is P1 per 09 §3).
 
 ## Quick verification commands (run on Windows)
 

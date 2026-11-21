@@ -1,10 +1,10 @@
 # Audits and Verification
 
-| Directory | Use |
-|---|---|
-| [`ui-ux/`](ui-ux/README.md) | UI/UX and accessibility audit reports |
-| [`bugs/`](bugs/README.md) | Bug investigations and root-cause findings |
-| [`results/`](results/README.md) | Verification and regression results |
+| Directory                       | Use                                        |
+| ------------------------------- | ------------------------------------------ |
+| [`ui-ux/`](ui-ux/README.md)     | UI/UX and accessibility audit reports      |
+| [`bugs/`](bugs/README.md)       | Bug investigations and root-cause findings |
+| [`results/`](results/README.md) | Verification and regression results        |
 
 ## Lifecycle
 
@@ -19,15 +19,18 @@ history.
 
 IDs:
 
-- `A-UI-YYYYMMDD-NN` — finding ID *inside* an audit report.
+- `A-UI-YYYYMMDD-NN` — finding ID _inside_ an audit report.
 - `A-YYYYMMDD-NN` — audit report file (e.g. `A-20261031-01-accessibility.md`).
 - `A-BUG-YYYYMMDD-NN` — bug investigation.
 - `R-YYYYMMDD-NN` — verification result.
 
 Audits recorded so far: the accessibility core pass
-([`A-20261031-01`](ui-ux/A-20261031-01-accessibility.md)) and the perf-budget
+([`A-20261031-01`](ui-ux/A-20261031-01-accessibility.md)), the perf-budget
 harness/method with a Linux baseline
-([`R-20261031-02`](results/R-20261031-02-performance-method.md)). Remaining:
-the perf runtime measurements on a Windows session (procedure defined in the
-R- record) and the unresolved Windows-runtime accessibility items from the
-accessibility pass.
+([`R-20261031-02`](results/R-20261031-02-performance-method.md)), and the
+Windows 11 production gate + NSIS build
+([`R-20261120-01`](results/R-20261120-01-windows-production-build.md)).
+Remaining: the in-webview perf runtime measurements on a desktop session
+(procedure defined in the R- record), the unresolved Windows-runtime
+accessibility items from the accessibility pass, and the updater/WebDriver
+runbooks.

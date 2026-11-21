@@ -3,11 +3,12 @@
 Evidence for completed checks. Record what ran, where it ran, and the outcome;
 do not claim unrun checks.
 
-| ID | Date | Scope | Environment | Outcome | Record |
-|---|---|---|---|---|---|
-| R-20261029-01 | 2026-10-29 | Knowledge-base bootstrap | Linux VM, Node 24, existing `node_modules` | Pass (frontend checks only) | [`R-20261029-01-knowledge-bootstrap.md`](R-20261029-01-knowledge-bootstrap.md) |
-| R-20261031-02 | 2026-10-31 | FT-005 perf-harness + method + Linux baseline | Linux/x64, Node 24, jsdom DOMParser | Harness done; budget verdicts pending Windows | [`R-20261031-02-performance-method.md`](R-20261031-02-performance-method.md) (+ `perf-20261031-linux.json`) |
-| R-20261109-01 | 2026-11-09 | 0.1.0 release acceptance (Parts A–E) | Linux/x64, Node 26, jsdom | Code/Linux checks pass; Windows installer/runtime blocked | [`R-20261109-01-release-acceptance.md`](R-20261109-01-release-acceptance.md) |
+| ID            | Date       | Scope                                                    | Environment                                          | Outcome                                                        | Record                                                                                                                    |
+| ------------- | ---------- | -------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| R-20261029-01 | 2026-10-29 | Knowledge-base bootstrap                                 | Linux VM, Node 24, existing `node_modules`           | Pass (frontend checks only)                                    | [`R-20261029-01-knowledge-bootstrap.md`](R-20261029-01-knowledge-bootstrap.md)                                            |
+| R-20261031-02 | 2026-10-31 | FT-005 perf-harness + method + Linux baseline            | Linux/x64, Node 24, jsdom DOMParser                  | Harness done; budget verdicts pending Windows                  | [`R-20261031-02-performance-method.md`](R-20261031-02-performance-method.md) (+ `perf-20261031-linux.json`)               |
+| R-20261109-01 | 2026-11-09 | 0.1.0 release acceptance (Parts A–E)                     | Linux/x64, Node 26, jsdom                            | Code/Linux checks pass; Windows installer/runtime blocked      | [`R-20261109-01-release-acceptance.md`](R-20261109-01-release-acceptance.md)                                              |
+| R-20261120-01 | 2026-11-20 | Windows production gate, 0.1.0 NSIS build, release smoke | Windows 11 26300, Node 24.18, pnpm 11.9, Rust 1.97.1 | Pass (automated gate + install/launch; interactive QA pending) | [`R-20261120-01-windows-production-build.md`](R-20261120-01-windows-production-build.md) (+ `perf-20261120-windows.json`) |
 
 ## Convention
 

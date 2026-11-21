@@ -19,18 +19,18 @@ Do not trust notes over the implementation.
 
 ## Commands (run from `desktop/`, not the repo root)
 
-| Task | Command |
-|---|---|
-| Install | `pnpm install` (CI uses pnpm 11 / Node 22) |
-| Typecheck | `pnpm exec tsc -b` |
-| All tests | `pnpm exec vitest run` |
-| One test file | `pnpm exec vitest run tests/reader.test.ts` |
-| One named test | `pnpm exec vitest run tests/reader.test.ts -t "name"` |
-| Frontend build | `pnpm exec vite build` |
-| Dev app | `pnpm tauri:dev` (Windows/webview only) |
-| NSIS installer | `pnpm tauri:build` |
-| Rust tests | `cd src-tauri && cargo test --all-targets` |
-| Rust format check | `cd src-tauri && cargo fmt --all -- --check` |
+| Task              | Command                                               |
+| ----------------- | ----------------------------------------------------- |
+| Install           | `pnpm install` (CI uses pnpm 11 / Node 22)            |
+| Typecheck         | `pnpm exec tsc -b`                                    |
+| All tests         | `pnpm exec vitest run`                                |
+| One test file     | `pnpm exec vitest run tests/reader.test.ts`           |
+| One named test    | `pnpm exec vitest run tests/reader.test.ts -t "name"` |
+| Frontend build    | `pnpm exec vite build`                                |
+| Dev app           | `pnpm tauri:dev` (Windows/webview only)               |
+| NSIS installer    | `pnpm tauri:build`                                    |
+| Rust tests        | `cd src-tauri && cargo test --all-targets`            |
+| Rust format check | `cd src-tauri && cargo fmt --all -- --check`          |
 
 If `pnpm` is unavailable but `desktop/node_modules` exists, use
 `./node_modules/.bin/tsc -b`, `./node_modules/.bin/vitest run`, and
@@ -38,12 +38,16 @@ If `pnpm` is unavailable but `desktop/node_modules` exists, use
 
 ## Build-platform limit
 
-The full Rust/Tauri build is **Windows-first**: this Linux environment lacks
-`webkit2gtk`/`gtk3` (the sync-only `keyring`/`reqwest` crates were removed with
-Drive sync, 2026-10-31; see D-20261031-03). CI runs on `windows-latest` only.
-Linux verification is limited to `tsc`, Vitest, and the Vite frontend build.
-Never claim a Tauri/`cargo` build passed unless it actually ran on a supported
-host.
+The full Rust/Tauri build is **Windows-first**: CI runs on `windows-latest`
+only. A Windows 11 host with the Rust toolchain runs the complete gate
+natively (`tsc`, Vitest, Vite, `cargo fmt/clippy/test`, `tauri build`;
+verified 2026-11-20 —
+`docs/development/audits/results/R-20261120-01-windows-production-build.md`).
+A Linux host lacks `webkit2gtk`/`gtk3` (the sync-only `keyring`/`reqwest`
+crates were removed with Drive sync, 2026-10-31; see D-20261031-03), so there
+Linux verification is limited to `tsc`, Vitest, the Vite frontend build, and
+`cargo test -p foliocore`. Never claim a Tauri/`cargo` build passed on a host
+where it did not actually run.
 
 ## Must-not-break rules
 

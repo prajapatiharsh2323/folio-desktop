@@ -1,5 +1,36 @@
 # Current Session Checkpoint
 
+**Session:** `S-20261120-01` — Windows 11 native production gate + 0.1.0 NSIS
+production build. Record:
+`docs/development/audits/results/R-20261120-01-windows-production-build.md`.
+**Updated:** 2026-11-21
+**Status:** automated gate green on real Windows 11 hardware — `tsc -b`,
+ESLint 0/0, Prettier, **Vitest 725/725 (92 files)**, `vite build`, perf
+harness within budget (reader-parse 421.39 ms; 200-locator decode 0.13 ms),
+`cargo fmt`, `cargo clippy --all-targets -D warnings`, `cargo test
+--all-targets` **31 passed**, foliocore **15 passed**. Production build:
+`pnpm exec tauri build --no-sign` → `Folio_0.1.0_x64-setup.exe` **9.89 MiB**
+(unsigned; updater keys still pending per `P-20261116-02`). Release smoke:
+silent install/upgrade in `%LOCALAPPDATA%\Folio`, installed binary launch
+(window "Folio"), single-instance second-launch hand-off, and
+`%APPDATA%\Folio\{library,user}` present. Doc drift fixed: `RELEASE.md` (PDF
+is supported; CSP includes `wasm-unsafe-eval`; current counts/environment),
+`PROJECT_CONTEXT.md` + `AGENTS.md` platform notes, E4 runbook binary name.
+**Remaining (interactive, target hardware):** `tauri:dev` read flow,
+open-with/drag-drop, Narrator, display scaling, jump-list taskbar, WebDriver
+smoke (`P-20261116-01`), updater signing/release flow (`P-20261116-02`),
+in-webview perf verdicts, Phase-5 runtime verdicts, and the open product
+decisions (watch-folder, F10). Working tree: the verification records are
+committed with this checkpoint (user-authorized); untracked `cover-imgs/` is
+user work and untouched.
+**Exact next action:** run the interactive checklist in
+`WINDOWS-REMAINING.md` (items 2–3, 5–7). Finding to schedule:
+`desktop/src-tauri/foliocore/target/`
+build artifacts are tracked in Git (112 files) — add an ignore rule and
+`git rm -r --cached` in a dedicated commit.
+
+## Previous checkpoint — S-20261113-01 (production readiness Phases 1–5)
+
 **Session:** `S-20261113-01` (continued) — Production-readiness **Phase 4:
 Steps 4.2–4.5 code-complete**; plan at
 `~/.opencode/plan/folio-production-readiness.md`

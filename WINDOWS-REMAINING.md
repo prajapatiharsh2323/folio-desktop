@@ -4,7 +4,10 @@ Everything that **cannot be finished on the Linux dev box** — a Windows
 machine must run these to declare the app production-ready. Work top to
 bottom; each item records its exact procedure and pass criteria.
 
-Updated: 2026-11-18 — **CI is fully green** (run `44259919408`); items 2–8 below remain.
+Updated: 2026-11-21 — **CI fully green** (run `44259919408`) and the
+automated gate + NSIS production build re-run on a real Windows 11 host
+([`R-20261120-01`](docs/development/audits/results/R-20261120-01-windows-production-build.md)).
+Items 3, 5, 6, 7 and the interactive half of 2 remain manual.
 
 ## 1. CI run — ✅ fully green (2026-11-18)
 
@@ -24,14 +27,31 @@ signing demands) were fixed in FT-046…FT-055.
 CI builds unsigned via `pnpm exec tauri build --no-sign` until the updater
 keys are configured (item 5); drop the flag then to sign automatically.
 
+### Windows 11 host rerun — ✅ 2026-11-21
+
+Same gate executed natively (Windows 11 build 26300, Node 24.18, pnpm 11.9,
+Rust 1.97.1): `tsc`, ESLint 0/0, Prettier, **Vitest 725/725 (92 files)**,
+Vite build, perf harness within budget, `cargo fmt`, `cargo clippy
+-D warnings`, `cargo test --all-targets` (**31 passed**), foliocore
+(**15 passed**), and `pnpm exec tauri build --no-sign` → installer
+`Folio_0.1.0_x64-setup.exe` (9.89 MiB). Evidence:
+[`R-20261120-01`](docs/development/audits/results/R-20261120-01-windows-production-build.md).
+
 ## 2. Release smoke on real Windows hardware
 
 - [ ] `pnpm tauri:dev` launches; import → open → read → close → reopen.
-- [ ] `pnpm tauri:build` produces the NSIS installer; install it; the
-      installed app starts and creates `%APPDATA%/Folio/{library,user}`.
+- [x] `pnpm exec tauri build --no-sign` produces the NSIS installer; `/S`
+      installs it in place; the installed app starts, shows the **Folio**
+      window, and `%APPDATA%/Folio/{library,user}` is present.
 - [ ] Open-with: double-click an `.epub` / `.html` / `.txt` in Explorer →
       app opens that book (single-instance hand-off, `folio://launch`).
+      Automated launch with a file argument stays healthy, but open-with
+      routes through import and a duplicate exercises the dedup dialog.
 - [ ] Drag-drop a file onto the window imports it (grant-then-read path).
+
+Verified for item 2: release binary launch, single-instance second-launch
+hand-off, silent install/upgrade, installed-binary launch
+(`R-20261120-01`).
 
 ## 3. §12 manual QA (runbook pointers in `REMAINING.md`)
 
@@ -48,7 +68,13 @@ keys are configured (item 5); drop the flag then to sign automatically.
 
 Procedure: `docs/development/audits/results/`. Budgets (CI also enforces):
 
-- [ ] Cold open ≤ **1.2 s**
+- [x] **Harness baseline on the Windows 11 host** (2026-11-20):
+      `reader_parse` 421.39 ms vs the 1 200 ms budget factor,
+      `locator_decode_200` 0.13 ms vs 400 ms, all cases within budget —
+      [`R-20261120-01`](docs/development/audits/results/R-20261120-01-windows-production-build.md)
+      / [`perf-20261120-windows.json`](docs/development/audits/results/perf-20261120-windows.json).
+      These are jsdom-host numbers, not the in-webview verdicts below.
+- [ ] Cold open ≤ **1.2 s** (real webview ceremony)
 - [ ] Page turn ≤ **80 ms**
 - [ ] 200 highlights ≤ **400 ms**
 

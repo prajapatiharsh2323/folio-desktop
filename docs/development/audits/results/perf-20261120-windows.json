@@ -1,0 +1,92 @@
+{
+  "harness": "desktop/scripts/perf.ts",
+  "date": "2026-11-20T14:01:49.196Z",
+  "environment": {
+    "runtime": "node 24.18.0",
+    "platform": "win32/x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+    "cores": 8,
+    "domParser": "jsdom (slower than Chromium; numbers are a conservative baseline, not the runtime verdict)"
+  },
+  "fixture": {
+    "epubSizeBytes": 2755626,
+    "epubSizeMiB": 2.63,
+    "chapters": 24
+  },
+  "results": [
+    {
+      "id": "reader_parse_openEpubFromBytes",
+      "runs": 5,
+      "samplesMs": [
+        418.19,
+        419.65,
+        421.39,
+        429.8,
+        496.04
+      ],
+      "medianMs": 421.39,
+      "budget": {
+        "limitMs": 1200,
+        "withinBudget": true,
+        "scope": "04 ┬º12 budget 1 factor ΓÇö 'parser' of cold open (zip + container/OPF + manifest ΓåÆ Readium Publication). Webview init/rendering excluded."
+      }
+    },
+    {
+      "id": "import_parseEpub",
+      "runs": 5,
+      "samplesMs": [
+        3255.96,
+        4083.77,
+        4451.24,
+        4495.86,
+        4728.43
+      ],
+      "medianMs": 4451.24,
+      "budget": {
+        "limitMs": null,
+        "withinBudget": null,
+        "scope": "Import-path parse (zip + OPF + spine HTML ΓåÆ sanitized text). A distinct user flow ('Add book'), recorded for comparison; not the 1.2 s budget itself."
+      }
+    },
+    {
+      "id": "import_digest_sha256",
+      "runs": 7,
+      "samplesMs": [
+        3.88,
+        3.89,
+        3.92,
+        4.48,
+        4.58,
+        5.38,
+        5.58
+      ],
+      "medianMs": 4.48,
+      "budget": {
+        "limitMs": null,
+        "withinBudget": null,
+        "scope": "Content digest persisted on import; informative cold-open component."
+      }
+    },
+    {
+      "id": "locator_decode_200",
+      "runs": 9,
+      "samplesMs": [
+        0.13,
+        0.13,
+        0.13,
+        0.13,
+        0.13,
+        0.17,
+        0.18,
+        0.19,
+        0.24
+      ],
+      "medianMs": 0.13,
+      "budget": {
+        "limitMs": 400,
+        "withinBudget": true,
+        "scope": "Pure locator decode cost of a 200-highlight batch (input side of 04 ┬º12 budget 3). Paint cost excluded ΓÇö needs the webview."
+      }
+    }
+  ]
+}
