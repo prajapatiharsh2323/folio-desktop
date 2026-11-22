@@ -71,7 +71,7 @@ export default tseslint.config(
     rules: { "jsx-a11y/no-autofocus": "off" },
   },
   {
-    files: ["scripts/**/*.{mjs,ts}", "tests/**/*.{ts,tsx}", "*.config.js"],
+    files: ["scripts/**/*.{mjs,ts}", "tests/**/*.{ts,tsx}", "e2e/**/*.mjs", "*.config.js"],
     languageOptions: { globals: { ...globals.node } },
     rules: {
       // Tests exercise failure paths with deliberate misuse.

@@ -4,10 +4,12 @@ Everything that **cannot be finished on the Linux dev box** — a Windows
 machine must run these to declare the app production-ready. Work top to
 bottom; each item records its exact procedure and pass criteria.
 
-Updated: 2026-11-21 — **CI fully green** (run `44259919408`) and the
-automated gate + NSIS production build re-run on a real Windows 11 host
-([`R-20261120-01`](docs/development/audits/results/R-20261120-01-windows-production-build.md)).
-Items 3, 5, 6, 7 and the interactive half of 2 remain manual.
+Updated: 2026-11-22 — automated gate + NSIS build re-run on the FT-058/059
+tree, jump-list tasks verified in the shell store, and the WebDriver smoke
+executed (11/11) —
+[`R-20261122-01`](docs/development/audits/results/R-20261122-01-windows-gate-reader-upgrade.md).
+Items 3 (Narrator/scaling + jump-list clicks), 5, the highlight/backup steps
+of 6, 7 and the interactive half of 2 remain manual.
 
 ## 1. CI run — ✅ fully green (2026-11-18)
 
@@ -51,13 +53,19 @@ Vite build, perf harness within budget, `cargo fmt`, `cargo clippy
 
 Verified for item 2: release binary launch, single-instance second-launch
 hand-off, silent install/upgrade, installed-binary launch
-(`R-20261120-01`).
+(`R-20261120-01`). Re-verified on the FT-058/059 tree: window **Folio**,
+`%APPDATA%\Folio\{library,user}` + `library/manifest.json`, second launch
+exits in 0.2 s, 34.6 MB working set (`R-20261122-01`). The new installer was
+built but not re-installed over the existing per-user install.
 
 ## 3. §12 manual QA (runbook pointers in `REMAINING.md`)
 
-- [ ] **Jump list** — taskbar right-click shows "Open Folio" / "Import
-      file…" and both work (`jumplist.rs`; COM code compiled + fmt-checked,
-      never run).
+- [x] **Jump list — tasks verified at runtime (2026-11-22).** Launching the
+      release binary wrote
+      `%APPDATA%\Microsoft\Windows\Recent\CustomDestinations\c9ce6eb42f52bdc5.customDestinations-ms`
+      containing `Open Folio` and `Import file` plus the exe path and
+      `--import` (`R-20261122-01`). **Clicking** the two taskbar entries is
+      still a manual check.
 - [ ] **Narrator** — navigate Library → Reader → Settings; labels, live
       regions, focus order make sense (code-side axe sweep is green; this
       is the runtime verdict).
@@ -68,12 +76,14 @@ hand-off, silent install/upgrade, installed-binary launch
 
 Procedure: `docs/development/audits/results/`. Budgets (CI also enforces):
 
-- [x] **Harness baseline on the Windows 11 host** (2026-11-20):
-      `reader_parse` 421.39 ms vs the 1 200 ms budget factor,
-      `locator_decode_200` 0.13 ms vs 400 ms, all cases within budget —
-      [`R-20261120-01`](docs/development/audits/results/R-20261120-01-windows-production-build.md)
-      / [`perf-20261120-windows.json`](docs/development/audits/results/perf-20261120-windows.json).
-      These are jsdom-host numbers, not the in-webview verdicts below.
+- [x] **Harness baseline on the Windows 11 host** (2026-11-20, re-run
+      2026-11-22 on the reader-upgrade tree): `reader_parse` 535.59 ms vs the
+      1 200 ms budget factor, `locator_decode_200` 0.26 ms vs 400 ms, all
+      cases within budget —
+      [`R-20261122-01`](docs/development/audits/results/R-20261122-01-windows-gate-reader-upgrade.md)
+      / [`perf-20261122-windows.json`](docs/development/audits/results/perf-20261122-windows.json)
+      (earlier: `R-20261120-01`). These are jsdom-host numbers, not the
+      in-webview verdicts below.
 - [ ] Cold open ≤ **1.2 s** (real webview ceremony)
 - [ ] Page turn ≤ **80 ms**
 - [ ] 200 highlights ≤ **400 ms**
@@ -97,10 +107,18 @@ Full procedure: `docs/development/runbooks/E5-updater-signing.md`.
 
 ## 6. WebDriver smoke (runbook `P-20261116-01`)
 
-Procedure: `docs/development/runbooks/E4-webdriver-smoke.md`.
+Procedure: `docs/development/runbooks/E4-webdriver-smoke.md`. Harness:
+[`desktop/e2e/smoke.mjs`](desktop/e2e/smoke.mjs) (dependency-free).
 
-- [ ] tauri-driver end-to-end: first run → import → open → highlight →
-      resume → backup round-trip.
+- [x] **Automated half — 11/11 on 2026-11-22** (`tauri-driver` 2.1.0 +
+      `msedgedriver` 157.0.4341.60 matching WebView2): first run → setup
+      step 1 → step 2 → synthetic drop import → library row → reader mount →
+      `Chapter 1` renders → `ArrowRight` page turns → quit/relaunch keeps
+      the book at 66 % → reopen restores 66 %
+      (`R-20261122-01`). Profile isolated by renaming the real app dirs
+      aside and restoring them after.
+- [ ] Highlight inside the reader and backup export/restore — the remaining
+      runbook steps (iframe selection + `withGlobalTauri`/native dialogs).
 
 ## 7. Phase-5 runtime verdicts (shipped 2026-11-17, code verified)
 

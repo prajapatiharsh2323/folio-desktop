@@ -18,9 +18,10 @@ are called out explicitly.
 - [x] Single-instance handling + open-with hand-off (`open_files.rs`, `folio://launch`).
 - [x] Taskbar jump list ("Open Folio" / "Import file…")
       (`src-tauri/src/jumplist.rs`, COM `ICustomDestinationList`, no extra
-      dependency; compiled against the `x86_64-pc-windows-gnu` target and
-      fmt/tests checked — **runtime taskbar behaviour still needs a real
-      Windows run**).
+      dependency). **Runtime-verified 2026-11-22:** launching the release
+      binary wrote the `CustomDestinations` store entry with both task
+      titles, the exe path and `--import` (`R-20261122-01`); clicking the
+      taskbar entries remains manual.
 - [x] Window size/position restore, clamped to the monitor work area
       (`window_state.rs`, preserves unknown `window.json` keys).
 - [x] Native F11 fullscreen + Escape exit (`src/lib/fullscreen.ts`, `Shell.tsx`).
@@ -68,10 +69,11 @@ are called out explicitly.
 - [x] Performance budget checks (04 §12): cold open ≤ 1.2 s, page turn ≤ 80 ms,
       200 highlights ≤ 400 ms — harness + method + Linux baseline done
       (`scripts/perf.ts`; reader-parse 316 ms). **Windows 11 host baseline
-      (2026-11-20): reader-parse 421 ms, locator decode 0.13 ms — within
-      budget.** The **in-webview runtime verdicts** still need a real app
-      session (procedure in `docs/development/audits/results/`).
-      CI now fails the build when a budget is exceeded (perf-report artifact).
+      (2026-11-22, reader-upgrade tree): reader-parse 535.59 ms, locator
+      decode 0.26 ms — within budget.** The **in-webview runtime verdicts**
+      still need a real app session (procedure in
+      `docs/development/audits/results/`). CI now fails the build when a
+      budget is exceeded (perf-report artifact).
 - [x] Accessibility pass (03 §7): focus rings, tab order, ARIA, contrast —
       code-side pass complete (Phase 4 X2–X4: axe sweep over all four screens
       in both themes, forced-colors + high-contrast support, inert app root
@@ -99,6 +101,13 @@ are called out explicitly.
       `pnpm exec tauri build --no-sign` produced the 9.89 MiB installer with a
       successful silent install + launch smoke
       ([`R-20261120-01`](docs/development/audits/results/R-20261120-01-windows-production-build.md)).
+- [x] **Windows gate re-run on the reader-upgrade tree (2026-11-22)** —
+      tsc, ESLint 0/0, Prettier, Vitest **771/771 (98 files)**, Vite build,
+      perf within budget, `cargo fmt`, clippy `-D warnings`,
+      `cargo test --all-targets` **31 passed**, foliocore **15 passed**,
+      `tauri build --no-sign` → 9.91 MiB installer; jump-list store entry
+      verified; WebDriver smoke **11/11**
+      ([`R-20261122-01`](docs/development/audits/results/R-20261122-01-windows-gate-reader-upgrade.md)).
 - [x] `cargo test` parity for path guard, fs commands, app-dir mapping,
       window-state clamping, launch parsing, (the dictionary tests were
       removed with the feature, 2026-10-31; OAuth helpers were removed with
@@ -116,19 +125,23 @@ FT-03x rows and `docs/development/CURRENT_SESSION.md`):
 - X5 i18n covers shell chrome (en/hi/ar catalogue, RTL page turns); screen
   copy translation is a deliberate later pass.
 - **Windows-pending items (exact runbooks recorded):**
-  - `P-20261116-01` — WebDriver smoke (tauri-driver; first run → import →
-    open → highlight → resume → backup): `docs/development/runbooks/E4-webdriver-smoke.md`.
+  - `P-20261116-01` — WebDriver smoke (tauri-driver): **automated half done
+    2026-11-22, 11/11** — first run → import → open → read → page turn →
+    relaunch resume (`R-20261122-01`, harness `desktop/e2e/smoke.mjs`);
+    highlight and backup export/restore remain manual.
   - `P-20261116-02` — updater signing keys, CI secrets, release flow,
     tamper check, Authenticode: `docs/development/runbooks/E5-updater-signing.md`
     (the `plugins.updater.pubkey` placeholder must be replaced first).
   - First CI run on `windows-latest` — **fully green** 2026-11-18 (run
     `44259919408`, FT-046…FT-055): clippy, windows-host `cargo test`, NSIS
     build + installer artifact and the audits job all verified in CI.
-  - §12 manual QA: Narrator, display scaling, jump-list taskbar behaviour.
-  - Release smoke (2026-11-20): NSIS build, silent install/upgrade, installed
-    binary launch and single-instance hand-off verified
-    (`R-20261120-01`); open-with, drag-drop, `tauri:dev` and the in-app
-    import → read → resume flow remain manual.
+  - §12 manual QA: Narrator, display scaling, jump-list **clicks** (the task
+    entries themselves are runtime-verified).
+  - Release smoke: NSIS build, silent install/upgrade, installed binary
+    launch and single-instance hand-off verified (`R-20261120-01`);
+    open-with, drag-drop, `tauri:dev` and the in-app import → read → resume
+    flow remain manual (the WebDriver smoke covers import → read → resume
+    inside the real webview).
 
 ## Phase 5 — feature backlog (Nov 2026)
 
@@ -173,9 +186,9 @@ formally scoped or dropped — revisit only on request.
   D-20261031-05); an earlier install's `%APPDATA%/Folio/dict/` copy is
   orphaned and can be deleted manually.
 - Perf/a11y: code-side audit + harness are recorded (`A-20261031-01`,
-  `R-20261031-02`); the Windows host baseline is `R-20261120-01`. The
+  `R-20261031-02`); the Windows host baseline is `R-20261122-01`. The
   **interactive** halves (in-webview performance verdicts, Narrator,
-  jump-list taskbar behaviour, display scaling) still need a real desktop
+  jump-list taskbar clicks, display scaling) still need a real desktop
   session (P2; jump list is P1 per 09 §3).
 
 ## Quick verification commands (run on Windows)

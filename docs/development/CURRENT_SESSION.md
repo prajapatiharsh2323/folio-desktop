@@ -1,5 +1,46 @@
 # Current Session Checkpoint
 
+## Checkpoint — S-20261122-02 (Windows verification, 2026-11-22)
+
+Full Windows gate re-run on the FT-058/059 tree (the last Windows build
+predated the reader upgrade), plus the two Windows-only checks that run
+unattended. Record:
+[`R-20261122-01`](audits/results/R-20261122-01-windows-gate-reader-upgrade.md).
+
+- **Gate:** `tsc -b` 0, ESLint 0/0, Prettier clean, **Vitest 771/771 (98
+  files)**, Vite build green, perf within budget (`reader_parse` 535.59 ms
+  vs 1 200 ms; `locator_decode_200` 0.26 ms vs 400 ms —
+  `audits/results/perf-20261122-windows.json`), `cargo fmt` clean, clippy
+  `-D warnings` clean, `cargo test --all-targets` **31**, foliocore
+  **15** (via `--manifest-path`; `-p foliocore` does not resolve — the
+  2026-11-20 record's command was wrong), `tauri build --no-sign` →
+  `Folio_0.1.0_x64-setup.exe` 9.91 MiB (release compile 5 m 34 s).
+- **Release smoke (new build):** window **Folio**, second launch exits in
+  0.2 s, `%APPDATA%\Folio\{library,user}` + manifest present, 34.6 MB
+  working set. Installer not re-installed over the existing install.
+- **Jump list (item 3):** launching the release binary wrote
+  `CustomDestinations\c9ce6eb42f52bdc5.customDestinations-ms` with
+  `Open Folio`, `Import file`, the exe path and `--import`. The COM code is
+  runtime-verified for the first time; clicking the entries stays manual.
+- **WebDriver smoke (item 6):** `tauri-driver` 2.1.0 + `msedgedriver`
+  157.0.4341.60 (matched to the WebView2 runtime). **11/11 checks**: first
+  run → setup step 1 → step 2 → synthetic HTML5 drop of a generated EPUB →
+  library row → reader mounts → `Chapter 1` renders → `ArrowRight` page
+  turns → quit/relaunch keeps 66 % → reopen restores 66 %. Harness added at
+  [`desktop/e2e/smoke.mjs`](../../desktop/e2e/smoke.mjs) (dependency-free,
+  raw WebDriver over `fetch`) with
+  [`desktop/e2e/README.md`](../../desktop/e2e/README.md); `eslint.config.js`
+  now gives `e2e/**/*.mjs` Node globals. Highlight-in-reader and backup
+  export/restore are still manual (iframe selection + native dialogs).
+- **Profile isolation:** Folio has no data-dir override, so the real
+  `%APPDATA%\Folio` and `%LOCALAPPDATA%\com.folio.desktop` were renamed
+  aside for the smoke and restored afterwards (57 files, manifest intact).
+
+**Exact next action:** the interactive checklist — Narrator, display
+scaling 100/125/150/200 %, jump-list clicks, open-with/drag-drop — and
+updater signing (`P-20261116-02`, needs the user's keypair + GitHub
+secrets). Tracked build artifacts are cleaned (FT-060).
+
 ## In flight — Reader Reliability & Experience Upgrade (2026-11-21)
 
 Plan discussed and approved: dedicated additive `library/user/pdf-prefs.json`
