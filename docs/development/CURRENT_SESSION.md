@@ -85,10 +85,13 @@ decisions (watch-folder, F10). Working tree: the verification records are
 committed with this checkpoint (user-authorized); untracked `cover-imgs/` is
 user work and untouched.
 **Exact next action:** run the interactive checklist in
-`WINDOWS-REMAINING.md` (items 2–3, 5–7). Finding to schedule:
-`desktop/src-tauri/foliocore/target/`
-build artifacts are tracked in Git (112 files) — add an ignore rule and
-`git rm -r --cached` in a dedicated commit.
+`WINDOWS-REMAINING.md` (items 2–3, 5–7).
+**Housekeeping (FT-060, committed):** the 112 tracked
+`desktop/src-tauri/foliocore/target/` build artifacts (≈33 MB) were removed
+from the Git index and `desktop/.gitignore` now ignores
+`src-tauri/foliocore/target/`; the files stay on disk. Note: `last.json`
+(a tracked session dump) is modified in the working tree and is not part of
+this change.
 
 ## Previous checkpoint — S-20261113-01 (production readiness Phases 1–5)
 
