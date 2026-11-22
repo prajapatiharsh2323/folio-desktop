@@ -1,5 +1,3 @@
-# Current Session Checkpoint
-
 ## Checkpoint — S-20261122-02 (Windows verification, 2026-11-22)
 
 Full Windows gate re-run on the FT-058/059 tree (the last Windows build
@@ -40,6 +38,42 @@ unattended. Record:
 scaling 100/125/150/200 %, jump-list clicks, open-with/drag-drop — and
 updater signing (`P-20261116-02`, needs the user's keypair + GitHub
 secrets). Tracked build artifacts are cleaned (FT-060).
+
+## Latest — Appearance polish + complete-range highlights (2026-11-22)
+
+**Session:** `S-20261122-03` — full record at
+`docs/development/sessions/S-20261122-03-appearance-highlighting.md`.
+**Status:** code complete, all Linux gates green. The user-supplied plan was
+audited against the tree first: most of its theme/panel architecture had
+already shipped in `96f2803` (FT-058/059), so scope was narrowed to the two
+provable bugs plus a scoped UI redesign.
+
+- **Highlighter (critical):** `MAX_ANCHOR_CHARS = 200` in `locatorCodec.ts`
+  truncated every anchor quote; Readium paints a decoration range from
+  `text.highlight`, so only the first ~200 chars (~one line) was highlighted.
+  Added `MAX_DECORATION_ANCHOR_CHARS = 4000` threaded through
+  `encodeLocation`/`decodeLocation`/`withAnchor`, and used it in
+  `decorations.ts`, `useAnnotations.ts` and
+  `ReadiumEngine.applyDecorations()`/`locatorFromString()`. Progress anchors
+  stay capped at 200. New `tests/epubDecorationRange.test.ts` proves the full
+  quote reaches the navigator.
+- **Panels:** EPUB and PDF panels reorganized into sectioned layouts with
+  shared `appearancePrimitives.tsx`, a scoped 3-column theme grid (was 5 vs
+  six EPUB swatches), collapsible advanced spacing, aligned switch rows and a
+  sticky reset footer. Duplicate font-size/alignment/hyphenation/width
+  controls removed; all callbacks and prefs preserved.
+- **Dark mode:** audited, no pipeline change needed — `ReadiumCSS-after`
+  already forces resolved text/background/link/selection colours with
+  `!important`, and `EpubPreferences.merging()` clears overrides on `null`.
+  Added a Publisher-mode explanation in the panel and an engine round-trip
+  test. Styled-EPUB/WebView2 reproduction remains open.
+  **Gates:** `tsc -b` clean, ESLint 0/0, Prettier clean, **Vitest 776/776 (99
+  files)**, `vite build` green. **Exact next action:** Windows/WebView2 QA per
+  the session record — multi-line inline-markup highlight painting, repaint after
+  font/resize/theme, dark/true-black with author CSS, both panels at narrow
+  widths, PDF regression. Committed and pushed as FT-062 (record `S-20261122-03`).
+
+---
 
 ## In flight — Reader Reliability & Experience Upgrade (2026-11-21)
 

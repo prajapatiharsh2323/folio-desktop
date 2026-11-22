@@ -45,7 +45,12 @@ import {
   type PositionsCacheHook,
 } from "./epubPublication";
 import { locatorForProgression, progressionForLocator } from "./positions";
-import { decodeLocation, encodeLocation, isCfiLocation } from "./locatorCodec";
+import {
+  decodeLocation,
+  encodeLocation,
+  isCfiLocation,
+  MAX_DECORATION_ANCHOR_CHARS,
+} from "./locatorCodec";
 import {
   createNoterefIntercept,
   extractFootnote,
@@ -380,7 +385,9 @@ export class ReadiumEngine implements ReaderEngine {
     const locators: Decoration[] = [];
     let skipped = 0;
     for (const d of decorations) {
-      const locator = this.locatorFromString(d.locator);
+      // Decoration locators carry the full selected quote; the default 200-char
+      // progress cap would truncate it and paint only the first visual line.
+      const locator = this.locatorFromString(d.locator, MAX_DECORATION_ANCHOR_CHARS);
       if (!locator) {
         skipped += 1;
         continue;
@@ -798,8 +805,8 @@ export class ReadiumEngine implements ReaderEngine {
    * tries the text anchor first (`go_text`), then the element id, then the
    * in-resource progression, which is exactly the fallback order we want.
    */
-  private locatorFromString(value: string): Locator | null {
-    const decoded = decodeLocation(value);
+  private locatorFromString(value: string, maxAnchorChars?: number): Locator | null {
+    const decoded = decodeLocation(value, maxAnchorChars);
     if (!decoded) return null;
     const { href } = decoded;
     const link = this.pub?.readingOrder.items.find(

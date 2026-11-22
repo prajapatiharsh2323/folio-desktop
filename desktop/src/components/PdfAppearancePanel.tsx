@@ -5,6 +5,11 @@ import { FolioButton } from "./FolioButton";
 import { FolioPanel } from "./FolioPanel";
 import { FolioRadioGroup } from "./FolioRadioGroup";
 import { FolioSectionHeader } from "./FolioSectionHeader";
+import {
+  AppearancePanelFooter,
+  AppearanceSection,
+  AppearanceSwitchRow,
+} from "./appearancePrimitives";
 import { clampBrightness } from "../model/defaults";
 import type { PdfReaderPrefs, PdfRotation } from "../model/formatPrefs";
 import type { ReaderPageInfo } from "../reader/ReaderEngine";
@@ -78,56 +83,7 @@ export function PdfAppearancePanel({
   return (
     <FolioPanel open={open} onClose={onClose} title="Page appearance" width={400} modal={modal}>
       <div className="folio-appearance">
-        <div className="folio-appearance__quick-card">
-          <div className="folio-appearance__quick-title">Quick adjustments</div>
-          <div className="folio-appearance__quick-row">
-            <div className="folio-appearance__quick-stepper" role="group" aria-label="Page zoom">
-              <button
-                type="button"
-                className="folio-appearance__quick-btn"
-                aria-label="Zoom out"
-                disabled={typeof zoom === "number" && zoom <= MIN_ZOOM}
-                onClick={() => onZoomBy(-1)}
-              >
-                −
-              </button>
-              <span className="folio-appearance__quick-size" aria-live="polite">
-                {zoomLabel}
-              </span>
-              <button
-                type="button"
-                className="folio-appearance__quick-btn"
-                aria-label="Zoom in"
-                disabled={typeof zoom === "number" && zoom >= MAX_ZOOM}
-                onClick={() => onZoomBy(1)}
-              >
-                +
-              </button>
-            </div>
-            {pageInfo && (
-              <div className="folio-appearance__quick-stepper" role="group" aria-label="Go to page">
-                <label className="folio-helper" htmlFor="folio-pdf-page-number">
-                  Page
-                </label>
-                <input
-                  id="folio-pdf-page-number"
-                  type="number"
-                  min={1}
-                  max={pageInfo.pageCount}
-                  value={pageInfo.page}
-                  onChange={(e) => {
-                    const page = Number(e.currentTarget.value);
-                    if (Number.isFinite(page)) onGoPage(page);
-                  }}
-                />
-                <span className="folio-control-value">/ {pageInfo.pageCount}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <section>
-          <FolioSectionHeader>Reading theme</FolioSectionHeader>
+        <AppearanceSection title="Appearance">
           <FolioRadioGroup
             label="Reading theme"
             className="folio-theme-grid"
@@ -135,9 +91,6 @@ export function PdfAppearancePanel({
             options={READING_THEME_OPTIONS}
             onChange={(theme) => patch({ theme })}
           />
-        </section>
-
-        <section className="folio-appearance__group">
           <FolioSectionHeader>Page presentation</FolioSectionHeader>
           <FolioRadioGroup
             label="Page presentation"
@@ -149,10 +102,103 @@ export function PdfAppearancePanel({
           <p className="folio-helper folio-helper--muted">
             Applies to the paper itself; the surrounding workspace follows the reading theme.
           </p>
-        </section>
+          <div className="folio-slider-row">
+            <input
+              type="range"
+              className="folio-slider"
+              min={30}
+              max={100}
+              step={1}
+              value={prefs.brightness}
+              aria-label="Brightness"
+              aria-valuetext={`${prefs.brightness} percent`}
+              onChange={(e) =>
+                patch({ brightness: clampBrightness(Number(e.currentTarget.value)) })
+              }
+            />
+            <span className="folio-control-value">{prefs.brightness}%</span>
+          </div>
+          <FolioSectionHeader>Surrounding background</FolioSectionHeader>
+          <FolioRadioGroup
+            label="Surrounding background"
+            className="folio-wrap-row"
+            value={prefs.background}
+            options={[...BACKGROUND_OPTIONS]}
+            onChange={(background) => patch({ background })}
+          />
+        </AppearanceSection>
 
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Page display</FolioSectionHeader>
+        <AppearanceSection title="Zoom & navigation">
+          <div className="folio-appearance__quick-card">
+            <div className="folio-appearance__quick-row">
+              <div className="folio-appearance__quick-stepper" role="group" aria-label="Page zoom">
+                <button
+                  type="button"
+                  className="folio-appearance__quick-btn"
+                  aria-label="Zoom out"
+                  disabled={typeof zoom === "number" && zoom <= MIN_ZOOM}
+                  onClick={() => onZoomBy(-1)}
+                >
+                  −
+                </button>
+                <span className="folio-appearance__quick-size" aria-live="polite">
+                  {zoomLabel}
+                </span>
+                <button
+                  type="button"
+                  className="folio-appearance__quick-btn"
+                  aria-label="Zoom in"
+                  disabled={typeof zoom === "number" && zoom >= MAX_ZOOM}
+                  onClick={() => onZoomBy(1)}
+                >
+                  +
+                </button>
+              </div>
+              {pageInfo && (
+                <div
+                  className="folio-appearance__quick-stepper"
+                  role="group"
+                  aria-label="Go to page"
+                >
+                  <label className="folio-helper" htmlFor="folio-pdf-page-number">
+                    Page
+                  </label>
+                  <input
+                    id="folio-pdf-page-number"
+                    type="number"
+                    min={1}
+                    max={pageInfo.pageCount}
+                    value={pageInfo.page}
+                    onChange={(e) => {
+                      const page = Number(e.currentTarget.value);
+                      if (Number.isFinite(page)) onGoPage(page);
+                    }}
+                  />
+                  <span className="folio-control-value">/ {pageInfo.pageCount}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <FolioRadioGroup
+            label="Zoom mode"
+            className="folio-wrap-row"
+            value={typeof zoom === "string" ? zoom : "fit-width"}
+            options={[
+              { value: "fit-width", label: "Fit width" },
+              { value: "fit-page", label: "Fit page" },
+            ]}
+            onChange={(mode) => onZoomMode(mode)}
+          />
+          <FolioButton variant="secondary" onClick={onZoomActual}>
+            Actual size
+          </FolioButton>
+          <p className="folio-helper folio-helper--muted">
+            Zoom in/out above adjusts a custom size; fit modes keep the whole page or spread in
+            view.
+          </p>
+        </AppearanceSection>
+
+        <AppearanceSection title="Page layout">
           <FolioRadioGroup
             label="Page display mode"
             className="folio-wrap-row"
@@ -178,41 +224,16 @@ export function PdfAppearancePanel({
             options={[...DIRECTION_OPTIONS]}
             onChange={(direction) => patch({ direction })}
           />
-          <button
-            type="button"
-            role="switch"
-            aria-checked={prefs.coverFirst}
-            className={`folio-switch${prefs.coverFirst ? " is-on" : ""}`}
-            onClick={() => patch({ coverFirst: !prefs.coverFirst })}
-            aria-label="Cover-first spreads"
-          >
-            <span className="folio-switch__thumb" />
-          </button>
-          <span className="folio-helper">Cover on its own in facing-page mode</span>
-        </section>
-
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Zoom</FolioSectionHeader>
-          <FolioRadioGroup
-            label="Zoom mode"
-            className="folio-wrap-row"
-            value={typeof zoom === "string" ? zoom : "fit-width"}
-            options={[
-              { value: "fit-width", label: "Fit width" },
-              { value: "fit-page", label: "Fit page" },
-            ]}
-            onChange={(mode) => onZoomMode(mode)}
+          <AppearanceSwitchRow
+            label="Cover-first spreads"
+            ariaLabel="Cover-first spreads"
+            checked={prefs.coverFirst}
+            onChange={() => patch({ coverFirst: !prefs.coverFirst })}
+            description="Cover on its own in facing-page mode"
           />
-          <FolioButton variant="secondary" onClick={onZoomActual}>
-            Actual size
-          </FolioButton>
-          <p className="folio-helper folio-helper--muted">
-            Zoom in/out above adjusts a custom size; fit modes keep the whole page or spread in
-            view.
-          </p>
-        </section>
+        </AppearanceSection>
 
-        <section className="folio-appearance__group">
+        <AppearanceSection title="Page adjustments">
           <FolioSectionHeader>Page rotation</FolioSectionHeader>
           <FolioRadioGroup
             label="Page rotation"
@@ -221,10 +242,6 @@ export function PdfAppearancePanel({
             options={[...ROTATION_OPTIONS]}
             onChange={(value) => patch({ rotation: Number(value) as PdfRotation })}
           />
-        </section>
-
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Page spacing</FolioSectionHeader>
           <div className="folio-slider-row">
             <input
               type="range"
@@ -238,94 +255,44 @@ export function PdfAppearancePanel({
             />
             <span className="folio-control-value">{prefs.pageSpacing}px</span>
           </div>
-        </section>
+        </AppearanceSection>
 
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Surrounding background</FolioSectionHeader>
-          <FolioRadioGroup
-            label="Surrounding background"
-            className="folio-wrap-row"
-            value={prefs.background}
-            options={[...BACKGROUND_OPTIONS]}
-            onChange={(background) => patch({ background })}
+        <AppearanceSection title="Workspace">
+          <AppearanceSwitchRow
+            label="Page thumbnails"
+            ariaLabel="Show page thumbnails"
+            checked={prefs.thumbnails}
+            onChange={() => patch({ thumbnails: !prefs.thumbnails })}
           />
-        </section>
+          <AppearanceSwitchRow
+            label="Hand / pan tool"
+            ariaLabel="Hand / pan tool"
+            checked={prefs.pan}
+            onChange={() => patch({ pan: !prefs.pan })}
+            description="Drag to move when zoomed"
+          />
+          <AppearanceSwitchRow
+            label="Page-number navigation"
+            ariaLabel="Show page number"
+            checked={prefs.pageNumber}
+            onChange={() => patch({ pageNumber: !prefs.pageNumber })}
+          />
+          <AppearanceSwitchRow
+            label="Full-screen focus workspace"
+            ariaLabel="Full-screen focus workspace"
+            checked={prefs.focusWorkspace}
+            onChange={() => patch({ focusWorkspace: !prefs.focusWorkspace })}
+          />
+        </AppearanceSection>
 
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Workspace</FolioSectionHeader>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={prefs.thumbnails}
-            className={`folio-switch${prefs.thumbnails ? " is-on" : ""}`}
-            onClick={() => patch({ thumbnails: !prefs.thumbnails })}
-            aria-label="Show page thumbnails"
-          >
-            <span className="folio-switch__thumb" />
-          </button>
-          <span className="folio-helper">Page thumbnails</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={prefs.pan}
-            className={`folio-switch${prefs.pan ? " is-on" : ""}`}
-            onClick={() => patch({ pan: !prefs.pan })}
-            aria-label="Hand / pan tool"
-          >
-            <span className="folio-switch__thumb" />
-          </button>
-          <span className="folio-helper">Hand / pan (drag to move when zoomed)</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={prefs.pageNumber}
-            className={`folio-switch${prefs.pageNumber ? " is-on" : ""}`}
-            onClick={() => patch({ pageNumber: !prefs.pageNumber })}
-            aria-label="Show page number"
-          >
-            <span className="folio-switch__thumb" />
-          </button>
-          <span className="folio-helper">Page-number navigation</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={prefs.focusWorkspace}
-            className={`folio-switch${prefs.focusWorkspace ? " is-on" : ""}`}
-            onClick={() => patch({ focusWorkspace: !prefs.focusWorkspace })}
-            aria-label="Full-screen focus workspace"
-          >
-            <span className="folio-switch__thumb" />
-          </button>
-          <span className="folio-helper">Full-screen focus workspace</span>
-        </section>
-
-        <section className="folio-appearance__group">
-          <FolioSectionHeader>Brightness</FolioSectionHeader>
-          <div className="folio-slider-row">
-            <input
-              type="range"
-              className="folio-slider"
-              min={30}
-              max={100}
-              step={1}
-              value={prefs.brightness}
-              aria-label="Brightness"
-              onChange={(e) =>
-                patch({ brightness: clampBrightness(Number(e.currentTarget.value)) })
-              }
-            />
-            <span className="folio-control-value">{prefs.brightness}%</span>
-          </div>
-        </section>
-
-        <section className="folio-appearance__reset">
+        <AppearancePanelFooter>
           <FolioButton variant="secondary" onClick={onReset}>
             Reset PDF appearance
           </FolioButton>
           <p className="folio-helper">
             Restores your global PDF defaults only. EPUB typography is not affected.
           </p>
-        </section>
+        </AppearancePanelFooter>
       </div>
     </FolioPanel>
   );

@@ -1066,6 +1066,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--folio-space-5);
+  /* Reserve room so the sticky reset footer never obscures the last section. */
+  padding-bottom: var(--folio-space-6);
 }
 
 .folio-appearance section {
@@ -1200,6 +1202,86 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: var(--folio-space-2);
+}
+
+/* Appearance panels offer six EPUB / five PDF swatches: three per row keeps
+   the last row from orphaning a single card. Onboarding has its own override. */
+.folio-appearance .folio-theme-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.folio-appearance__section {
+  padding-bottom: var(--folio-space-3);
+  border-bottom: var(--folio-divider) solid var(--folio-border);
+}
+
+.folio-appearance__section > .folio-section-header,
+.folio-appearance__advanced + .folio-appearance__section > .folio-section-header {
+  margin-bottom: 2px;
+}
+
+/* Sub-labels inside a section (e.g. "Page presentation") read as a quieter
+   second tier than the section title itself. */
+.folio-appearance__section > .folio-section-header:not(:first-child) {
+  color: var(--folio-text-secondary);
+  font-size: var(--folio-type-micro-size);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.folio-appearance__switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--folio-space-3);
+  min-height: 36px;
+}
+
+.folio-appearance__switch-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.folio-appearance__switch-label {
+  font-size: var(--folio-type-label-size);
+  line-height: var(--folio-type-label-line);
+  color: var(--folio-text-primary);
+}
+
+.folio-appearance__advanced {
+  border-top: var(--folio-divider) solid var(--folio-border);
+  padding-top: var(--folio-space-3);
+}
+
+.folio-appearance__advanced > summary {
+  cursor: pointer;
+  font-size: var(--folio-type-label-size);
+  font-weight: 600;
+  color: var(--folio-text-secondary);
+  list-style-position: inside;
+}
+
+.folio-appearance__advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--folio-space-4);
+  padding-top: var(--folio-space-3);
+}
+
+.folio-appearance__footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--folio-space-2);
+  margin-top: auto;
+  padding: var(--folio-space-3) 0 var(--folio-space-1);
+  background: var(--folio-surface-raised, #ffffff);
+  border-top: var(--folio-divider) solid var(--folio-border);
 }
 
 .folio-theme-swatch {

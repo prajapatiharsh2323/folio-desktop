@@ -5,6 +5,7 @@ import {
   encodeLocation,
   hrefOf,
   isCfiLocation,
+  MAX_DECORATION_ANCHOR_CHARS,
   sameLocation,
   withAnchor,
 } from "../src/reader/locatorCodec";
@@ -105,6 +106,21 @@ describe("locatorCodec", () => {
 
   it("withAnchor is a no-op for values it cannot decode", () => {
     expect(withAnchor("epubcfi(/6/2)", { quote: "x" })).toBe("epubcfi(/6/2)");
+  });
+
+  it("keeps progress quotes small but never truncates decoration quotes", () => {
+    const quote = "The quick brown fox ".repeat(40); // 800 chars ≈ several visual lines
+    expect(quote.length).toBeGreaterThan(200);
+
+    // Progress anchors stay capped (bloat control for progress.json).
+    const progress = withAnchor("ch1.xhtml?p=0.25", { quote });
+    expect(decodeLocation(progress)?.anchor?.quote).toHaveLength(200);
+
+    // Annotation/decoration anchors carry the whole selection so Readium's
+    // TextQuoteAnchor paints the complete DOM range, not just the first line.
+    const decoration = withAnchor("ch1.xhtml?p=0.25", { quote }, MAX_DECORATION_ANCHOR_CHARS);
+    expect(decodeLocation(decoration, MAX_DECORATION_ANCHOR_CHARS)?.anchor?.quote).toBe(quote);
+    expect(MAX_DECORATION_ANCHOR_CHARS).toBeGreaterThan(quote.length);
   });
 
   it("sameLocation ignores sub-epsilon progression drift", () => {

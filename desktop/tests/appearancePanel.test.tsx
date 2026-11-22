@@ -135,7 +135,7 @@ describe("AppearancePanel", () => {
     expect(resetCalled).toBe(true);
   });
 
-  it("renders text alignment and hyphenation controls and allows toggling", () => {
+  it("keeps one control per preference for alignment and hyphenation", () => {
     let nextPrefs: ReadingPrefs | null = null;
     render(
       <AppearancePanel
@@ -149,37 +149,44 @@ describe("AppearancePanel", () => {
       />,
     );
 
-    // Check quick alignment chip
-    const justifyQuickBtn = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === "Justify",
-    ) as HTMLButtonElement;
-    expect(justifyQuickBtn).not.toBeNull();
+    // Alignment/hyphenation now live only in Typography, not in Quick adjustments.
+    expect(document.querySelectorAll("[aria-label='Justify text']")).toHaveLength(1);
+    expect(document.querySelectorAll("[aria-label='Hyphenate']")).toHaveLength(1);
+    expect(document.querySelectorAll("[aria-label='Decrease text size']")).toHaveLength(1);
+    expect(document.querySelector("[aria-label='Text size']")).toBeNull();
 
-    act(() => {
-      justifyQuickBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    expect(nextPrefs).not.toBeNull();
-    expect((nextPrefs as ReadingPrefs | null)?.justify).toBe(true);
-
-    // Check alignment switch in section
     const justifySwitch = document.querySelector(
       "[aria-label='Justify text']",
     ) as HTMLButtonElement;
-    expect(justifySwitch).not.toBeNull();
-
     act(() => {
       justifySwitch.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect((nextPrefs as ReadingPrefs | null)?.justify).toBe(true);
 
-    // Check hyphenate switch
     const hyphenateSwitch = document.querySelector("[aria-label='Hyphenate']") as HTMLButtonElement;
-    expect(hyphenateSwitch).not.toBeNull();
-
     act(() => {
       hyphenateSwitch.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect((nextPrefs as ReadingPrefs | null)?.hyphenate).toBe(true);
+  });
+
+  it("groups advanced spacing in a collapsible section with a sticky footer", () => {
+    render(
+      <AppearancePanel
+        open={true}
+        prefs={DEFAULT_READING_PREFS}
+        onClose={() => {}}
+        onChange={() => {}}
+        onReset={() => {}}
+      />,
+    );
+
+    expect(document.querySelector(".folio-theme-grid")).not.toBeNull();
+    expect(document.querySelector(".folio-appearance__advanced > summary")?.textContent).toContain(
+      "Advanced spacing",
+    );
+    expect(document.querySelector(".folio-appearance__footer")).not.toBeNull();
+    expect(document.body.textContent).toContain("Publisher preserves");
   });
 
   describe("fixed layout (capabilities.format === 'fixed')", () => {

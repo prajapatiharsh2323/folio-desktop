@@ -825,6 +825,47 @@ describe("ReadiumEngine search and lifecycle", () => {
     document.body.removeChild(container);
   });
 
+  it("restores Folio colours when leaving Publisher presentation", async () => {
+    if (!globalThis.ResizeObserver) {
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+    }
+    const engine = createReadiumEngine({
+      epubBytes: makeEpub("Publisher", [{ id: "c1", title: "One", body: "A short paragraph." }]),
+      prefs: { ...DEFAULT_READING_PREFS, theme: "dark" },
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await engine.open(container);
+
+    const internals = engine as unknown as {
+      navigator: { submitPreferences: (p: unknown) => Promise<void> } | null;
+    };
+    const submit = vi.spyOn(internals.navigator!, "submitPreferences");
+    const lastPrefs = () =>
+      submit.mock.calls[submit.mock.calls.length - 1][0] as {
+        backgroundColor: string | null;
+        textColor: string | null;
+      };
+
+    await engine.applyEpubPrefs({ respectPublisherColors: true });
+    expect(lastPrefs().backgroundColor).toBeNull();
+    expect(lastPrefs().textColor).toBeNull();
+
+    // Readium's preference merge treats null as "clear the override", so the
+    // next submit with real colours must repaint the open book immediately.
+    await engine.applyEpubPrefs({ respectPublisherColors: false });
+    const theme = resolveReaderTheme("dark", false);
+    expect(lastPrefs().backgroundColor).toBe(theme.pageBg);
+    expect(lastPrefs().textColor).toBe(theme.pageText);
+
+    await engine.destroy();
+    document.body.removeChild(container);
+  });
+
   it("reports chapter start marks from the positions list (R11)", async () => {
     if (!globalThis.ResizeObserver) {
       globalThis.ResizeObserver = class {

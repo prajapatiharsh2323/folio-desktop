@@ -37,6 +37,16 @@ export interface FolioLocation {
 
 /** Quotes longer than this add no uniqueness but bloat progress.json. */
 const MAX_ANCHOR_CHARS = 200;
+/**
+ * Annotation/decoration anchors must carry the *complete* selected text:
+ * Readium resolves `Locator.text.highlight` into the painted DOM Range with a
+ * TextQuoteAnchor, so a clipped quote paints only its first N characters
+ * (typically a single visual line of a paragraph).
+ *
+ * 4000 chars comfortably covers any realistic selection (several paragraphs)
+ * while still bounding the size of a persisted annotation string.
+ */
+export const MAX_DECORATION_ANCHOR_CHARS = 4000;
 const FOLIO_PARAMS = ["p", "q", "b", "a"] as const;
 type FolioParam = (typeof FOLIO_PARAMS)[number];
 
@@ -57,8 +67,8 @@ function clampProgression(value: number | undefined): number | undefined {
   return Number(clamped.toFixed(6));
 }
 
-function clip(value: string | undefined): string {
-  return (value ?? "").slice(0, MAX_ANCHOR_CHARS);
+function clip(value: string | undefined, max = MAX_ANCHOR_CHARS): string {
+  return (value ?? "").slice(0, max);
 }
 
 function cleanHref(href: string): string {
@@ -66,7 +76,7 @@ function cleanHref(href: string): string {
 }
 
 /** Serialize a locator. Returns "" when there is no usable href. */
-export function encodeLocation(loc: FolioLocation): string {
+export function encodeLocation(loc: FolioLocation, maxChars = MAX_ANCHOR_CHARS): string {
   const href = cleanHref(loc.href ?? "");
   if (!href) return "";
   const fragment = (loc.fragment ?? "").replace(/^#/, "");
@@ -74,11 +84,11 @@ export function encodeLocation(loc: FolioLocation): string {
   const params = new URLSearchParams();
   const progression = clampProgression(loc.progression);
   if (progression !== undefined) params.set("p", String(progression));
-  const quote = clip(loc.anchor?.quote);
+  const quote = clip(loc.anchor?.quote, maxChars);
   if (quote) {
     params.set("q", quote);
-    const prefix = clip(loc.anchor?.prefix);
-    const suffix = clip(loc.anchor?.suffix);
+    const prefix = clip(loc.anchor?.prefix, maxChars);
+    const suffix = clip(loc.anchor?.suffix, maxChars);
     if (prefix) params.set("b", prefix);
     if (suffix) params.set("a", suffix);
   }
@@ -89,7 +99,10 @@ export function encodeLocation(loc: FolioLocation): string {
 }
 
 /** Parse a persisted locator. Returns null for empty/CFI/garbage values. */
-export function decodeLocation(value: string | null | undefined): FolioLocation | null {
+export function decodeLocation(
+  value: string | null | undefined,
+  maxChars = MAX_ANCHOR_CHARS,
+): FolioLocation | null {
   if (typeof value !== "string") return null;
   const raw = value.trim();
   if (!raw || isCfiLocation(raw)) return null;
@@ -126,7 +139,7 @@ export function decodeLocation(value: string | null | undefined): FolioLocation 
   const rawProgression = params.get("p");
   const progression =
     rawProgression === null ? undefined : clampProgression(Number(rawProgression));
-  const quote = clip(params.get("q") ?? "");
+  const quote = clip(params.get("q") ?? "", maxChars);
   const anchor = quote
     ? {
         quote,
@@ -169,17 +182,24 @@ export function sameLocation(a: string | null | undefined, b: string | null | un
  * Attach (or clear) the text anchor on a stored locator, keeping its href,
  * fragment and progression. A null anchor leaves the value untouched.
  */
-export function withAnchor(value: string, anchor: LocatorAnchor | null | undefined): string {
+export function withAnchor(
+  value: string,
+  anchor: LocatorAnchor | null | undefined,
+  maxChars = MAX_ANCHOR_CHARS,
+): string {
   if (!anchor) return value;
   const base = decodeLocation(value);
   if (!base) return value;
   if (!anchor.quote) return encodeLocation({ ...base, anchor: undefined });
-  return encodeLocation({
-    ...base,
-    anchor: {
-      quote: anchor.quote,
-      prefix: anchor.prefix ?? "",
-      suffix: anchor.suffix ?? "",
+  return encodeLocation(
+    {
+      ...base,
+      anchor: {
+        quote: anchor.quote,
+        prefix: anchor.prefix ?? "",
+        suffix: anchor.suffix ?? "",
+      },
     },
-  });
+    maxChars,
+  );
 }

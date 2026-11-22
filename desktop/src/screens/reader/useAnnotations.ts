@@ -12,7 +12,7 @@ import { nowIso } from "../../model/ids";
 import type { ReaderEngine, TextSelectionInfo } from "../../reader/ReaderEngine";
 import type { ResolvedTheme } from "../../reader/readerThemes";
 import { decorationsFor } from "./decorations";
-import { sameLocation, withAnchor } from "../../reader/locatorCodec";
+import { MAX_DECORATION_ANCHOR_CHARS, sameLocation, withAnchor } from "../../reader/locatorCodec";
 import {
   findOverlappingHighlight,
   highlightAction,
@@ -105,7 +105,11 @@ export function useAnnotations({
         prefix,
         suffix,
         location: sel.location
-          ? withAnchor(sel.location, { quote: sel.quote, prefix, suffix })
+          ? withAnchor(
+              sel.location,
+              { quote: sel.quote, prefix, suffix },
+              MAX_DECORATION_ANCHOR_CHARS,
+            )
           : null,
         kind,
         color,
