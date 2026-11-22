@@ -11,6 +11,7 @@ import type { MutableRefObject, RefObject } from "react";
 
 import { useReaderChrome } from "../src/screens/reader/useReaderChrome";
 import { useInBookSearch } from "../src/screens/reader/useInBookSearch";
+import { resolveReaderTheme } from "../src/reader/readerThemes";
 import { FolioPanel } from "../src/components/FolioPanel";
 import { ChromeStateMachine } from "../src/reader/chrome";
 import { pushModal, resetModalStack } from "../src/shell/modalStack";
@@ -89,7 +90,7 @@ describe("useInBookSearch controlled open (R8)", () => {
         navRef: { current: null } as RefObject<null>,
         open,
         onOpenChange,
-        systemDark: false,
+        theme: resolveReaderTheme("light", false),
       });
       api = value;
       return null;

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { AppearancePanel } from "../components/AppearancePanel";
+import { EpubAppearancePanel } from "../components/AppearancePanel";
+import { PdfAppearancePanel } from "../components/PdfAppearancePanel";
+import { PdfThumbnailStrip } from "../components/PdfThumbnailStrip";
 import { ReaderChrome } from "../components/ReaderChrome";
 import { ReaderContextMenu } from "../components/ReaderContextMenu";
 import { FootnotePopover } from "../components/FootnotePopover";
@@ -23,12 +25,14 @@ import type {
 import { useReaderStore } from "../store/readerStore";
 import { useRouteStore } from "../store/routeStore";
 import { getLibraryManager } from "../store/libraryUi";
+import type { EpubPrefs } from "../store/epubPrefs";
 import { pushToast } from "../shell/toasts";
 import { describeError, handleError } from "../lib/errorLog";
 import { APP_WINDOW_TITLE, bookWindowTitle, setWindowTitle } from "../lib/windowTitle";
 import { DEFAULT_READING_PREFS, clampFontSize } from "../model/defaults";
 import type { TextSizeAction } from "./reader/useReaderKeyboard";
 import type { ReadingPrefs, Annotation } from "../model/types";
+import { pdfToReadingPrefs, type PdfReaderPrefs } from "../model/formatPrefs";
 import { nowIso } from "../model/ids";
 import { findOverlappingHighlight } from "./reader/annotationOverlap";
 import { citationFor } from "./reader/citation";
@@ -189,10 +193,20 @@ export function ReaderScreen() {
   );
 
   const theme = resolveReaderTheme(prefs.theme, systemDark);
+  const isPdf = doc?.format === "pdf";
+  const docIdRef = useRef<string | undefined>(doc?.docId);
+  docIdRef.current = doc?.docId;
+  const docIdForPrefs = doc?.docId;
+  const docFormatForPrefs = doc?.format;
+  /** Declared before the engine hook so a fresh engine can read PDF prefs at open. */
+  const pdfPrefsRef = useRef<PdfReaderPrefs | null>(null);
+  const epubPrefsRef = useRef<EpubPrefs | null>(null);
   const activePrefs = doc ? prefs : DEFAULT_READING_PREFS;
   // Reading-width cap (04 §3): `maxWidth` constrains the reading column only —
   // chrome, panels and search float over the full window unmoved.
-  const readingWidth = activePrefs.maxWidth > 0 ? activePrefs.maxWidth : null;
+  // Fixed-layout pages size themselves from the PDF layout; an EPUB reading
+  // width cap must never narrow the PDF canvas.
+  const readingWidth = !isPdf && activePrefs.maxWidth > 0 ? activePrefs.maxWidth : null;
 
   /** A failed navigation is surfaced once, from the call site that asked.
    *  R14: this is a keyed info toast in the global host (stacked, shown once
@@ -311,7 +325,7 @@ export function ReaderScreen() {
     resolveChapterId,
     showNavNotice,
     clearSelection: () => setSelection(null),
-    systemDark,
+    theme,
   });
 
   /** The engine's highlight-activation callback outlives renders; it reads
@@ -347,6 +361,8 @@ export function ReaderScreen() {
     engineRef,
     navRef,
     prefsRef,
+    pdfPrefsRef,
+    epubPrefsRef,
     chromeRef,
     keepAwakeRef,
     selectionRef,
@@ -405,6 +421,117 @@ export function ReaderScreen() {
     setPdfZoom(mode);
   }, []);
 
+  // ---- format-specific preferences -----------------------------------------
+  // PDF settings live in an additive desktop-only file; EPUB typography keeps
+  // using the schema-1 per-doc override. Neither format touches the other.
+  const [pdfPrefs, setPdfPrefs] = useState<PdfReaderPrefs | null>(null);
+  const savedPdfPrefsRef = useRef<string | null>(null);
+  pdfPrefsRef.current = pdfPrefs;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!docIdForPrefs || docFormatForPrefs !== "pdf") {
+      setPdfPrefs(null);
+      savedPdfPrefsRef.current = null;
+      return;
+    }
+    void getLibraryManager()
+      .pdfPrefs.resolved(docIdForPrefs)
+      .then((next) => {
+        if (cancelled) return;
+        savedPdfPrefsRef.current = JSON.stringify(next);
+        setPdfPrefs(next);
+      })
+      .catch((error) => handleError(error, { context: "reader.pdfPrefs.load" }));
+    return () => {
+      cancelled = true;
+    };
+  }, [docIdForPrefs, docFormatForPrefs]);
+
+  const [epubPrefs, setEpubPrefs] = useState<EpubPrefs | null>(null);
+  epubPrefsRef.current = epubPrefs;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!docIdForPrefs || docFormatForPrefs !== "epub") {
+      setEpubPrefs(null);
+      return;
+    }
+    void getLibraryManager()
+      .epubPrefs.resolved(docIdForPrefs)
+      .then((next) => {
+        if (!cancelled) setEpubPrefs(next);
+      })
+      .catch((error) => handleError(error, { context: "reader.epubPrefs.load" }));
+    return () => {
+      cancelled = true;
+    };
+  }, [docIdForPrefs, docFormatForPrefs]);
+
+  // Apply as soon as both the engine and the additive prefs are available.
+  useEffect(() => {
+    if (!isPdf || !pdfPrefs) return;
+    void engineRef.current?.applyPdfPrefs?.(pdfPrefs);
+  }, [isPdf, pdfPrefs, engineRef]);
+
+  useEffect(() => {
+    if (isPdf || !epubPrefs) return;
+    void engineRef.current?.applyEpubPrefs?.(epubPrefs);
+  }, [isPdf, epubPrefs, engineRef]);
+
+  const handlePublisherColorsChange = useCallback((value: boolean) => {
+    setEpubPrefs((current) => {
+      const next: EpubPrefs = {
+        ...(current ?? { respectPublisherColors: false }),
+        respectPublisherColors: value,
+      };
+      void engineRef.current?.applyEpubPrefs?.(next);
+      void getLibraryManager()
+        .epubPrefs.writeDocOverride(docIdRef.current ?? "", next)
+        .catch((error) => handleError(error, { context: "reader.epubPrefs.save" }));
+      return next;
+    });
+  }, []);
+
+  const handlePdfPrefsChange = useCallback((next: PdfReaderPrefs) => {
+    setPdfPrefs(next);
+    void engineRef.current?.applyPdfPrefs?.(next);
+    // Also send the shared fields through the engine-facing ReadingPrefs seam.
+    void engineRef.current?.applyPrefs(pdfToReadingPrefs(next));
+    void getLibraryManager()
+      .pdfPrefs.writeDocOverride(docIdRef.current ?? "", next)
+      .catch((error) => handleError(error, { context: "reader.pdfPrefs.save" }));
+  }, []);
+
+  const handlePdfReset = useCallback(async () => {
+    const manager = getLibraryManager();
+    if (docIdRef.current) await manager.pdfPrefs.removeDocOverride(docIdRef.current);
+    const next = await manager.pdfPrefs.global();
+    savedPdfPrefsRef.current = JSON.stringify(next);
+    setPdfPrefs(next);
+    void engineRef.current?.applyPdfPrefs?.(next);
+    void engineRef.current?.applyPrefs(pdfToReadingPrefs(next));
+  }, []);
+
+  const handleZoomActual = useCallback(async () => {
+    const engineInstance = engineRef.current;
+    if (!engineInstance?.setZoom) return;
+    await engineInstance.setZoom(1);
+    setPdfZoom(1);
+  }, []);
+
+  const handleGoPage = useCallback(
+    (page: number) => {
+      void navRef.current?.goToHref(`page-${page}`, "slider");
+    },
+    [navRef],
+  );
+
+  const handleRenderThumbnail = useCallback(
+    async (p: number) => (await engineRef.current?.renderThumbnail?.(p)) ?? null,
+    [engineRef],
+  );
+
   // ---- chrome state machine (extracted hook) -------------------------------
   const chrome = useReaderChrome({
     docId: doc?.docId,
@@ -422,6 +549,25 @@ export function ReaderScreen() {
 
   const { closePanel, exitFocusMode } = chrome;
 
+  // PDF full-screen focus workspace: hide the chrome and request native
+  // fullscreen. User-driven focus toggles stay independent of this pref.
+  const focusModeRef = useRef(false);
+  focusModeRef.current = chrome.isFocusMode;
+  const toggleFocusMode = chrome.toggleFocusMode;
+  useEffect(() => {
+    if (!isPdf || !pdfPrefs) return;
+    const want = pdfPrefs.focusWorkspace;
+    if (focusModeRef.current !== want) toggleFocusMode();
+    try {
+      if (want && !document.fullscreenElement) {
+        void document.documentElement.requestFullscreen?.().catch(() => {});
+      }
+      if (!want && document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
+    } catch {
+      /* fullscreen is best-effort (CSP / host window constraints) */
+    }
+  }, [isPdf, pdfPrefs, toggleFocusMode]);
+
   // ---- in-book search (extracted hook) ---------------------------------------
   // Open state lives in the chrome's single panel slot (R8): search, TOC and
   // Appearance are mutually exclusive, and the panel hold pins the chrome.
@@ -431,7 +577,7 @@ export function ReaderScreen() {
     navRef,
     open: isSearchOpen,
     onOpenChange: (next) => (next ? chrome.openPanel("search") : chrome.closePanel()),
-    systemDark,
+    theme,
   });
 
   useEffect(() => {
@@ -675,6 +821,11 @@ export function ReaderScreen() {
   );
 
   const handleReset = useCallback(async () => {
+    // EPUB reset clears only EPUB-owned overrides, including the additive
+    // Publisher presentation flag; PDF preferences are untouched.
+    if (docIdRef.current) await getLibraryManager().epubPrefs.removeDocOverride(docIdRef.current);
+    setEpubPrefs({ respectPublisherColors: false });
+    void engineRef.current?.applyEpubPrefs?.({ respectPublisherColors: false });
     await resetPrefs();
     const next = useReaderStore.getState().doc?.prefs;
     if (next) {
@@ -960,7 +1111,6 @@ export function ReaderScreen() {
   const backLabel = backLabelFor(readerOrigin?.route);
   // Fixed-layout page position (PDF plan §7.1): the dock shows "page x of y"
   // instead of a percent-only readout, and the scrubber steps per page.
-  const isPdf = doc?.format === "pdf";
   // D2: documents that grant no copy permission disable Copy / Share-as-image
   // (reading itself is never blocked).
   const noCopy = !!capabilities?.noCopy;
@@ -989,7 +1139,11 @@ export function ReaderScreen() {
   const activeHighlightColor = useMemo(() => {
     if (!selection) return null;
     return (
-      findOverlappingHighlight(annotations, selection.location, selection.quote)?.color ?? null
+      findOverlappingHighlight(annotations, selection.location, {
+        quote: selection.quote,
+        prefix: selection.prefix,
+        suffix: selection.suffix,
+      })?.color ?? null
     );
   }, [selection, annotations]);
 
@@ -1019,6 +1173,16 @@ export function ReaderScreen() {
         className="folio-reader__canvas"
         style={readingWidth ? { maxWidth: readingWidth, margin: "0 auto" } : undefined}
       />
+
+      {isPdf && pdfPrefs?.thumbnails && pageInfo && (
+        <PdfThumbnailStrip
+          open={chrome.panel !== "appearance"}
+          page={pageInfo.page}
+          pageCount={pageInfo.pageCount}
+          onSelect={handleGoPage}
+          renderThumbnail={handleRenderThumbnail}
+        />
+      )}
 
       <div
         className="folio-reader__scrim"
@@ -1115,18 +1279,38 @@ export function ReaderScreen() {
             />
           )}
 
-          <AppearancePanel
-            open={chrome.panel === "appearance"}
-            modal={false}
-            prefs={activePrefs}
-            onClose={chrome.closePanel}
-            onChange={handlePrefsChange}
-            onReset={() => void handleReset()}
-            capabilities={capabilities ?? undefined}
-            zoom={pdfZoom}
-            onZoomBy={(direction) => void handleZoomBy(direction)}
-            onZoomMode={(mode) => void handleZoomMode(mode)}
-          />
+          {isPdf && pdfPrefs ? (
+            <PdfAppearancePanel
+              open={chrome.panel === "appearance"}
+              modal={false}
+              prefs={pdfPrefs}
+              zoom={pdfZoom}
+              pageInfo={pageInfo}
+              onClose={chrome.closePanel}
+              onChange={handlePdfPrefsChange}
+              onReset={() => void handlePdfReset()}
+              onZoomBy={(direction) => void handleZoomBy(direction)}
+              onZoomMode={(mode) => void handleZoomMode(mode)}
+              onZoomActual={() => void handleZoomActual()}
+              onGoPage={handleGoPage}
+            />
+          ) : (
+            <EpubAppearancePanel
+              open={chrome.panel === "appearance"}
+              modal={false}
+              prefs={activePrefs}
+              onClose={chrome.closePanel}
+              onChange={handlePrefsChange}
+              onReset={() => void handleReset()}
+              capabilities={capabilities ?? undefined}
+              zoom={pdfZoom}
+              onZoomBy={(direction) => void handleZoomBy(direction)}
+              onZoomMode={(mode) => void handleZoomMode(mode)}
+              systemDark={systemDark}
+              respectPublisherColors={epubPrefs?.respectPublisherColors ?? false}
+              onPublisherColorsChange={handlePublisherColorsChange}
+            />
+          )}
 
           <TocPanel
             open={chrome.panel === "toc"}

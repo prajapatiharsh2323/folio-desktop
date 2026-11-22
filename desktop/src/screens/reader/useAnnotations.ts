@@ -10,6 +10,7 @@ import { pushToast } from "../../shell/toasts";
 import type { Annotation } from "../../model/types";
 import { nowIso } from "../../model/ids";
 import type { ReaderEngine, TextSelectionInfo } from "../../reader/ReaderEngine";
+import type { ResolvedTheme } from "../../reader/readerThemes";
 import { decorationsFor } from "./decorations";
 import { sameLocation, withAnchor } from "../../reader/locatorCodec";
 import {
@@ -28,8 +29,8 @@ interface UseAnnotationsOptions {
   showNavNotice: (message: string) => void;
   /** Selection dismissal on highlight/bookmark flows. */
   clearSelection: () => void;
-  /** OS dark flag (R16): highlight tints resolve per theme. */
-  systemDark: boolean;
+  /** Effective reader theme (R16): highlight tints resolve per theme, not per OS flag. */
+  theme: ResolvedTheme;
 }
 
 export function useAnnotations({
@@ -38,40 +39,41 @@ export function useAnnotations({
   resolveChapterId,
   showNavNotice,
   clearSelection,
-  systemDark,
+  theme,
 }: UseAnnotationsOptions) {
   /** This book's annotations — the source for bookmark state and the workspace panel. */
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   // Read through a ref so paint callbacks stay referentially stable: a theme
   // flip must not re-create them (and with them every dependent callback).
-  const systemDarkRef = useRef(systemDark);
-  systemDarkRef.current = systemDark;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const bookmarkToggleRef = useRef<() => Promise<BookmarkResult>>(async () => "failed");
 
   const paintAnnotations = useCallback(
     async (list: Annotation[]) => {
       setAnnotations(list);
       try {
-        await engineRef.current?.applyDecorations(decorationsFor(list, systemDarkRef.current));
-      } catch {
-        /* a paint failure must not break reading */
+        await engineRef.current?.applyDecorations(decorationsFor(list, themeRef.current));
+      } catch (error) {
+        // A paint failure must not break reading, but it must be diagnosable.
+        handleError(error, { context: "reader.annotations.paint" });
       }
     },
     [engineRef],
   );
 
-  // R16: an OS theme flip repaints the already-placed highlights in the
-  // other palette (the engine's own setSystemDark only resubmits prefs).
-  const lastDarkRef = useRef(systemDark);
+  // R16: an OS flip *or a manual theme change* repaints placed highlights in
+  // the other palette (the engine's own setSystemDark only resubmits prefs).
+  const lastThemeRef = useRef(theme);
   useEffect(() => {
-    if (lastDarkRef.current === systemDark) return;
-    lastDarkRef.current = systemDark;
+    if (lastThemeRef.current.theme === theme.theme) return;
+    lastThemeRef.current = theme;
     const engine = engineRef.current;
     if (!engine || annotations.length === 0) return;
-    void engine.applyDecorations(decorationsFor(annotations, systemDark)).catch(() => {
-      /* a repaint failure must not break reading */
+    void engine.applyDecorations(decorationsFor(annotations, theme)).catch((error) => {
+      handleError(error, { context: "reader.annotations.repaint" });
     });
-  }, [systemDark, annotations, engineRef]);
+  }, [theme, annotations, engineRef]);
 
   const refreshAnnotations = useCallback(
     async (id?: string): Promise<Annotation[]> => {
@@ -143,11 +145,11 @@ export function useAnnotations({
       let action: HighlightAction = "create";
       let existing: Annotation | null = null;
       try {
-        existing = findOverlappingHighlight(
-          await lm.annotations.listForDoc(docId),
-          sel.location,
-          sel.quote,
-        );
+        existing = findOverlappingHighlight(await lm.annotations.listForDoc(docId), sel.location, {
+          quote: sel.quote,
+          prefix: sel.prefix,
+          suffix: sel.suffix,
+        });
         action = highlightAction(existing, color);
       } catch (e) {
         handleError(e, { context: "reader.annotations.highlight" });

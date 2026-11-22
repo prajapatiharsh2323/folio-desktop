@@ -188,8 +188,9 @@ export async function renderPdfTextLayer(
 export function textLayerViewport(
   page: PDFPageProxy,
   scale: number,
+  rotation = 0,
 ): ReturnType<PDFPageProxy["getViewport"]> {
-  return page.getViewport({ scale });
+  return page.getViewport({ scale, rotation });
 }
 
 // ---- link annotations (hardening phase, plan §12) ---------------------------

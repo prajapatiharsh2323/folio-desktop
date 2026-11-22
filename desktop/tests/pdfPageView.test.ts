@@ -236,6 +236,111 @@ describe("PdfPageView", () => {
     expect(released.length).toBeGreaterThan(0);
   });
 
+  it("releases a render slot when an unrelated sync happens before it settles", async () => {
+    const container = document.createElement("div");
+    const calls: number[] = [];
+    let settle!: () => void;
+    const renderer: PageRenderer = {
+      render(page) {
+        calls.push(page);
+        return new Promise<void>((resolve) => {
+          settle = resolve;
+        });
+      },
+    };
+    const view = new PdfPageView(container, renderer);
+    const layout = makeLayout(1);
+    view.sync(layout, [1, 1], 1);
+    // The old generation guard returned early here without releasing the
+    // token, permanently locking the page's render slot.
+    view.sync(layout, [1, 1], 1);
+    settle();
+    await flush();
+    view.invalidate(1);
+    view.sync(layout, [1, 1], 1);
+    await flush();
+    expect(calls).toEqual([1, 1]);
+    view.destroy();
+  });
+
+  it("cancels an in-flight render when a new size supersedes it", async () => {
+    const container = document.createElement("div");
+    const cancels: number[] = [];
+    let settle!: () => void;
+    const renderer: PageRenderer = {
+      render: () =>
+        new Promise<void>((resolve) => {
+          settle = resolve;
+        }),
+      cancel: (page) => {
+        cancels.push(page);
+      },
+    };
+    const view = new PdfPageView(container, renderer);
+    view.sync(makeLayout(1), [1, 1], 1);
+    view.sync(layoutPages([LETTER], VIEW, 1.5, "none"), [1, 1], 1);
+    expect(cancels).toEqual([1]);
+    settle();
+    await flush();
+    view.destroy();
+  });
+
+  it("never commits a stale text layer onto a newer layout", async () => {
+    const container = document.createElement("div");
+    const ready: number[] = [];
+    const settles: Array<() => void> = [];
+    const textFactory: PageTextFactory = {
+      attach() {
+        return new Promise<void>((resolve) => settles.push(resolve));
+      },
+      release() {},
+    };
+    const view = new PdfPageView(
+      container,
+      {
+        render: () => Promise.resolve(),
+      },
+      { textFactory, onTextReady: () => ready.push(1) },
+    );
+    view.sync(makeLayout(1), [1, 1], 1);
+    view.sync(layoutPages([LETTER], VIEW, 1.5, "none"), [1, 1], 1);
+    expect(settles).toHaveLength(2);
+    settles[0](); // stale first attach resolves late
+    await flush();
+    expect(ready).toHaveLength(0);
+    expect(view.pageBox(1)!.textAttached).toBe(false);
+    settles[1]();
+    await flush();
+    expect(ready).toHaveLength(1);
+    expect(view.pageBox(1)!.textAttached).toBe(true);
+    view.destroy();
+  });
+
+  it("retries a text layer that failed to attach", async () => {
+    const container = document.createElement("div");
+    let fail = true;
+    let attaches = 0;
+    const textFactory: PageTextFactory = {
+      attach() {
+        attaches += 1;
+        return fail ? Promise.reject(new Error("no text")) : Promise.resolve();
+      },
+      release() {},
+    };
+    const view = new PdfPageView(container, { render: () => Promise.resolve() }, { textFactory });
+    const layout = makeLayout(1);
+    view.sync(layout, [1, 1], 1);
+    await flush();
+    expect(attaches).toBe(1);
+    expect(view.pageBox(1)!.textAttached).toBe(false);
+    fail = false;
+    view.sync(layout, [1, 1], 1); // failed size was reset → re-attach
+    await flush();
+    expect(attaches).toBe(2);
+    expect(view.pageBox(1)!.textAttached).toBe(true);
+    view.destroy();
+  });
+
   it("exposes pageBox for decoration painting and hit-testing", () => {
     const container = document.createElement("div");
     const renderer = makeRenderer();

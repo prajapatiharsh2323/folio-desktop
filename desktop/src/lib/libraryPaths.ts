@@ -32,6 +32,10 @@ export const libraryLayout = {
   collections: (root: string) => join(root, "user", "collections.json"),
   settings: (root: string) => join(root, "user", "settings.json"),
   docSettings: (root: string) => join(root, "user", "doc-settings.json"),
+  /** Desktop-only additive PDF preferences (not part of schema 1). */
+  pdfPrefs: (root: string) => join(root, "user", "pdf-prefs.json"),
+  /** Desktop-only additive EPUB presentation flags (not part of schema 1). */
+  epubPrefs: (root: string) => join(root, "user", "epub-prefs.json"),
   readingLog: (root: string) => join(root, "user", "reading-log.json"),
 
   indexText: (root: string, docId: string) => join(root, "index", "text", `${docId}.json`),

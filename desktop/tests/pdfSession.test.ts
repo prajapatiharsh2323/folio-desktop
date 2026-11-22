@@ -92,11 +92,39 @@ describe("PdfSession · zoom & viewport", () => {
   });
 
   it("re-lays out when the viewport changes", async () => {
-    const { opened, session } = await sessionFor({ pages: 3 });
+    const { opened, session } = await sessionFor({ pages: 3 }, { spread: "none" });
     try {
       session.setViewport({ width: 1200, height: 900 });
       const scale = (1200 - LAYOUT_PADDING * 2) / 612;
       expect(session.currentLayout.scale).toBeCloseTo(scale, 5);
+    } finally {
+      await opened.destroy();
+    }
+  });
+
+  it("keeps the reading fraction inside a page across a resize", async () => {
+    const { opened, session } = await sessionFor({ pages: 6 }, { spread: "none" });
+    try {
+      session.setViewport({ width: 800, height: 1000 });
+      session.goToPage(3);
+      const from = session.offsetForFraction(0.6);
+      session.setViewport({ width: 1000, height: 700 });
+      const to = session.offsetForFraction(0.6);
+      expect(session.fractionAtOffset(to)).toBeCloseTo(0.6, 1);
+      expect(to).not.toBe(from);
+    } finally {
+      await opened.destroy();
+    }
+  });
+
+  it("turns one spread row at a time in facing-page mode", async () => {
+    const { opened, session } = await sessionFor({ pages: 5 }, { spread: "both" });
+    try {
+      session.setViewport({ width: 1200, height: 900 });
+      expect(session.currentLayout.spread).toBe("both");
+      expect(session.stepPage(1, 1)).toBe(2); // cover → first spread
+      expect(session.stepPage(2, 1)).toBe(4); // (2,3) → (4,5)
+      expect(session.stepPage(4, -1)).toBe(2);
     } finally {
       await opened.destroy();
     }

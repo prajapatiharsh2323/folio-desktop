@@ -1,6 +1,7 @@
 // Reader engine seam (prompt-pack tip #4): everything above this interface is
 // engine-agnostic, so a future engine swap doesn't reopen the app.
 import type { ReadingPrefs } from "../model/types";
+import type { PdfReaderPrefs } from "../model/formatPrefs";
 import type { SnippetParts } from "../search/occurrences";
 
 export interface ReaderLocator {
@@ -140,6 +141,10 @@ export interface ReaderEngine {
   destroy(): Promise<void>;
   /** Apply ReadingPrefs to the canvas. */
   applyPrefs(prefs: ReadingPrefs): Promise<void>;
+  /** Format-specific fixed-layout settings (PDF only; Readium ignores it). */
+  applyPdfPrefs?(prefs: PdfReaderPrefs): Promise<void>;
+  /** Format-specific reflowable settings (EPUB only; PDF ignores it). */
+  applyEpubPrefs?(prefs: { respectPublisherColors: boolean }): Promise<void>;
   /**
    * OS dark-mode flag changed (R9): repaint "system" reader themes by
    * re-submitting the current prefs with the resolved system colours.
@@ -218,6 +223,10 @@ export interface ReaderEngine {
   onDecorationClick?(cb: (id: string, at?: { x: number; y: number }) => void): () => void;
   /** Document loading progress 0..1 (keeps the splash failsafe alive). */
   onProgress?(cb: (fraction: number) => void): () => void;
+  /** Small page preview for the thumbnail strip (fixed-layout engines). */
+  renderThumbnail?(page: number, maxWidth?: number): Promise<string | null>;
+  /** Hand/pan navigation while zoomed (fixed-layout engines). */
+  setPanMode?(enabled: boolean): Promise<void>;
 }
 
 export interface CreateEngineArgs {

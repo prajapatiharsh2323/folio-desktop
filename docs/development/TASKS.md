@@ -1,8 +1,12 @@
 # Task Board
 
-Last updated: **2026-11-15** (session `S-20261114-01` — PDF support feature,
-implemented in the `pdf-support` worktree and merged with the
-production-readiness line; see `CURRENT_SESSION.md`).
+Last updated: **2026-11-21** — reader reliability upgrade Phases 1–3 complete
+(see `CURRENT_SESSION.md`); review checkpoint before Phases 4–7.
+
+| ID     | Priority | Task                                                                                                                  | Status                          | Blocker / next action                                                                                       |
+| ------ | -------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| FT-058 | P0       | Reader reliability Phases 1–3: Readium decoration style/tint mapping, resolved-theme highlight palette, context-aware overlap, PDF render/text tokens + group-safe decorations + spread geometry, format-specific prefs/panels with additive PDF store | done (code + Linux verification) | Review checkpoint passed; see FT-059. |
+| FT-059 | P0       | Reader reliability Phases 4–7: EPUB publisher-style dark mode (link/selection colours, additive Publisher presentation, System preview), PDF thumbnails/pan/fullscreen/rotation/cover-first/RTL, final gate | done (code + Linux verification) / blocked (Windows manual QA) | Vitest 771/771 (98 files), tsc/ESLint/Prettier/vite/perf green; real WebView2 + styled-EPUB/PDF manual QA still required on Windows. |
 Statuses: `open`, `in-progress`, `blocked`, `done`. Keep this board limited to
 active or known work; move narrative detail to session/audit records.
 

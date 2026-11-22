@@ -274,4 +274,62 @@ describe("AppearancePanel", () => {
       expect((nextPrefs as ReadingPrefs | null)?.spread).toBe("both");
     });
   });
+
+  it("repaints the System preview when the OS dark flag changes", () => {
+    const system = { ...DEFAULT_READING_PREFS, theme: "system" as const };
+    render(
+      <AppearancePanel
+        open={true}
+        prefs={system}
+        onClose={() => {}}
+        onChange={() => {}}
+        onReset={() => {}}
+        systemDark={false}
+      />,
+    );
+    const preview = document.querySelector(".folio-typography-preview") as HTMLElement;
+    expect(preview.style.backgroundColor).toBe("rgb(250, 250, 247)");
+
+    act(() => {
+      root!.render(
+        <AppearancePanel
+          open={true}
+          prefs={system}
+          onClose={() => {}}
+          onChange={() => {}}
+          onReset={() => {}}
+          systemDark={true}
+        />,
+      );
+    });
+    expect(
+      (document.querySelector(".folio-typography-preview") as HTMLElement).style.backgroundColor,
+    ).toBe("rgb(18, 18, 20)");
+  });
+
+  it("offers a Publisher presentation option without changing the schema-1 theme", () => {
+    let publisher: boolean | null = null;
+    let changed: ReadingPrefs | null = null;
+    render(
+      <AppearancePanel
+        open={true}
+        prefs={DEFAULT_READING_PREFS}
+        onClose={() => {}}
+        onChange={(p) => (changed = p)}
+        onReset={() => {}}
+        onPublisherColorsChange={(value) => (publisher = value)}
+      />,
+    );
+    const radios = Array.from(document.querySelectorAll("[role='radio']")) as HTMLButtonElement[];
+    const publisherRadio = radios.find((r) => r.textContent?.includes("Publisher"));
+    expect(publisherRadio).not.toBeNull();
+    act(() => publisherRadio!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(publisher).toBe(true);
+    expect(changed).toBeNull(); // no schema-1 field was rewritten
+
+    const darkRadio = radios.find((r) => r.textContent?.includes("Dark"));
+    act(() => darkRadio!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(publisher).toBe(false);
+    expect((changed as ReadingPrefs | null)?.theme).toBe("dark");
+  });
 });

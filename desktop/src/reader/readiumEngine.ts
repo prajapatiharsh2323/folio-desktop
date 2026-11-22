@@ -1,6 +1,13 @@
 // Readium web toolkit engine adapter (ReaderEngine impl over EpubNavigator).
-import { EpubNavigator, EpubPreferences, type EpubNavigatorListeners } from "@readium/navigator";
-import type { DecorationObserver, OnDecorationActivatedEvent } from "@readium/navigator";
+import {
+  DecorationStyleType,
+  EpubNavigator,
+  EpubPreferences,
+  type Decoration,
+  type DecorationObserver,
+  type EpubNavigatorListeners,
+  type OnDecorationActivatedEvent,
+} from "@readium/navigator";
 import {
   Locator,
   LocatorLocations,
@@ -86,6 +93,8 @@ export class ReadiumEngine implements ReaderEngine {
   private lastLocator: ReaderLocator | null = null;
   private chapterMarksCache: { href: string; percent: number }[] | null = null;
   private systemDark = false;
+  /** Additive "Publisher" presentation: leave author colours in place. */
+  private respectPublisherColors = false;
   private searchIndex: MiniSearch | null = null;
   private searchIndexPromise: Promise<MiniSearch | null> | null = null;
   /** per-chapter word-scan structures for occurrence lookup (R2) */
@@ -156,7 +165,7 @@ export class ReadiumEngine implements ReaderEngine {
     };
 
     const theme = resolveReaderTheme(this.prefs.theme, this.systemDark);
-    const mapped = toNavigatorPreferences(this.prefs, theme);
+    const mapped = toNavigatorPreferences(this.prefs, theme, this.respectPublisherColors);
     const initial = this.resolveInitial(this.initial);
 
     const nav = new EpubNavigator(
@@ -249,11 +258,15 @@ export class ReadiumEngine implements ReaderEngine {
   async applyPrefs(prefs: ReadingPrefs): Promise<void> {
     this.prefs = prefs;
     const theme = resolveReaderTheme(prefs.theme, this.systemDark);
-    const mapped = toNavigatorPreferences(prefs, theme);
+    const mapped = toNavigatorPreferences(prefs, theme, this.respectPublisherColors);
     await this.navigator?.submitPreferences(
       new EpubPreferences({
         backgroundColor: mapped.backgroundColor,
         textColor: mapped.textColor,
+        linkColor: mapped.linkColor,
+        visitedColor: mapped.visitedColor,
+        selectionBackgroundColor: mapped.selectionBackgroundColor,
+        selectionTextColor: mapped.selectionTextColor,
         fontFamily: mapped.fontFamily,
         fontSize: mapped.fontSize,
         lineHeight: mapped.lineHeight,
@@ -266,6 +279,13 @@ export class ReadiumEngine implements ReaderEngine {
         columnCount: mapped.columnCount ?? null,
       }),
     );
+  }
+
+  /** Additive reflowable presentation (no schema-1 field changes). */
+  async applyEpubPrefs(prefs: { respectPublisherColors: boolean }): Promise<void> {
+    if (this.respectPublisherColors === prefs.respectPublisherColors) return;
+    this.respectPublisherColors = prefs.respectPublisherColors;
+    await this.applyPrefs(this.prefs);
   }
 
   /** OS dark-mode flag changed (R9): "system" themes resolve differently, so
@@ -356,17 +376,23 @@ export class ReadiumEngine implements ReaderEngine {
     if (!nav) return;
     // A decoration whose locator cannot be resolved is skipped rather than
     // painted at the chapter start — a highlight in the wrong place is worse
-    // than a missing one.
-    const locators = decorations
-      .map((d) => {
-        const locator = this.locatorFromString(d.locator);
-        if (!locator) return null;
-        return { id: d.id, locator, style: d.style, color: d.color };
-      })
-      .filter(
-        (d): d is { id: string; locator: Locator; style: string; color: string } => d !== null,
-      );
-    nav.applyDecorations(locators as never, group);
+    // than a missing one. Report skips so a bad locator is diagnosable.
+    const locators: Decoration[] = [];
+    let skipped = 0;
+    for (const d of decorations) {
+      const locator = this.locatorFromString(d.locator);
+      if (!locator) {
+        skipped += 1;
+        continue;
+      }
+      locators.push(toReadiumDecoration(d, locator));
+    }
+    if (skipped > 0) {
+      handleError(`Skipped ${skipped} decoration(s) with unresolvable locators`, {
+        context: "reader.decorations.locate",
+      });
+    }
+    nav.applyDecorations(locators, group);
   }
 
   private async getSearchIndex(): Promise<MiniSearch | null> {
@@ -841,38 +867,32 @@ export class ReadiumEngine implements ReaderEngine {
     targetFrameSrc: string,
     quote: string,
   ): { prefix: string; suffix: string } {
+    const empty = { prefix: "", suffix: "" };
+    if (!quote) return empty;
     try {
-      const frame = Array.from(document.querySelectorAll("iframe")).find(
-        (f) => f.src === targetFrameSrc,
+      const frames = Array.from(document.querySelectorAll("iframe"));
+      // Prefer the frame the toolkit named, but tolerate blob URL / encoding
+      // differences; as a last resort find the frame whose live selection
+      // still matches the quote (multi-frame / repeated-src layouts).
+      const wanted = targetFrameSrc ? decodeHref(targetFrameSrc) : "";
+      const bySrc = frames.find(
+        (f) => f.src === targetFrameSrc || (wanted && decodeHref(f.src) === wanted),
       );
+      const normalize = (s: string) => s.replace(/\s+/g, " ").trim();
+      const candidates = bySrc ? [bySrc, ...frames.filter((f) => f !== bySrc)] : frames;
+      const frame = candidates.find((f) => {
+        const sel = f.contentDocument?.getSelection?.();
+        return !!sel && !sel.isCollapsed && normalize(sel.toString()) === normalize(quote);
+      });
       const doc = frame?.contentDocument;
       const selection = doc?.getSelection();
-      if (!doc || !selection || selection.rangeCount === 0) {
-        return { prefix: "", suffix: "" };
-      }
-      const range = selection.getRangeAt(0);
-      const container =
-        range.commonAncestorContainer.nodeType === Node.TEXT_NODE
-          ? range.commonAncestorContainer.parentNode
-          : range.commonAncestorContainer;
-      if (!container) return { prefix: "", suffix: "" };
-      const text = container.textContent ?? "";
+      if (!doc || !selection || selection.isCollapsed || selection.rangeCount === 0) return empty;
 
-      const preRange = doc.createRange();
-      preRange.setStart(container, 0);
-      preRange.setEnd(range.startContainer, range.startOffset);
-      const prefix = preRange.toString().slice(-32);
-
-      const sufRange = doc.createRange();
-      sufRange.setStart(range.endContainer, range.endOffset);
-      sufRange.setEnd(container, container.childNodes.length);
-      const suffix = sufRange.toString().slice(0, 32);
-
-      // Guard against a mismatched quote (DOM moved) — better empty than wrong.
-      if (quote && !text.includes(quote)) return { prefix: "", suffix: "" };
-      return { prefix, suffix };
+      const context = selectionContext(doc, selection.getRangeAt(0), quote);
+      if (normalize(selection.toString()) !== normalize(quote)) return empty;
+      return context;
     } catch {
-      return { prefix: "", suffix: "" };
+      return empty;
     }
   }
   private selectionFrom(sel: {
@@ -901,6 +921,71 @@ export class ReadiumEngine implements ReaderEngine {
       rect: { top: y, left: x, bottom: y + height, right: x + width },
     };
   }
+}
+
+/**
+ * Extract ≤32-char prefix/suffix around a DOM selection range inside one
+ * frame (pure, exported for tests). Anchoring the ranges at the common
+ * ancestor keeps context aligned when a selection spans several elements —
+ * the old `container.textContent` + index approach drifted for repeated
+ * phrases and multi-paragraph selections.
+ */
+export function selectionContext(
+  doc: Document,
+  range: Range,
+  quote: string,
+  width = 32,
+): { prefix: string; suffix: string } {
+  const empty = { prefix: "", suffix: "" };
+  const normalize = (s: string) => s.replace(/\s+/g, " ").trim();
+  if (quote && normalize(range.toString()) !== normalize(quote)) return empty;
+  try {
+    const container = range.commonAncestorContainer;
+    let scope: Element | null =
+      container.nodeType === Node.ELEMENT_NODE
+        ? (container as Element)
+        : (container.parentElement ?? null);
+    // The nearest parent of a text node can be a short <em>/<span> with no
+    // surrounding text. Climb until the scope holds enough context to fill a
+    // 32-char side (the toolkit's anchor uses before/after of that length).
+    while (scope && scope.parentElement && (scope.textContent?.length ?? 0) < width) {
+      scope = scope.parentElement;
+    }
+    if (!scope) return empty;
+    const pre = doc.createRange();
+    pre.setStart(scope, 0);
+    pre.setEnd(range.startContainer, range.startOffset);
+    const post = doc.createRange();
+    post.setStart(range.endContainer, range.endOffset);
+    post.setEnd(scope, scope.childNodes.length);
+    return {
+      prefix: pre.toString().slice(-width).replace(/^\s+/, ""),
+      suffix: post.toString().slice(0, width).replace(/\s+$/, ""),
+    };
+  } catch {
+    return empty;
+  }
+}
+
+/**
+ * Map one Folio decoration spec onto the installed navigator's `Decoration`
+ * contract (pure, exported for tests). The 2.14 navigator expects
+ * `style: { type, tint }`; passing a bare string leaves `type`/`tint`
+ * undefined so the decorator falls back to default yellow and ignores the
+ * palette. `enforceContrast` is disabled because our tints are already
+ * contrast-pinned against every reader theme.
+ */
+export function toReadiumDecoration(spec: DecorationSpec, locator: Locator): Decoration {
+  return {
+    id: spec.id,
+    locator,
+    style: {
+      type:
+        spec.style === "underline" ? DecorationStyleType.Underline : DecorationStyleType.Highlight,
+      tint: spec.color,
+      enforceContrast: false,
+    },
+  };
 }
 
 /** Percent-decoded href without its fragment, for tolerant href comparison. */

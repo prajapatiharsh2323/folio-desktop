@@ -133,24 +133,116 @@ function advanceHaystack(spans: string[], match: QuoteMatch): number {
   return compiled.map.indexOf(endSpanStart + match.endOffset) + 1;
 }
 
-/** ≤32-char context around a quote inside a page's joined text (plan §4:
- *  prefix/suffix are textual anchors, authoritative with the quote). */
+/** Context stored with a highlight anchor. */
+export interface QuoteContext {
+  prefix?: string | null;
+  suffix?: string | null;
+}
+
+/** Raw (whitespace-preserving) context window around one span match. */
+function matchWindow(spans: string[], match: QuoteMatch, width = 32): QuoteContext {
+  const raw = spans.join("");
+  let startRaw = match.startOffset;
+  for (let i = 0; i < match.startSpan; i++) startRaw += spans[i].length;
+  let endRaw = match.endOffset;
+  for (let i = 0; i < match.endSpan; i++) endRaw += spans[i].length;
+  return {
+    prefix: raw.slice(Math.max(0, startRaw - width), startRaw),
+    suffix: raw.slice(endRaw + 1, endRaw + 1 + width),
+  };
+}
+
+function norm(value: string | null | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** How well one occurrence's surrounding text agrees with the stored anchor. */
+export function matchContextScore(
+  spans: string[],
+  match: QuoteMatch,
+  context: QuoteContext,
+): number {
+  const window = matchWindow(spans, match);
+  const storedPrefix = norm(context.prefix);
+  const storedSuffix = norm(context.suffix);
+  const prefix = norm(window.prefix);
+  const suffix = norm(window.suffix);
+  let score = 0;
+  if (storedPrefix && prefix) {
+    score += prefix.includes(storedPrefix) || storedPrefix.includes(prefix) ? 2 : -2;
+  }
+  if (storedSuffix && suffix) {
+    score += suffix.includes(storedSuffix) || storedSuffix.includes(suffix) ? 2 : -2;
+  }
+  return score;
+}
+
+/**
+ * Pick the occurrence whose surrounding text best matches a stored highlight
+ * anchor. Without context the legacy behaviour (paint every occurrence) is
+ * retained so older/mobile annotations are not silently dropped.
+ */
+export function bestQuoteOccurrence(
+  spans: string[],
+  quote: string,
+  context: QuoteContext,
+  cap = 20,
+): QuoteMatch[] {
+  const all = quoteOccurrences(spans, quote, cap);
+  if (all.length < 2 || (!norm(context.prefix) && !norm(context.suffix))) return all;
+  const ranked = all
+    .map((match) => ({ match, score: matchContextScore(spans, match, context) }))
+    .sort((a, b) => b.score - a.score);
+  return ranked[0].score > 0 ? [ranked[0].match] : all;
+}
+
+/**
+ * ≤32-char context around a quote inside a page's joined text (plan §4:
+ * prefix/suffix are textual anchors, authoritative with the quote).
+ *
+ * Whitespace is collapsed for matching, so the match index cannot be used to
+ * slice the raw text directly — a page with double spaces or newlines shifts
+ * every later offset. Build a normalised haystack together with a map back to
+ * raw character indices, then slice the original string with those.
+ */
 export function extractContext(
   pageText: string,
   quote: string,
   width = 32,
 ): { prefix: string; suffix: string } {
-  const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
-  const haystack = norm(pageText);
-  const needle = norm(quote);
-  const at = needle ? haystack.indexOf(needle) : -1;
+  const needle = quote.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!needle) return { prefix: "", suffix: "" };
+
+  const chars: string[] = [];
+  const rawIndex: number[] = [];
+  let pendingSpace = false;
+  let started = false;
+  for (let i = 0; i < pageText.length; i++) {
+    const ch = pageText[i];
+    if (/\s/.test(ch)) {
+      pendingSpace = started;
+      continue;
+    }
+    if (pendingSpace) {
+      chars.push(" ");
+      rawIndex.push(i);
+      pendingSpace = false;
+    }
+    started = true;
+    chars.push(ch.toLowerCase());
+    rawIndex.push(i);
+  }
+
+  const at = chars.join("").indexOf(needle);
   if (at < 0) {
     // Unknown quote (stale annotation): empty context is valid — the quote
     // remains the anchor.
     return { prefix: "", suffix: "" };
   }
+  const startRaw = rawIndex[at];
+  const endRaw = rawIndex[at + needle.length - 1];
   return {
-    prefix: pageText.slice(Math.max(0, at - width), at).replace(/^\s+/, ""),
-    suffix: pageText.slice(at + needle.length, at + needle.length + width).replace(/\s+$/, ""),
+    prefix: pageText.slice(Math.max(0, startRaw - width), startRaw).replace(/^\s+/, ""),
+    suffix: pageText.slice(endRaw + 1, endRaw + 1 + width).replace(/\s+$/, ""),
   };
 }

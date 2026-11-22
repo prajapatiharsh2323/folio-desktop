@@ -11,6 +11,12 @@ export interface ResolvedTheme {
   /** chrome surface / text pair per resolved theme (03 §5.3) */
   chromeSurface: string;
   chromeText: string;
+  /** content link / visited colours for publisher-styled documents */
+  link: string;
+  visited: string;
+  /** selection colours so highlighted text stays legible in every theme */
+  selectionBg: string;
+  selectionText: string;
 }
 
 export function resolveReaderTheme(theme: ReadingTheme, systemDark: boolean): ResolvedTheme {
@@ -25,12 +31,17 @@ export function resolveReaderTheme(theme: ReadingTheme, systemDark: boolean): Re
         : resolved === "dark"
           ? "rgba(18,18,20,.92)"
           : "rgba(0,0,0,.92)"; // true-black
+  const dark = resolved === "dark" || resolved === "true-black";
   return {
     theme: resolved,
     pageBg: colors.bg,
     pageText: colors.text,
     chromeSurface: chrome,
     chromeText: colors.text,
+    link: dark ? "#8AB4F8" : "#0B57D0",
+    visited: dark ? "#C58AF9" : "#6B2FA0",
+    selectionBg: dark ? "#5A4010" : "#FFD27F",
+    selectionText: colors.text,
   };
 }
 
@@ -57,11 +68,18 @@ export function scrimAlpha(brightness: number): number {
 /** Map Folio ReadingPrefs → toolkit EpubPreferences-shaped object (04 §3):
  *  fontSize factor = px/16; pageGutter (margin) em at 16px base; letter/paragraph
  *  spacing in em; scroll from flow; justify/hyphenate passthrough. */
-export function toNavigatorPreferences(prefs: ReadingPrefs, theme: ResolvedTheme) {
+export function toNavigatorPreferences(
+  prefs: ReadingPrefs,
+  theme: ResolvedTheme,
+  respectPublisherColors = false,
+) {
   const font = typefaceStack(prefs.fontFamily);
   return {
-    backgroundColor: theme.pageBg,
-    textColor: theme.pageText,
+    // `null` clears a previous user override in Readium's preference merge,
+    // letting the publisher's own background/text colours win. This is the
+    // additive "Publisher" presentation mode (not a schema-1 enum value).
+    backgroundColor: respectPublisherColors ? null : theme.pageBg,
+    textColor: respectPublisherColors ? null : theme.pageText,
     fontFamily: font,
     fontSize: prefs.fontSize / 16,
     lineHeight: prefs.lineHeight,
@@ -75,6 +93,13 @@ export function toNavigatorPreferences(prefs: ReadingPrefs, theme: ResolvedTheme
       prefs,
       typeof window !== "undefined" ? window.innerWidth : 0,
     ),
+    // Readium's injected ReadiumCSS-after rules force these onto publisher
+    // stylesheets and inline styles, so links/headings/tables stay readable
+    // on both light and dark pages without inverting image content.
+    linkColor: respectPublisherColors ? null : theme.link,
+    visitedColor: respectPublisherColors ? null : theme.visited,
+    selectionBackgroundColor: theme.selectionBg,
+    selectionTextColor: theme.selectionText,
   };
 }
 

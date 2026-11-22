@@ -2,7 +2,12 @@
 // across text-layer spans, and in-book search hit building (§7.6).
 import { describe, expect, it } from "vitest";
 import { noCopyFromPermissions } from "../src/pdf/permissions";
-import { extractContext, matchQuote, quoteOccurrences } from "../src/pdf/quoteMatch";
+import {
+  bestQuoteOccurrence,
+  extractContext,
+  matchQuote,
+  quoteOccurrences,
+} from "../src/pdf/quoteMatch";
 import { findPdfSearchHits } from "../src/pdf/pdfSearch";
 
 describe("permissions (D2)", () => {
@@ -78,6 +83,26 @@ describe("quoteMatch", () => {
     expect(context.suffix).toBe(" Epsilon Zeta Eta Theta Iota Kap");
     // unknown quote → empty context
     expect(extractContext(pageText, "Omega")).toEqual({ prefix: "", suffix: "" });
+  });
+
+  it("maps collapsed-whitespace matches back to raw offsets", () => {
+    const pageText = "Alpha   Beta\nGamma   Delta Epsilon";
+    const context = extractContext(pageText, "Gamma Delta");
+    // Raw text is preserved (including the original whitespace) — only the
+    // match index is mapped through the normalised haystack.
+    expect(context.prefix).toBe("Alpha   Beta\n");
+    expect(context.suffix).toBe(" Epsilon");
+  });
+
+  it("picks the repeated quote whose context matches the stored anchor", () => {
+    const spans = ["alpha echo beta ", "gamma echo delta"];
+    const both = quoteOccurrences(spans, "echo");
+    expect(both).toHaveLength(2);
+    expect(bestQuoteOccurrence(spans, "echo", { prefix: "gamma ", suffix: " delta" })).toEqual([
+      both[1],
+    ]);
+    // Without context the legacy behaviour paints every occurrence.
+    expect(bestQuoteOccurrence(spans, "echo", {})).toHaveLength(2);
   });
 });
 

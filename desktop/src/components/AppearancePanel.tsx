@@ -19,7 +19,8 @@ import {
 import type { ReadingPrefs, ReadingSpread } from "../model/types";
 import type { ReaderCapabilities } from "../reader/ReaderEngine";
 import { MAX_ZOOM, MIN_ZOOM } from "../pdf/pdfLayout";
-import { READING_THEME_OPTIONS, TYPEFACE_OPTIONS } from "./readingPrefsOptions";
+import { EPUB_THEME_OPTIONS, TYPEFACE_OPTIONS } from "./readingPrefsOptions";
+import { resolveReaderTheme } from "../reader/readerThemes";
 
 const SERIF_CSS = '"Iowan Old Style", Georgia, serif';
 const ALIGNMENT_OPTIONS = [
@@ -65,6 +66,11 @@ interface AppearancePanelProps {
   /** Zoom stepping goes to the engine: zoom is session state, not a pref. */
   onZoomBy?: (direction: 1 | -1) => void;
   onZoomMode?: (mode: "fit-width" | "fit-page") => void;
+  /** OS dark flag, passed in so the System swatch/preview updates on a flip. */
+  systemDark?: boolean;
+  /** Additive "Publisher" presentation (leaves author colours untouched). */
+  respectPublisherColors?: boolean;
+  onPublisherColorsChange?: (value: boolean) => void;
 }
 
 /**
@@ -72,7 +78,7 @@ interface AppearancePanelProps {
  * Provides quick appearance controls (font size steppers, theme swatches,
  * width presets), live typography preview, and fine-grained advanced controls.
  */
-export function AppearancePanel({
+export function EpubAppearancePanel({
   open,
   modal = false,
   prefs,
@@ -83,6 +89,9 @@ export function AppearancePanel({
   zoom = "fit-width",
   onZoomBy,
   onZoomMode,
+  systemDark = false,
+  respectPublisherColors = false,
+  onPublisherColorsChange,
 }: AppearancePanelProps) {
   const patch = (part: Partial<ReadingPrefs>) => onChange({ ...prefs, ...part });
   /** Fixed layout: no typography sections, zoom + page layout instead (§8.4). */
@@ -99,14 +108,13 @@ export function AppearancePanel({
       ? { ...TYPEFACE_OPTIONS[0], css: SERIF_CSS }
       : (TYPEFACE_OPTIONS.find((f) => f.value === prefs.fontFamily) ?? TYPEFACE_OPTIONS[0]);
   const previewColors = useMemo(() => {
-    if (prefs.theme === "system") {
-      const isDark =
-        typeof window !== "undefined" &&
-        window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-      return READER_THEME_COLORS[isDark ? "dark" : "light"];
-    }
-    return READER_THEME_COLORS[prefs.theme];
-  }, [prefs.theme]);
+    if (respectPublisherColors) return { bg: "#FFFFFF", text: "#121212" };
+    // Route through the canonical resolver AND take systemDark as a prop: the
+    // old useMemo watched only prefs.theme, so a System flip never repainted
+    // the preview even though the canvas had changed.
+    const resolved = resolveReaderTheme(prefs.theme, systemDark);
+    return { bg: resolved.pageBg, text: resolved.pageText };
+  }, [prefs.theme, systemDark, respectPublisherColors]);
 
   // Presets are approximate: a width set with the slider still shows the
   // nearest preset as active so the quick row never looks unselected.
@@ -273,11 +281,21 @@ export function AppearancePanel({
           <FolioRadioGroup
             label="Reading theme"
             className="folio-theme-grid"
-            value={prefs.theme}
-            options={READING_THEME_OPTIONS}
-            onChange={(theme) => patch({ theme })}
+            value={respectPublisherColors ? "publisher" : prefs.theme}
+            options={EPUB_THEME_OPTIONS}
+            onChange={(value) => {
+              if (value === "publisher") {
+                onPublisherColorsChange?.(true);
+              } else {
+                onPublisherColorsChange?.(false);
+                patch({ theme: value });
+              }
+            }}
             renderOption={({ option, selected, tabIndex, select, setButton }) => {
-              const colors = READER_THEME_COLORS[option.value];
+              const publisher = option.value === "publisher";
+              const colors = publisher
+                ? { bg: "#FFFFFF", text: "#121212" }
+                : READER_THEME_COLORS[option.value];
               const system = option.value === "system";
               return (
                 <button
@@ -610,3 +628,6 @@ export function AppearancePanel({
     </FolioPanel>
   );
 }
+
+/** Back-compatible name — the reflowable panel was the original AppearancePanel. */
+export const AppearancePanel = EpubAppearancePanel;

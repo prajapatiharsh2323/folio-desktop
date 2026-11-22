@@ -1,5 +1,66 @@
 # Current Session Checkpoint
 
+## In flight — Reader Reliability & Experience Upgrade (2026-11-21)
+
+Plan discussed and approved: dedicated additive `library/user/pdf-prefs.json`
+for new desktop PDF preferences; correctness first (Phases 1–3), then a review
+checkpoint before Phases 4–7; verification on this Linux host after
+`pnpm install` (Windows runtime QA stays a documented follow-up).
+
+**Phase 1 (EPUB annotations + theme) — code complete, Linux gate green.**
+Root causes fixed: the installed `@readium/navigator` 2.14 `Decoration` needs
+`style: { type, tint }` — Folio passed a bare string, so EPUB highlights always
+fell back to yellow (`toReadiumDecoration` in `readiumEngine.ts`); highlight
+palette keyed off the OS flag instead of `resolveReaderTheme` (manual Dark on
+light Windows now gets dark tints); no repaint on manual theme changes; overlap
+used quote substring + chapter only (now context/progression-aware and refuses
+to guess on ties); EPUB/DOM and PDF quote-context offsets repaired; paint/load/
+corrupt-JSON failures now log via `handleError`/`reportError`.
+Tests: new `epubSelectionContext` (4), expanded `highlightPalette` (7),
+`annotationOverlap` (15). `tsc -b` clean; **Vitest 738/738 (93 files)**.
+**Phase 2 (PDF rendering + geometry) — code complete, Linux gate green.**
+Per-page render/text request identities (superseded paints cancelled, tokens
+released on settle regardless of sync generation, failed text layers retry,
+stale slots removed), decoration groups no longer clear each other, PDF
+highlights disambiguated by stored context, spread fit-width fits the whole
+two-page row with the CSS gutter subtracted, fit-page uses the tallest page,
+row-aware page detection/navigation, real paginated wheel page-turns plus
+scroll snapping, position-preserving zoom/resize, link/selection race guards.
+Tests: 15 `pdfPageView`, 17 `pdfLayout`, 12 `pdfSession`, 15 `pdfTextParts`.
+**Vitest 749/749 (93 files)**, `tsc -b` clean.
+**Phase 3 (format-specific settings) — code complete, Linux gate green.**
+New `EpubReaderPrefs` / `PdfReaderPrefs` models (`src/model/formatPrefs.ts`),
+additive `library/user/pdf-prefs.json` via `PdfPrefsRepo` (first-run migration
+from legacy theme/brightness/flow/spread; global + byDoc overrides; unknown-key
+preservation; doc-delete cascade), schema-1 `ReadingPrefs` / `pdfZoom`
+untouched. `EpubAppearancePanel` (renamed original) and new
+`PdfAppearancePanel`; ReaderScreen selects by document format. PDF prefs drive
+rotation (rotated layout + pdf.js viewport/text layer), cover-first, RTL rows,
+page spacing, presentation/background CSS, thumbnails/page-number/focus toggles,
+actual-size zoom, direct page navigation. EPUB `maxWidth` no longer caps PDF.
+`ReaderEngine.applyPdfPrefs?` added; engine applies prefs at open and on change.
+Tests: new `pdfPrefs` (4), `formatPrefs` (4), `pdfAppearancePanel` (4).
+Gates: `tsc -b` clean, ESLint 0/0, Prettier clean, **Vitest 761/761 (96
+files)**, `vite build` green.
+**Phases 4–7 — code complete, Linux gate green (user approved continuation).**
+Phase 4: complete Readium colour contract (`linkColor`, `visitedColor`,
+`selectionBackgroundColor/TextColor`), additive EPUB `user/epub-prefs.json`
+with a "Publisher" presentation mode that clears user colour overrides so
+author inline/styled content wins without touching the schema-1 theme enum;
+System-mode appearance preview now driven by the OS flag prop.
+Phase 5/6: bounded lazy PDF thumbnail strip, direct page-number navigation,
+hand/pan tool, real full-screen focus workspace, rotated layout + pdf.js
+viewport/text layer, cover-first and RTL spread rows, page presentation and
+surrounding background; keyboard/wheel page turns are row-consistent.
+Phase 7 final gate: `tsc -b`, ESLint 0/0, Prettier clean, **Vitest 771/771
+(98 files)**, `vite build` green, perf harness 0 over budget.
+**Remaining (cannot be done on this Linux host):** Windows/WebView2 manual QA
+(real styled EPUBs incl. dark publisher CSS/inline colours/SVG/tables/scanned
+and mixed-size PDFs, OS light/dark flips, zoom/resize feel, fullscreen, long
+documents), and the open product runbooks. No commits/pushes were made.
+
+---
+
 **Session:** `S-20261120-01` — Windows 11 native production gate + 0.1.0 NSIS
 production build. Record:
 `docs/development/audits/results/R-20261120-01-windows-production-build.md`.

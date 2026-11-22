@@ -19,12 +19,18 @@
   overscroll-behavior: contain;
 }
 
-/* Paginated flow hides the scrollbar: page turns replace free scrolling. */
+/* Paginated flow: wheel/trackpad turns one spread row (handled in PdfEngine),
+   scrollbar hidden, and native scroll gestures settle on a page row. Continuous
+   flow keeps the scrollbar and free scrolling. */
 .folio-pdf--paginated .folio-pdf-scroll {
   scrollbar-width: none;
+  scroll-snap-type: y proximity;
 }
 .folio-pdf--paginated .folio-pdf-scroll::-webkit-scrollbar {
   display: none;
+}
+.folio-pdf--paginated .folio-pdf-pagebox {
+  scroll-snap-align: start;
 }
 
 /* The content plane carries the laid-out pages; its size is set by the
@@ -121,6 +127,82 @@
   border-radius: 1px;
   mix-blend-mode: multiply;
   pointer-events: none;
+}
+
+/* ---- Page thumbnail strip ------------------------------------------------ */
+.folio-pdf-thumbnails {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--folio-z-panel, 12);
+  width: 104px;
+  overflow-y: auto;
+  padding: var(--folio-space-2);
+  background: var(--reader-chrome-surface, rgb(0 0 0 / 0.7));
+  border-right: 1px solid var(--folio-border);
+}
+
+.folio-pdf-thumbnail {
+  display: block;
+  width: 100%;
+  margin-bottom: var(--folio-space-2);
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.folio-pdf-thumbnail.is-active {
+  border-color: var(--folio-accent, #3b6ea5);
+}
+.folio-pdf-thumbnail img {
+  display: block;
+  width: 100%;
+  height: auto;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+.folio-pdf-thumbnail__fallback {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 0.77;
+  background: #fff;
+  color: #333;
+}
+.folio-pdf-thumbnail__label {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--folio-type-micro-size, 12px);
+  color: var(--reader-chrome-text, inherit);
+  text-align: center;
+}
+
+/* Hand/pan navigation while zoomed. */
+.folio-pdf--pan .folio-pdf-scroll {
+  cursor: grab;
+}
+.folio-pdf--pan .folio-pdf-scroll.is-panning {
+  cursor: grabbing;
+}
+
+/* ---- PDF page presentation / surroundings (desktop PDF prefs) ------------
+   Presentation affects the paper only; selection/decoration geometry is
+   untouched because the filter is applied to the canvas, not the DOM layers. */
+.folio-pdf[data-pdf-presentation="warm"] .folio-pdf-page {
+  filter: sepia(0.3) saturate(1.08);
+}
+.folio-pdf[data-pdf-presentation="dim"] .folio-pdf-page {
+  filter: brightness(0.72);
+}
+.folio-pdf[data-pdf-presentation="night"] .folio-pdf-page {
+  filter: invert(1) hue-rotate(180deg);
+}
+.folio-pdf[data-pdf-presentation="dim"] .folio-pdf-scroll,
+.folio-pdf[data-pdf-background="black"] .folio-pdf-scroll {
+  background: #0b0b0c;
+}
+.folio-pdf[data-pdf-background="neutral"] .folio-pdf-scroll {
+  background: #6b6b6b;
 }
 
 /* ---- Clicked-highlight popover (R5, hardening §12): fixed menu over the

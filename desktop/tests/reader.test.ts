@@ -623,6 +623,37 @@ describe("readerThemes", () => {
     expect(mapped.columnCount).toBe(1); // scrolled is always single-column
   });
 
+  it("supplies link/selection colours for publisher-styled content in every theme", () => {
+    for (const name of ["light", "warm", "dark", "true-black"] as const) {
+      const theme = resolveReaderTheme(name, false);
+      const mapped = toNavigatorPreferences(DEFAULT_READING_PREFS, theme);
+      expect(mapped.backgroundColor).toBe(theme.pageBg);
+      expect(mapped.textColor).toBe(theme.pageText);
+      expect(mapped.linkColor).toBe(theme.link);
+      expect(mapped.visitedColor).toBe(theme.visited);
+      expect(mapped.selectionBackgroundColor).toBe(theme.selectionBg);
+      expect(mapped.selectionTextColor).toBe(theme.pageText);
+    }
+    // System resolves through the OS flag; a manual theme ignores it.
+    expect(resolveReaderTheme("system", true).link).not.toBe(
+      resolveReaderTheme("light", false).link,
+    );
+    expect(resolveReaderTheme("dark", false).pageBg).toBe("#121214");
+  });
+
+  it("Publisher presentation clears colour overrides instead of changing the schema-1 enum", () => {
+    const theme = resolveReaderTheme("dark", false);
+    const mapped = toNavigatorPreferences(DEFAULT_READING_PREFS, theme, true);
+    // null tells Readium's preference merge to drop the user override, so the
+    // publisher's own stylesheet/inline colours win (images are untouched).
+    expect(mapped.backgroundColor).toBeNull();
+    expect(mapped.textColor).toBeNull();
+    expect(mapped.linkColor).toBeNull();
+    expect(mapped.visitedColor).toBeNull();
+    expect(mapped.selectionBackgroundColor).toBe(theme.selectionBg);
+    expect(DEFAULT_READING_PREFS.pdfZoom).toBe("");
+  });
+
   it("F9 5.2a: EPUB column count follows the spread pref and viewport", () => {
     const paginated = { ...DEFAULT_READING_PREFS, flow: "paginated" as const };
     const scrolled = { ...DEFAULT_READING_PREFS, flow: "scrolled" as const };

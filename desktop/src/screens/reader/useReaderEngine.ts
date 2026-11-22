@@ -8,6 +8,8 @@ import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from "reac
 import type { ReaderDoc } from "../../store/readerStore";
 import type { ReaderOpenRequest } from "../../store/routeStore";
 import type { ReadingPrefs, Annotation } from "../../model/types";
+import type { PdfReaderPrefs } from "../../model/formatPrefs";
+import type { EpubPrefs } from "../../store/epubPrefs";
 import type {
   HighlightActivation,
   NoterefActivation,
@@ -30,6 +32,7 @@ import { resumePlan } from "../../reader/resume";
 import { positionsCacheFor } from "../../store/positionsCache";
 import { createEngine } from "../../reader/engineFactory";
 import type { KeepAwakeController } from "../../reader/keepAwake";
+import { handleError } from "../../lib/errorLog";
 import { openExternal } from "./launchExternal";
 import { planTarget } from "./resumeTargets";
 import type { SplashPhase } from "../../components/ReaderSplash";
@@ -47,6 +50,10 @@ interface UseReaderEngineOptions {
   engineRef: MutableRefObject<ReaderEngine | null>;
   navRef: MutableRefObject<ReaderNavigationCoordinator | null>;
   prefsRef: MutableRefObject<ReadingPrefs>;
+  /** Additive PDF prefs, read at open time so a freshly-opened engine starts
+   *  with the user's format-specific layout rather than built-in defaults. */
+  pdfPrefsRef: MutableRefObject<PdfReaderPrefs | null>;
+  epubPrefsRef: MutableRefObject<EpubPrefs | null>;
   chromeRef: RefObject<ChromeStateMachine | null>;
   keepAwakeRef: RefObject<KeepAwakeController | null>;
   /** A live selection owns the pointer — edge clicks must not turn the page. */
@@ -94,6 +101,8 @@ export function useReaderEngine({
   engineRef,
   navRef,
   prefsRef,
+  pdfPrefsRef,
+  epubPrefsRef,
   chromeRef,
   keepAwakeRef,
   selectionRef,
@@ -315,14 +324,23 @@ export function useReaderEngine({
           if (!cancelled) setSplashProgress(progress);
         });
         if (cancelled) return;
+        if (pdfPrefsRef.current && engine.applyPdfPrefs) {
+          await engine.applyPdfPrefs(pdfPrefsRef.current);
+        }
+        if (epubPrefsRef.current && engine.applyEpubPrefs) {
+          await engine.applyEpubPrefs(epubPrefsRef.current);
+        }
+        if (cancelled) return;
         setSplashProgress(null);
         setToc(engine.toc());
         // Capability report is only known after the document parses (PDF §8.4).
         setCapabilities(engine.capabilities ?? null);
         try {
           await refreshAnnotations(doc.docId);
-        } catch {
-          /* annotation load failure must not break reading */
+        } catch (error) {
+          // A failed annotation load must not break reading, but losing every
+          // highlight silently is not acceptable — log it with context.
+          handleError(error, { context: "reader.annotations.load" });
         }
       } catch (error) {
         if (cancelled) return;
@@ -366,6 +384,8 @@ export function useReaderEngine({
     engineRef,
     navRef,
     prefsRef,
+    pdfPrefsRef,
+    epubPrefsRef,
     chromeRef,
     keepAwakeRef,
     selectionRef,

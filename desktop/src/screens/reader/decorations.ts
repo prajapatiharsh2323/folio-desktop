@@ -6,8 +6,12 @@ import type { Annotation } from "../../model/types";
 import type { DecorationSpec } from "../../reader/ReaderEngine";
 import { withAnchor } from "../../reader/locatorCodec";
 import { highlightCss } from "../../reader/highlightPalette";
+import type { ResolvedTheme } from "../../reader/readerThemes";
 
-export function decorationsFor(annotations: Annotation[], systemDark: boolean): DecorationSpec[] {
+export function decorationsFor(
+  annotations: Annotation[],
+  theme: ResolvedTheme | ResolvedTheme["theme"],
+): DecorationSpec[] {
   return annotations
     .filter((a) => a.kind === "highlight" && a.location)
     .map((a) => ({
@@ -17,6 +21,6 @@ export function decorationsFor(annotations: Annotation[], systemDark: boolean): 
         a.quote.trim() ? { quote: a.quote, prefix: a.prefix, suffix: a.suffix } : null,
       ),
       style: "highlight",
-      color: highlightCss(a.color, systemDark),
+      color: highlightCss(a.color, theme),
     }));
 }

@@ -8,6 +8,7 @@ import type { ReaderEngine, SearchHit } from "../../reader/ReaderEngine";
 import type { ReaderNavigationCoordinator } from "../../reader/navigation";
 import { withAnchor } from "../../reader/locatorCodec";
 import { searchActiveCss } from "../../reader/highlightPalette";
+import type { ResolvedTheme } from "../../reader/readerThemes";
 import { handleError } from "../../lib/errorLog";
 
 export type InBookSearchHit = SearchHit;
@@ -24,8 +25,8 @@ interface UseInBookSearchOptions {
    */
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** OS dark flag (R16): the active-match tint resolves per theme. */
-  systemDark: boolean;
+  /** Effective reader theme (R16): the active-match tint resolves per theme. */
+  theme: ResolvedTheme;
 }
 
 /** Debounced in-book search lifecycle. */
@@ -34,7 +35,7 @@ export function useInBookSearch({
   navRef,
   open,
   onOpenChange,
-  systemDark,
+  theme,
 }: UseInBookSearchOptions) {
   const [inbookQuery, setInbookQuery] = useState("");
   const [inbookSearching, setInbookSearching] = useState(false);
@@ -49,8 +50,8 @@ export function useInBookSearch({
   const activeIndexRef = useRef(-1);
   // Read through a ref so paintActive stays referentially stable (a theme
   // flip must not re-run the debounced search effect).
-  const systemDarkRef = useRef(systemDark);
-  systemDarkRef.current = systemDark;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   /** The hit currently painted as active, for repaints on theme flips (R16). */
   const activeHitRef = useRef<InBookSearchHit | null>(null);
 
@@ -68,7 +69,7 @@ export function useInBookSearch({
                 id: ACTIVE_ID,
                 locator: withAnchor(hit.locator, hit.anchor),
                 style: "highlight",
-                color: searchActiveCss(systemDarkRef.current),
+                color: searchActiveCss(themeRef.current),
                 group: "search",
               },
             ],
@@ -86,13 +87,13 @@ export function useInBookSearch({
     [engineRef],
   );
 
-  // R16: an OS theme flip repaints the active match in the other palette.
-  const lastDarkRef = useRef(systemDark);
+  // R16: an OS flip or a manual theme change repaints the active match.
+  const lastThemeRef = useRef(theme);
   useEffect(() => {
-    if (lastDarkRef.current === systemDark) return;
-    lastDarkRef.current = systemDark;
+    if (lastThemeRef.current.theme === theme.theme) return;
+    lastThemeRef.current = theme;
     void paintActive(activeHitRef.current);
-  }, [systemDark, paintActive]);
+  }, [theme, paintActive]);
 
   // Debounced in-book text search. Two characters minimum (R2).
   useEffect(() => {

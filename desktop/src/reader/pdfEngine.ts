@@ -16,13 +16,14 @@ import type {
   TocEntry,
 } from "./ReaderEngine";
 import type { ReadingPrefs } from "../model/types";
+import type { PdfReaderPrefs } from "../model/formatPrefs";
 import { resolveReaderTheme } from "./readerThemes";
 import { hrefForPage, pageFromHref } from "../pdf/pdfLayout";
 import { decodeLocation } from "./locatorCodec";
-import { extractContext, quoteOccurrences } from "../pdf/quoteMatch";
+import { bestQuoteOccurrence, extractContext } from "../pdf/quoteMatch";
 import { findPdfSearchHits, type PdfSearchPage } from "../pdf/pdfSearch";
 import { noCopyFromPermissions } from "../pdf/permissions";
-import type { PdfPageLink } from "../pdf/pdfjsAdapter";
+import type { PDFDocumentProxy, PdfPageLink } from "../pdf/pdfjsAdapter";
 
 const POINTER_EMIT_INTERVAL_MS = 200;
 const SELECTION_EMIT_DEBOUNCE_MS = 120;
@@ -30,11 +31,15 @@ const SELECTION_EMIT_DEBOUNCE_MS = 120;
 const SCROLL_STEP_PX = 48;
 const MAX_HITS_PER_PAGE = 20;
 const MAX_SEARCH_HITS = 200;
+/** One wheel/trackpad gesture advances at most one spread row in paginated mode. */
+const WHEEL_TURN_COOLDOWN_MS = 260;
 
 interface PageDecoration {
   id: string;
   color: string;
   quote: string;
+  /** context anchor, used to disambiguate repeated quotes on one page */
+  context: { prefix: string; suffix: string };
   /** page-relative rects (CSS px) of the painted highlight, for hit-testing */
   rects: { left: number; top: number; right: number; bottom: number }[];
 }
@@ -71,17 +76,30 @@ export class PdfEngine implements ReaderEngine {
   private noterefCbs = new Set<(activation: NoterefActivation | null) => void>();
   private highlightCbs = new Set<(activation: HighlightActivation) => boolean>();
   private lastPointerEmit = 0;
+  private lastWheelTurn = 0;
+  private panMode = false;
+  private panStart: { x: number; y: number; left: number; top: number } | null = null;
   private lastLocator: ReaderLocator | null = null;
   private selectionTimer: ReturnType<typeof setTimeout> | null = null;
   private lastSelectionKey: string | null = null;
+  /** Monotonic identity of the latest selection evaluation; an older async
+   *  context lookup must not emit over a newer selection. */
+  private selectionSeq = 0;
 
-  /** Highlights painted on the text layer, grouped per page (§7.4). */
-  private decorations = new Map<number, PageDecoration[]>();
+  /** Decorations painted on the text layer, keyed by group then page (§7.4).
+   *  Search-active and annotation highlights must never clear each other. */
+  private decorationsByGroup = new Map<string, Map<number, PageDecoration[]>>();
+  /** Every page that has ever been painted, so removing a highlight can also
+   *  clear stale rects on pages that are no longer in any decoration map. */
+  private paintedPages = new Set<number>();
 
   /** Link annotations per page at their fetch scale (§12 hardening): the
    *  adapter resolves pdf.js annotations async, so clicks hit a prefetch. */
   private linkCache = new Map<number, { scale: number; links: PdfPageLink[] }>();
   private linkScale = -1;
+  /** Bumped whenever the render scale changes; a request from a previous
+   *  epoch cannot commit even if the scale later returns to the same value. */
+  private linkEpoch = 0;
 
   constructor(
     readingBytes: Uint8Array,
@@ -169,20 +187,29 @@ export class PdfEngine implements ReaderEngine {
     });
     this.view = view;
 
-    this.applyPrefs(this.prefs);
+    await this.applyPrefs(this.prefs);
 
     // ---- events ----
     const doc = container.ownerDocument;
     const onScroll = () => this.onScroll();
+    const onWheel = (e: WheelEvent) => this.handleWheel(e);
     const onPointerMove = () => this.emitPointerActivity();
     const onPointerDown = () => this.emitPointerActivity();
+    const onPanDown = (e: PointerEvent) => this.onPanDown(e);
+    const onPanMove = (e: PointerEvent) => this.onPanMove(e);
+    const onPanUp = () => this.onPanUp();
     const onClick = (e: MouseEvent) => this.handleClick(e);
     const onContextMenu = (e: MouseEvent) => this.handleContextMenu(e);
     const onSelectionChange = () => this.scheduleSelection();
     const onCopy = (e: ClipboardEvent) => this.handleCopyEvent(e);
     scroll.addEventListener("scroll", onScroll, { passive: true });
+    scroll.addEventListener("wheel", onWheel, { passive: false });
     scroll.addEventListener("pointermove", onPointerMove, { passive: true });
     scroll.addEventListener("pointerdown", onPointerDown, { passive: true });
+    scroll.addEventListener("pointerdown", onPanDown);
+    scroll.addEventListener("pointermove", onPanMove);
+    scroll.addEventListener("pointerup", onPanUp);
+    scroll.addEventListener("pointercancel", onPanUp);
     content.addEventListener("click", onClick);
     content.addEventListener("contextmenu", onContextMenu);
     doc.addEventListener("selectionchange", onSelectionChange);
@@ -192,7 +219,12 @@ export class PdfEngine implements ReaderEngine {
     if (ro) ro.observe(scroll);
     this.cleanupDom = () => {
       scroll.removeEventListener("scroll", onScroll);
+      scroll.removeEventListener("wheel", onWheel);
       scroll.removeEventListener("pointermove", onPointerMove);
+      scroll.removeEventListener("pointerdown", onPanDown);
+      scroll.removeEventListener("pointermove", onPanMove);
+      scroll.removeEventListener("pointerup", onPanUp);
+      scroll.removeEventListener("pointercancel", onPanUp);
       scroll.removeEventListener("pointerdown", onPointerDown);
       content.removeEventListener("click", onClick);
       content.removeEventListener("contextmenu", onContextMenu);
@@ -230,6 +262,7 @@ export class PdfEngine implements ReaderEngine {
       layout,
       session.visibleRange(this.scrollEl?.scrollTop ?? 0, this.scrollEl?.clientHeight ?? 0),
       this.dpr(),
+      session.rotation,
     );
     this.prefetchLinks();
   }
@@ -244,8 +277,10 @@ export class PdfEngine implements ReaderEngine {
     if (scale <= 0) return;
     if (this.linkScale !== scale) {
       this.linkScale = scale;
+      this.linkEpoch += 1;
       this.linkCache.clear();
     }
+    const epoch = this.linkEpoch;
     const [first, last] = session.visibleRange(
       this.scrollEl?.scrollTop ?? 0,
       this.scrollEl?.clientHeight ?? 0,
@@ -256,11 +291,15 @@ export class PdfEngine implements ReaderEngine {
       this.linkCache.set(page, entry); // reserve; refetch only on scale change
       void resolve(page, scale)
         .then((links) => {
-          if (this.destroyed || entry.scale !== this.linkScale) return;
+          if (this.destroyed || epoch !== this.linkEpoch || entry.scale !== scale) return;
           entry.links = links;
         })
         .catch(() => {
-          this.linkCache.delete(page);
+          // A stale failure must not delete an entry reserved by a newer
+          // layout — that would strand the page without link hit-testing.
+          if (!this.destroyed && epoch === this.linkEpoch && entry.scale === scale) {
+            this.linkCache.delete(page);
+          }
         });
     }
   }
@@ -269,9 +308,11 @@ export class PdfEngine implements ReaderEngine {
   private relayoutAnchored(): void {
     const session = this.session;
     if (!session || !this.scrollEl) return;
-    const page = session.page;
+    // Preserve the reading line *within* the page, not just the page number —
+    // zooming while half-way down a page used to jump back to its top.
+    const fraction = session.fractionAtOffset(this.scrollEl.scrollTop);
     this.applyLayout();
-    this.scrollEl.scrollTop = session.offsetForPage(page);
+    this.scrollEl.scrollTop = session.offsetForFraction(fraction);
     // The scroll event re-syncs canvases; emit only the page (unchanged) locator.
     this.emitLocator();
   }
@@ -299,8 +340,52 @@ export class PdfEngine implements ReaderEngine {
       session.currentLayout,
       session.visibleRange(scroll.scrollTop, scroll.clientHeight),
       this.dpr(),
+      session.rotation,
     );
     this.prefetchLinks();
+  }
+
+  private onPanDown(e: PointerEvent): void {
+    if (!this.panMode || !this.scrollEl || e.button !== 0) return;
+    e.preventDefault();
+    this.panStart = {
+      x: e.clientX,
+      y: e.clientY,
+      left: this.scrollEl.scrollLeft,
+      top: this.scrollEl.scrollTop,
+    };
+    try {
+      this.scrollEl.setPointerCapture(e.pointerId);
+    } catch {
+      /* capture is best-effort */
+    }
+    this.scrollEl.classList.add("is-panning");
+  }
+
+  private onPanMove(e: PointerEvent): void {
+    if (!this.panStart || !this.scrollEl) return;
+    this.scrollEl.scrollLeft = this.panStart.left - (e.clientX - this.panStart.x);
+    this.scrollEl.scrollTop = this.panStart.top - (e.clientY - this.panStart.y);
+  }
+
+  private onPanUp(): void {
+    this.panStart = null;
+    this.scrollEl?.classList.remove("is-panning");
+  }
+
+  /** Paginated mode is a real page-turning surface: a wheel/trackpad gesture
+   *  moves one spread row instead of free-scrolling. Ctrl/Meta (browser zoom)
+   *  and horizontal gestures are left alone. Continuous mode keeps native
+   *  scrolling in `onScroll`. */
+  private handleWheel(e: WheelEvent): void {
+    const session = this.session;
+    if (!session || session.flow !== "paginated" || e.ctrlKey || e.metaKey) return;
+    if (Math.abs(e.deltaY) < 1) return;
+    e.preventDefault();
+    const now = Date.now();
+    if (now - this.lastWheelTurn < WHEEL_TURN_COOLDOWN_MS) return;
+    this.lastWheelTurn = now;
+    void (e.deltaY > 0 ? this.goForward() : this.goBackward());
   }
 
   private dpr(): number {
@@ -424,6 +509,7 @@ export class PdfEngine implements ReaderEngine {
    *  authoritative anchor (like EPUB); location is the "page-N" hint. */
   private evaluateSelection(): void {
     if (this.destroyed || !this.container || this.selectionCbs.size === 0) return;
+    const seq = ++this.selectionSeq;
     const doc = this.container.ownerDocument;
     const sel = doc.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
@@ -477,6 +563,7 @@ export class PdfEngine implements ReaderEngine {
     void this.session
       ?.pageText(page)
       .then((text) => {
+        if (seq !== this.selectionSeq || this.destroyed) return;
         const context = extractContext(text, quote);
         // Only emit once context is available; a cache miss costs one
         // getTextContent call per selection.
@@ -491,6 +578,7 @@ export class PdfEngine implements ReaderEngine {
         this.emitSelection(info);
       })
       .catch(() => {
+        if (seq !== this.selectionSeq || this.destroyed) return;
         this.emitSelection({
           quote,
           prefix: "",
@@ -503,7 +591,9 @@ export class PdfEngine implements ReaderEngine {
   }
 
   private emitSelection(info: TextSelectionInfo | null): void {
-    const key = info ? `${info.location}:${info.quote}:${info.rect.top.toFixed(1)}` : null;
+    const key = info
+      ? `${info.location}:${info.quote}:${info.prefix}:${info.suffix}:${info.rect.top.toFixed(1)}`
+      : null;
     if (key === this.lastSelectionKey) return;
     this.lastSelectionKey = key;
     this.selectionCbs.forEach((cb) => cb(info));
@@ -527,8 +617,8 @@ export class PdfEngine implements ReaderEngine {
 
   // ---- decorations (§7.4, R5) --------------------------------------------------
 
-  async applyDecorations(specs: DecorationSpec[]): Promise<void> {
-    this.decorations.clear();
+  async applyDecorations(specs: DecorationSpec[], group = "highlights"): Promise<void> {
+    const byPage = new Map<number, PageDecoration[]>();
     for (const spec of specs) {
       if (spec.style !== "highlight") continue;
       // Locators arrive as "page-N" possibly with the EPUB-style anchor
@@ -537,12 +627,37 @@ export class PdfEngine implements ReaderEngine {
       const page = loc ? pageFromHref(loc.href) : null;
       const quote = loc?.anchor?.quote?.trim();
       if (page === null || !quote) continue;
-      const list = this.decorations.get(page) ?? [];
-      list.push({ id: spec.id, color: spec.color, quote, rects: [] });
-      this.decorations.set(page, list);
+      const list = byPage.get(page) ?? [];
+      list.push({
+        id: spec.id,
+        color: spec.color,
+        quote,
+        context: {
+          prefix: loc?.anchor?.prefix ?? "",
+          suffix: loc?.anchor?.suffix ?? "",
+        },
+        rects: [],
+      });
+      byPage.set(page, list);
     }
-    // Repaint every materialised page (pages attach lazily).
-    for (const page of this.decorations.keys()) this.repaintPageDecorations(page);
+    // Replace only this group's decorations (annotations vs search-active).
+    this.decorationsByGroup.set(group, byPage);
+    // Repaint every page that had paint before, including pages whose last
+    // highlight was just removed — otherwise their rects linger on screen.
+    const pages = new Set<number>(this.paintedPages);
+    for (const map of this.decorationsByGroup.values()) {
+      for (const page of map.keys()) pages.add(page);
+    }
+    for (const page of pages) this.repaintPageDecorations(page);
+  }
+
+  private allDecorationsFor(page: number): PageDecoration[] {
+    const out: PageDecoration[] = [];
+    for (const map of this.decorationsByGroup.values()) {
+      const entries = map.get(page);
+      if (entries) out.push(...entries);
+    }
+    return out;
   }
 
   onDecorationClick(cb: (id: string, at?: { x: number; y: number }) => void): () => void {
@@ -558,8 +673,8 @@ export class PdfEngine implements ReaderEngine {
     const pagebox = target?.closest?.(".folio-pdf-pagebox") as HTMLElement | null;
     if (!pagebox) return false;
     const page = Number(pagebox.dataset.page);
-    const entries = this.decorations.get(page);
-    if (!entries || entries.length === 0) return false;
+    const entries = this.allDecorationsFor(page);
+    if (entries.length === 0) return false;
     const boxRect = pagebox.getBoundingClientRect();
     const px = e.clientX - boxRect.left;
     const py = e.clientY - boxRect.top;
@@ -583,10 +698,11 @@ export class PdfEngine implements ReaderEngine {
   private repaintPageDecorations(page: number): void {
     const view = this.view;
     const box = view?.pageBox(page);
-    const entries = this.decorations.get(page);
-    if (!box || !entries) return;
+    const entries = this.allDecorationsFor(page);
+    if (!box) return;
     box.decorations.replaceChildren();
     for (const entry of entries) entry.rects = [];
+    this.paintedPages.add(page);
     if (!box.textAttached || entries.length === 0) return;
 
     const doc = box.decorations.ownerDocument;
@@ -596,7 +712,7 @@ export class PdfEngine implements ReaderEngine {
     const decorRect = box.decorations.getBoundingClientRect();
 
     for (const entry of entries) {
-      const matches = quoteOccurrences(spanTexts, entry.quote, MAX_HITS_PER_PAGE);
+      const matches = bestQuoteOccurrence(spanTexts, entry.quote, entry.context, MAX_HITS_PER_PAGE);
       for (const match of matches) {
         const startNode = textNodeFor(spans[match.startSpan]);
         const endNode = textNodeFor(spans[match.endSpan]);
@@ -686,14 +802,16 @@ export class PdfEngine implements ReaderEngine {
 
   async goForward(): Promise<boolean> {
     const session = this.session;
-    if (!session || session.page >= session.pageCount) return false;
-    return this.jumpToPage(session.page + 1);
+    if (!session) return false;
+    const next = session.stepPage(session.page, 1);
+    return next === session.page ? false : this.jumpToPage(next);
   }
 
   async goBackward(): Promise<boolean> {
     const session = this.session;
-    if (!session || session.page <= 1) return false;
-    return this.jumpToPage(session.page - 1);
+    if (!session) return false;
+    const previous = session.stepPage(session.page, -1);
+    return previous === session.page ? false : this.jumpToPage(previous);
   }
 
   async scrollStep(direction: 1 | -1): Promise<boolean> {
@@ -846,6 +964,64 @@ export class PdfEngine implements ReaderEngine {
       session.setSpreadPref(prefs.spread);
       relayout = true;
     }
+    if (session.flow !== prefs.flow) {
+      session.setFlow(prefs.flow);
+      relayout = true;
+    }
+    if (relayout) this.relayoutAnchored();
+  }
+
+  async setPanMode(enabled: boolean): Promise<void> {
+    this.panMode = enabled;
+    if (!enabled) this.onPanUp();
+    this.container?.classList.toggle("folio-pdf--pan", enabled);
+  }
+
+  /** Small JPEG preview of a physical page. Rendered at a fixed small scale,
+   *  never from the cached full-size canvases, so a long document keeps a
+   *  bounded thumbnail cost. */
+  async renderThumbnail(page: number, maxWidth = 96): Promise<string | null> {
+    const doc = this.opened?.doc as PDFDocumentProxy | undefined;
+    if (!doc || page < 1 || page > (this.session?.pageCount ?? 0)) return null;
+    try {
+      const proxy = await doc.getPage(page);
+      const base = proxy.getViewport({ scale: 1 });
+      const viewport = proxy.getViewport({ scale: Math.max(0.05, maxWidth / base.width) });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(viewport.width));
+      canvas.height = Math.max(1, Math.round(viewport.height));
+      await proxy.render({ canvas, viewport, background: "#ffffff" } as never).promise;
+      return canvas.toDataURL("image/jpeg", 0.7);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Desktop-only fixed-layout settings. Everything here is additive: the
+   *  schema-1 ReadingPrefs passed to applyPrefs stays untouched. */
+  async applyPdfPrefs(prefs: PdfReaderPrefs): Promise<void> {
+    const container = this.container;
+    if (!container) return;
+    container.dataset.pdfPresentation = prefs.presentation;
+    container.dataset.pdfDirection = prefs.direction;
+    container.dataset.pdfBackground = prefs.background;
+    container.style.setProperty("--pdf-page-spacing", `${prefs.pageSpacing}px`);
+    container.classList.toggle("folio-pdf--focus-workspace", prefs.focusWorkspace);
+    if (this.panMode !== prefs.pan) void this.setPanMode(prefs.pan);
+
+    const session = this.session;
+    if (!session) return;
+    let relayout = false;
+    if (session.rotation !== prefs.rotation) {
+      session.setRotation(prefs.rotation);
+      relayout = true;
+    }
+    if (session.pageSpacingValue !== prefs.pageSpacing) {
+      session.setPageSpacing(prefs.pageSpacing);
+      relayout = true;
+    }
+    session.setDirection(prefs.direction);
+    session.setCoverFirst(prefs.coverFirst);
     if (relayout) this.relayoutAnchored();
   }
 
@@ -861,7 +1037,8 @@ export class PdfEngine implements ReaderEngine {
     this.contentEl = null;
     this.container = null;
     this.session = null;
-    this.decorations.clear();
+    this.decorationsByGroup.clear();
+    this.paintedPages.clear();
     this.locatorCbs.clear();
     this.selectionCbs.clear();
     this.clickCbs.clear();
@@ -870,6 +1047,9 @@ export class PdfEngine implements ReaderEngine {
     this.progressCbs.clear();
     this.decorationCbs.clear();
     this.linkCbs.clear();
+    this.internalLinkCbs.clear();
+    this.noterefCbs.clear();
+    this.highlightCbs.clear();
     this.linkCache.clear();
     this.linkResolver = null;
     const opened = this.opened;

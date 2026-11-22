@@ -77,6 +77,13 @@ export function resolveScale(
   return clampZoom(Math.min(availW / Math.max(1, page.width), availH / Math.max(1, page.height)));
 }
 
+/** Apply a PDF /Rotate-style quarter turn to a page box (points). */
+export function rotateSize(page: PageSize, rotation: number): PageSize {
+  return rotation === 90 || rotation === 270
+    ? { width: page.height, height: page.width }
+    : { width: page.width, height: page.height };
+}
+
 export function displaySize(page: PageSize, scale: number): { width: number; height: number } {
   return {
     width: Math.max(1, Math.round(page.width * scale)),
@@ -106,10 +113,17 @@ export function layoutPages(
   viewport: ViewportSize,
   zoom: ZoomMode,
   spread: SpreadMode,
-  options: { gap?: number; padding?: number } = {},
+  options: {
+    gap?: number;
+    padding?: number;
+    coverFirst?: boolean;
+    direction?: "ltr" | "rtl";
+  } = {},
 ): PageLayout {
   const gap = options.gap ?? PAGE_GAP;
   const padding = options.padding ?? LAYOUT_PADDING;
+  const coverFirst = options.coverFirst ?? true;
+  const direction = options.direction ?? "ltr";
   const placements: PagePlacement[] = [];
   if (pageSizes.length === 0) {
     return { placements, totalHeight: 0, totalWidth: 0, spread, gap, scale: 1 };
@@ -117,24 +131,41 @@ export function layoutPages(
 
   const rows: number[][] = [];
   if (spread === "both") {
-    rows.push([1]);
-    for (let p = 2; p <= pageSizes.length; p += 2) {
+    let p = 1;
+    if (coverFirst && p <= pageSizes.length) rows.push([p++]);
+    for (; p <= pageSizes.length; p += 2) {
       rows.push(p + 1 <= pageSizes.length ? [p, p + 1] : [p]);
     }
   } else {
     for (let p = 1; p <= pageSizes.length; p++) rows.push([p]);
   }
+  // Right-to-left reading mirrors each row's visual page order while keeping
+  // placements keyed by their physical page number.
+  const orderedRows = direction === "rtl" ? rows.map((row) => [...row].reverse()) : rows;
 
   const contentWidth = Math.max(1, viewport.width - padding * 2);
   const sizes = new Map<number, { width: number; height: number }>();
 
-  // Column width: every page scales against the same reference so a spread's
-  // two pages share one scale and the column never reflows mid-document.
-  const reference = pageSizes.reduce((max, s) => Math.max(max, s.width), 1);
+  // Every page shares one scale so a spread's two pages align and the column
+  // never reflows mid-document. In spread mode the fitting reference is the
+  // *widest row* (both pages plus the gutter), not a single page — otherwise
+  // "fit width" makes facing pages twice the viewport and forces horizontal
+  // overflow. Fit-page uses the tallest page, so mixed-size documents never
+  // push a later tall page out of view.
+  const rowPoints = (row: number[]) => row.reduce((sum, p) => sum + pageSizes[p - 1].width, 0);
+  const referenceWidth = rows.length > 0 ? Math.max(...rows.map(rowPoints)) : 1;
+  const referenceHeight = pageSizes.reduce((max, s) => Math.max(max, s.height), 1);
+  // The gutter is already in CSS px, not scaled points: subtract it from the
+  // available width before resolving the scale so a fitted row really fits.
+  const maxColumns = rows.length > 0 ? Math.max(...rows.map((row) => row.length)) : 1;
+  const fittingViewport = {
+    width: Math.max(1, viewport.width - gap * (maxColumns - 1)),
+    height: viewport.height,
+  };
   const baseScale = resolveScale(
     zoom,
-    { width: reference, height: pageSizes[0].height },
-    viewport,
+    { width: referenceWidth, height: referenceHeight },
+    fittingViewport,
     padding,
   );
   for (let i = 0; i < pageSizes.length; i++) {
@@ -143,7 +174,8 @@ export function layoutPages(
 
   let top = padding;
   let totalWidth = 0;
-  for (const row of rows) {
+  for (let rowIndex = 0; rowIndex < orderedRows.length; rowIndex++) {
+    const row = orderedRows[rowIndex];
     const rowSizes = row.map((p) => sizes.get(p)!);
     const rowHeight = Math.max(...rowSizes.map((s) => s.height));
     const rowWidth = rowSizes.reduce((sum, s) => sum + s.width, 0) + gap * (row.length - 1);
@@ -162,7 +194,7 @@ export function layoutPages(
       });
       left += size.width + gap;
     }
-    top += rowHeight + (row === rows[rows.length - 1] ? 0 : gap);
+    top += rowHeight + (rowIndex === orderedRows.length - 1 ? 0 : gap);
   }
 
   return {
@@ -176,30 +208,78 @@ export function layoutPages(
 }
 
 function placementFor(placements: PagePlacement[], page: number): PagePlacement | null {
-  if (page < 1 || page > placements.length) return null;
-  return placements[page - 1].page === page ? placements[page - 1] : null;
+  // Placements follow *visual* order (RTL rows are mirrored), so never assume
+  // array index equals page number.
+  return placements.find((placement) => placement.page === page) ?? null;
 }
 
-/** 1-based page whose vertical span contains a content-space offset. */
+/**
+ * Pages sharing a vertical row (a facing-page spread). Rows are ordered
+ * top-to-bottom, pages left-to-right. Row-aware navigation and offset lookup
+ * use this so a two-page spread is one deterministic step, not an ambiguous
+ * choice between two placements with the same top.
+ */
+export function spreadRows(placements: PagePlacement[]): number[][] {
+  const byTop = new Map<number, number[]>();
+  for (const p of placements) {
+    const key = Math.round(p.top * 100) / 100;
+    const row = byTop.get(key) ?? [];
+    row.push(p.page);
+    byTop.set(key, row);
+  }
+  return [...byTop.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, pages]) => pages.sort((a, b) => a - b));
+}
+
+/** First page of the spread row one step forward/backward from `page`. */
+export function nextRowPage(placements: PagePlacement[], page: number, direction: 1 | -1): number {
+  const rows = spreadRows(placements);
+  const index = rows.findIndex((row) => row.includes(page));
+  if (index < 0) return Math.min(placements.length, Math.max(1, page + direction));
+  const target = rows[Math.min(rows.length - 1, Math.max(0, index + direction))];
+  // Physical reading-order start, independent of the row's visual mirroring.
+  return Math.min(...target);
+}
+
+/** 1-based row-start page whose vertical span contains a content-space offset. */
 export function pageAtOffset(placements: PagePlacement[], offsetY: number): number {
   if (placements.length === 0) return 1;
-  // Binary search: placements are sorted by top.
-  let lo = 0;
-  let hi = placements.length - 1;
-  let best = 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    const p = placements[mid];
-    if (offsetY < p.top) {
-      hi = mid - 1;
-    } else if (offsetY > p.top + p.height) {
-      best = mid + 1 < placements.length ? placements[mid + 1].page : p.page;
-      lo = mid + 1;
-    } else {
-      return p.page;
+  const rows = spreadRows(placements);
+  let nearestRow = rows[0];
+  let nearestDistance = Infinity;
+  const rowStart = (row: number[]) => Math.min(...row);
+  for (const row of rows) {
+    const boxes = row
+      .map((p) => placementFor(placements, p))
+      .filter((p): p is PagePlacement => !!p);
+    if (boxes.length === 0) continue;
+    const top = Math.min(...boxes.map((p) => p.top));
+    const bottom = Math.max(...boxes.map((p) => p.top + p.height));
+    if (offsetY >= top && offsetY <= bottom) return Math.min(...row);
+    // `offsetForPage` deliberately top-aligns a page LAYOUT_PADDING above its
+    // box, so a small gap above a row still belongs to that row.
+    const distance = offsetY < top ? Math.max(0, top - offsetY - LAYOUT_PADDING) : offsetY - bottom;
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestRow = row;
     }
   }
-  return Math.min(placements.length, Math.max(1, best));
+  return rowStart(nearestRow);
+}
+
+/** Scroll-top that preserves the reading fraction inside the current page. */
+export function offsetForPageFraction(
+  placements: PagePlacement[],
+  page: number,
+  fraction: number,
+  viewport: ViewportSize,
+  totalHeight: number,
+): number {
+  const p = placementFor(placements, page);
+  if (!p) return 0;
+  const top = p.top + p.height * Math.min(1, Math.max(0, fraction)) - LAYOUT_PADDING;
+  return Math.min(Math.max(0, top), Math.max(0, totalHeight - viewport.height));
 }
 
 /** Scroll-top that brings a page into view, top-aligned with the layout

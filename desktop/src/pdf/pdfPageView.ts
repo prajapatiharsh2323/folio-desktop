@@ -2,7 +2,9 @@
 // rendered page — a wrapper containing the canvas, the pdf.js text layer
 // (selection/search substrate) and the decoration layer (highlights) — and
 // renders only the visible window (plus a small margin), evicts far pages,
-// and keeps one in-flight render per page with a cancellation token.
+// and keeps independent, page-scoped request identities for the canvas and
+// the text layer so a stale asynchronous result can never lock a slot or
+// commit onto the current page.
 //
 // Both the canvas renderer and the text-layer factory are injected so the
 // queue logic is testable without pdf.js.
@@ -20,7 +22,11 @@ export interface PageRenderer {
     cssHeight: number,
     scale: number,
     dpr: number,
+    rotation?: number,
   ): Promise<void>;
+  /** Cancel the in-flight paint for a page when a newer request supersedes it.
+   *  Optional so simple test renderers stay valid. */
+  cancel?(page: number): void;
   /** Optional: release pdf.js page resources once its canvas is dropped. */
   release?(page: number): void;
 }
@@ -33,6 +39,7 @@ export interface PageTextFactory {
     cssWidth: number,
     cssHeight: number,
     scale: number,
+    rotation?: number,
   ): Promise<void>;
   release(page: number): void;
 }
@@ -59,14 +66,22 @@ const MAX_DPR = 2;
 const MAX_BACKING_PIXELS = 32_000_000;
 
 interface RenderState extends PageBox {
-  /** -1 when the canvas content no longer matches the layout size */
+  /** CSS size the canvas was last requested at (-1 = dirty) */
   renderedWidth: number;
   renderedHeight: number;
-  /** CSS size the text layer was attached at (-1 = not attached) */
+  /** identity of the in-flight canvas request; 0 = idle */
+  renderToken: number;
+  /** rotation the canvas was last requested at */
+  renderRotation: number;
+  /** CSS size the text layer was last attached at (-1 = dirty) */
   textWidth: number;
   textHeight: number;
-  /** 0 = idle; otherwise the in-flight render's token */
-  token: number;
+  /** rotation the text layer was last attached at */
+  textRotation: number;
+  /** identity of the in-flight text-layer request; 0 = idle */
+  textToken: number;
+  /** the slot element owned by the in-flight text request */
+  textSlot: HTMLElement | null;
 }
 
 export class PdfPageView {
@@ -78,7 +93,6 @@ export class PdfPageView {
   private pages = new Map<number, RenderState>();
   private layer: HTMLElement | null = null;
   private destroyed = false;
-  private generation = 0;
 
   constructor(
     container: HTMLElement,
@@ -96,25 +110,18 @@ export class PdfPageView {
     this.host = options.host ?? {
       createElement: (tag: string) => document.createElement(tag),
     };
+    const layer = this.host.createElement("div");
+    layer.className = "folio-pdf-layer";
+    this.container.appendChild(layer);
+    this.layer = layer;
   }
 
   /** Sync page boxes with the layout + visible range. Cheap to call often:
    *  positions are updated every time; renders are queued only for dirty or
    *  missing pages inside the range. */
-  sync(layout: PageLayout, visible: [number, number], dpr: number): void {
+  sync(layout: PageLayout, visible: [number, number], dpr: number, rotation = 0): void {
     if (this.destroyed) return;
     const [first, last] = visible;
-    this.generation += 1;
-    const gen = this.generation;
-
-    let layer = this.layer;
-    if (!layer) {
-      layer = this.host.createElement("div");
-      layer.className = "folio-pdf-layer";
-      this.container.appendChild(layer);
-      this.layer = layer;
-    }
-
     const effectiveDpr = Math.min(MAX_DPR, Math.max(1, dpr || 1));
     const wanted = new Set<number>();
     for (const p of layout.placements) {
@@ -135,12 +142,20 @@ export class PdfPageView {
       // pdf.js text layer resolves font sizes through --total-scale-factor.
       state.wrapper.style.setProperty("--scale-factor", String(layout.scale));
 
-      const dirty = state.renderedWidth !== p.width || state.renderedHeight !== p.height;
-      if (dirty && state.token === 0) {
-        this.queueRender(p.page, state, p.width, p.height, layout.scale, gen, effectiveDpr);
+      const dirty =
+        state.renderedWidth !== p.width ||
+        state.renderedHeight !== p.height ||
+        state.renderRotation !== rotation;
+      if (dirty) {
+        this.queueRender(p.page, state, p.width, p.height, layout.scale, effectiveDpr, rotation);
       }
-      if (this.textFactory && (state.textWidth !== p.width || state.textHeight !== p.height)) {
-        this.queueText(p.page, state, p.width, p.height, layout.scale);
+      if (
+        this.textFactory &&
+        (state.textWidth !== p.width ||
+          state.textHeight !== p.height ||
+          state.textRotation !== rotation)
+      ) {
+        this.queueText(p.page, state, p.width, p.height, layout.scale, rotation);
       }
     }
 
@@ -167,26 +182,34 @@ export class PdfPageView {
       textAttached: false,
       renderedWidth: -1,
       renderedHeight: -1,
+      renderToken: 0,
+      renderRotation: 0,
       textWidth: -1,
       textHeight: -1,
-      token: 0,
+      textRotation: 0,
+      textToken: 0,
+      textSlot: null,
     };
   }
 
-  /** Queue a canvas render for one page. One in-flight render per page; a
-   *  newer request supersedes an older one via the token. */
+  /** Queue a canvas render for one page. Each request gets a page-scoped
+   *  identity; the slot is released when that identity settles, regardless
+   *  of unrelated syncs. A newer request cancels the older one. */
   private queueRender(
     page: number,
     state: RenderState,
     cssWidth: number,
     cssHeight: number,
     scale: number,
-    gen: number,
     dpr: number,
+    rotation: number,
   ): void {
-    const token = ++state.token;
+    // Supersede any in-flight paint before starting another for this page.
+    if (state.renderToken !== 0) this.renderer.cancel?.(page);
+    const token = ++state.renderToken;
     state.renderedWidth = cssWidth;
     state.renderedHeight = cssHeight;
+    state.renderRotation = rotation;
     // Backing store: dpr-scaled, capped so extreme zooms cannot explode.
     let bw = Math.round(cssWidth * dpr);
     let bh = Math.round(cssHeight * dpr);
@@ -200,47 +223,66 @@ export class PdfPageView {
     state.canvas.height = bh;
 
     void this.renderer
-      .render(page, state.canvas, cssWidth, cssHeight, scale, dpr)
+      .render(page, state.canvas, cssWidth, cssHeight, scale, dpr, rotation)
       .then(() => {
-        if (this.destroyed || gen !== this.generation) return;
-        if (state.token === token) state.token = 0; // done; release the slot
+        // Release THIS request's slot. Generation is irrelevant here: an
+        // unrelated scroll sync must never strand a completed render token.
+        if (!this.destroyed && state.renderToken === token) state.renderToken = 0;
       })
       .catch(() => {
-        if (this.destroyed) return;
-        // A failed render releases the slot; the page stays blank until the
+        if (this.destroyed || state.renderToken !== token) return;
+        // A failed render releases the slot and marks the page dirty so the
         // next sync retries it (e.g. after a transient worker error).
-        if (state.token === token) {
-          state.token = 0;
-          state.renderedWidth = -1;
-          state.renderedHeight = -1;
-        }
+        state.renderToken = 0;
+        state.renderedWidth = -1;
+        state.renderedHeight = -1;
       });
   }
 
-  /** (Re-)attach the text layer when the page size changed. Failures leave
-   *  the page without text (scanned pages have none anyway). */
+  /** (Re-)attach the text layer when the page size changed. Each request
+   *  owns its own slot element and token: an older attach can never commit
+   *  spans onto a newer layout, and failures leave the page retryable. */
   private queueText(
     page: number,
     state: RenderState,
     cssWidth: number,
     cssHeight: number,
     scale: number,
+    rotation: number,
   ): void {
+    if (state.textToken !== 0) this.textFactory?.release(page);
+    const token = ++state.textToken;
     state.textWidth = cssWidth;
     state.textHeight = cssHeight;
-    state.text.replaceChildren();
+    state.textRotation = rotation;
     state.textAttached = false;
+    const slot = this.host.createElement("div");
+    slot.className = "folio-pdf-text-slot";
+    state.text.replaceChildren(slot);
+    state.textSlot = slot;
     const factory = this.textFactory;
     if (!factory) return;
     void factory
-      .attach(page, state.text, cssWidth, cssHeight, scale)
+      .attach(page, slot, cssWidth, cssHeight, scale, rotation)
       .then(() => {
-        if (this.destroyed || !this.pages.has(page)) return;
+        if (this.destroyed || !this.pages.has(page) || state.textToken !== token) {
+          slot.remove();
+          return;
+        }
         state.textAttached = true;
         this.onTextReady?.(page);
       })
       .catch(() => {
-        /* no text on this page — selection/search fall back gracefully */
+        if (this.destroyed || state.textToken !== token) {
+          slot.remove();
+          return;
+        }
+        // Allow a retry on the next sync instead of silently keeping a stale
+        // size that blocks re-attachment forever.
+        state.textToken = 0;
+        state.textWidth = -1;
+        state.textHeight = -1;
+        slot.remove();
       });
   }
 
@@ -261,7 +303,10 @@ export class PdfPageView {
   private dropPage(page: number): void {
     const state = this.pages.get(page);
     if (!state) return;
-    state.token += 1; // invalidate any in-flight render for this page
+    // Invalidate both request identities and cancel the in-flight paint.
+    state.renderToken += 1;
+    state.textToken += 1;
+    this.renderer.cancel?.(page);
     this.renderer.release?.(page);
     this.textFactory?.release(page);
     state.wrapper.remove();
@@ -299,20 +344,31 @@ export class PdfPageView {
 }
 
 /** Real canvas renderer over pdf.js. Keeps one PDFPageProxy per visited
- *  page and releases it on eviction. */
+ *  page, releases it on eviction, and cancels superseded render tasks. */
 export function pdfjsPageRenderer(doc: PDFDocumentProxy): PageRenderer {
   const pageCache = new Map<number, PDFPageProxy>();
+  const tasks = new Map<number, { cancel(): void }>();
   return {
-    async render(page, canvas, _cssWidth, _cssHeight, scale, dpr) {
+    async render(page, canvas, _cssWidth, _cssHeight, scale, dpr, rotation = 0) {
       const proxy = await loadPage(pageCache, doc, page);
-      const viewport = proxy.getViewport({ scale: scale * dpr });
-      await proxy.render({
+      const viewport = proxy.getViewport({ scale: scale * dpr, rotation });
+      const task = proxy.render({
         canvas,
         viewport,
         // White page background: the PDF itself may not paint one, and the
         // theme backdrop must not bleed through the page (plan §7.4).
         background: "#ffffff",
-      } as never).promise;
+      } as never);
+      tasks.set(page, task as unknown as { cancel(): void });
+      try {
+        await task.promise;
+      } finally {
+        if (tasks.get(page) === task) tasks.delete(page);
+      }
+    },
+    cancel(page) {
+      tasks.get(page)?.cancel();
+      tasks.delete(page);
     },
     release(page) {
       const proxy = pageCache.get(page);
@@ -347,7 +403,7 @@ async function loadPage(
 export function pdfjsTextFactory(doc: PDFDocumentProxy): PageTextFactory {
   const contentCache = new Map<number, Promise<PDFPageProxy>>();
   return {
-    async attach(page, container, _cssWidth, _cssHeight, scale) {
+    async attach(page, container, _cssWidth, _cssHeight, scale, rotation = 0) {
       let paged = contentCache.get(page);
       if (!paged) {
         paged = doc.getPage(page);
@@ -355,7 +411,7 @@ export function pdfjsTextFactory(doc: PDFDocumentProxy): PageTextFactory {
       }
       const proxy = await paged;
       const content = await proxy.getTextContent();
-      const viewport = textLayerViewport(proxy, scale);
+      const viewport = textLayerViewport(proxy, scale, rotation);
       await renderPdfTextLayer(content, container, viewport);
     },
     release(page) {

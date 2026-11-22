@@ -109,6 +109,40 @@ describe("pdfLayout · layoutPages", () => {
     expect(layout.placements[0].width).toBe(Math.round(612 * BASE_SCALE));
   });
 
+  it("fits an entire two-page row at fit width (no horizontal overflow)", () => {
+    // Three pages → rows [1], [2,3]; the pair is the widest row.
+    const layout = layoutPages([LETTER, LETTER, LETTER], VIEW, "fit-width", "both");
+    expect(layout.scale).toBeCloseTo(
+      (VIEW.width - LAYOUT_PADDING * 2 - PAGE_GAP) / (LETTER.width * 2),
+      5,
+    );
+    const pair = layout.placements.filter((p) => p.top === layout.placements[1].top);
+    expect(pair).toHaveLength(2);
+    const painted = pair.reduce((sum, p) => sum + p.width, 0) + layout.gap;
+    // ±2 px per page from displaySize's integer rounding.
+    expect(painted).toBeLessThanOrEqual(VIEW.width - LAYOUT_PADDING * 2 + 4);
+  });
+
+  it("fits the tallest page at fit page with mixed page sizes", () => {
+    const tall = { width: 500, height: 1400 };
+    const layout = layoutPages([LETTER, tall, LETTER], VIEW, "fit-page", "none");
+    expect(layout.scale).toBeCloseTo(
+      Math.min(
+        (VIEW.width - LAYOUT_PADDING * 2) / LETTER.width,
+        (VIEW.height - LAYOUT_PADDING * 2) / tall.height,
+      ),
+      5,
+    );
+    for (const p of layout.placements) expect(p.height).toBeLessThanOrEqual(VIEW.height);
+  });
+
+  it("treats a facing-page spread as one navigation row", () => {
+    const layout = layoutPages([LETTER, LETTER, LETTER, LETTER, LETTER], VIEW, 1, "both");
+    const row = layout.placements.filter((p) => p.top === layout.placements[1].top);
+    expect(row.map((p) => p.page)).toEqual([2, 3]);
+    expect(pageAtOffset(layout.placements, layout.placements[1].top + 4)).toBe(2);
+  });
+
   it("handles the empty document", () => {
     const layout = layoutPages([], VIEW, 1, "none");
     expect(layout.placements).toEqual([]);

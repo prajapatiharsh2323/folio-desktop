@@ -7,10 +7,13 @@ import {
   effectiveSpread,
   hrefForPage,
   layoutPages,
+  nextRowPage,
   offsetForPage,
+  offsetForPageFraction,
   pageAtOffset,
   pageForProgression,
   pageFromHref,
+  rotateSize,
   progressionForPage,
   stepZoom,
   type PageLayout,
@@ -48,6 +51,11 @@ export class PdfSession {
   private sections: OutlineSection[] = [];
   private _zoom: ZoomMode;
   private _spreadPref: ReadingPrefs["spread"];
+  private _flow: ReadingPrefs["flow"];
+  private _rotation = 0;
+  private _direction: "ltr" | "rtl" = "ltr";
+  private _coverFirst = true;
+  private _pageSpacing: number | null = null;
   private _viewport: ViewportSize = { width: 800, height: 1000 };
   private layout: PageLayout | null = null;
   private textCache = new Map<number, string>();
@@ -59,11 +67,13 @@ export class PdfSession {
     pageCount: number,
     zoom: ZoomMode,
     spreadPref: ReadingPrefs["spread"],
+    flow: ReadingPrefs["flow"],
   ) {
     this.doc = doc;
     this._pageCount = pageCount;
     this._zoom = zoom;
     this._spreadPref = spreadPref;
+    this._flow = flow;
   }
 
   /** Open and take the page survey. Page sizes come from pdf.js viewports;
@@ -74,7 +84,7 @@ export class PdfSession {
     prefs: ReadingPrefs,
     onProgress?: (fraction: number) => void,
   ): Promise<PdfSession> {
-    const session = new PdfSession(doc, doc.numPages, "fit-width", prefs.spread);
+    const session = new PdfSession(doc, doc.numPages, "fit-width", prefs.spread, prefs.flow);
     const count = doc.numPages;
     const sizes: PageSize[] = [];
     for (let i = 1; i <= count; i++) {
@@ -106,14 +116,52 @@ export class PdfSession {
     return this._spreadPref;
   }
 
+  get flow(): ReadingPrefs["flow"] {
+    return this._flow;
+  }
+
+  get pageSpacingValue(): number {
+    return this._pageSpacing ?? 16;
+  }
+
   get viewport(): ViewportSize {
     return this._viewport;
   }
 
   pageSize(page: number): PageSize {
-    return (
-      this.sizes[Math.min(this.sizes.length, Math.max(1, page)) - 1] ?? { width: 612, height: 792 }
-    );
+    const raw = this.sizes[Math.min(this.sizes.length, Math.max(1, page)) - 1] ?? {
+      width: 612,
+      height: 792,
+    };
+    return rotateSize(raw, this._rotation);
+  }
+
+  get rotation(): number {
+    return this._rotation;
+  }
+
+  setRotation(rotation: number): void {
+    if (this._rotation === rotation) return;
+    this._rotation = rotation;
+    this.layout = null;
+  }
+
+  setDirection(direction: "ltr" | "rtl"): void {
+    if (this._direction === direction) return;
+    this._direction = direction;
+    this.layout = null;
+  }
+
+  setCoverFirst(coverFirst: boolean): void {
+    if (this._coverFirst === coverFirst) return;
+    this._coverFirst = coverFirst;
+    this.layout = null;
+  }
+
+  setPageSpacing(spacing: number): void {
+    if (this._pageSpacing === spacing) return;
+    this._pageSpacing = spacing;
+    this.layout = null;
   }
 
   /** Display label for a page (plan §7.5: "iv", "A-3"); 1-based physical. */
@@ -229,6 +277,10 @@ export class PdfSession {
     this.layout = null;
   }
 
+  setFlow(flow: ReadingPrefs["flow"]): void {
+    this._flow = flow;
+  }
+
   setZoom(zoom: ZoomMode): void {
     this._zoom = zoom;
     this.layout = null;
@@ -245,9 +297,14 @@ export class PdfSession {
   private ensureLayout(): PageLayout {
     if (!this.layout) {
       const spread = effectiveSpread(this._spreadPref, this._viewport);
+      const sizes = this.sizes.map((size) => rotateSize(size, this._rotation));
       // layoutPages scales every page against one reference so fit modes and
       // spreads never reflow mid-document.
-      this.layout = layoutPages(this.sizes, this._viewport, this._zoom, spread);
+      this.layout = layoutPages(sizes, this._viewport, this._zoom, spread, {
+        gap: this._pageSpacing ?? undefined,
+        coverFirst: this._coverFirst,
+        direction: this._direction,
+      });
     }
     return this.layout;
   }
@@ -278,6 +335,33 @@ export class PdfSession {
 
   goToPage(page: number): void {
     this._page = Math.min(this._pageCount, Math.max(1, page));
+  }
+
+  /** Row-aware page turn: in a facing-page spread this moves to the next
+   *  opening, not to the page hidden on the other side of the same row. */
+  stepPage(page: number, direction: 1 | -1): number {
+    const next = nextRowPage(this.ensureLayout().placements, page, direction);
+    return Math.min(this._pageCount, Math.max(1, next));
+  }
+
+  /** Reading fraction inside the current page's row, for position-preserving
+   *  zoom/resize. */
+  fractionAtOffset(offsetY: number): number {
+    const layout = this.ensureLayout();
+    const placement = layout.placements[this._page - 1];
+    if (!placement || placement.height <= 0) return 0;
+    return Math.min(1, Math.max(0, (offsetY - placement.top) / placement.height));
+  }
+
+  offsetForFraction(fraction: number): number {
+    const layout = this.ensureLayout();
+    return offsetForPageFraction(
+      layout.placements,
+      this._page,
+      fraction,
+      this._viewport,
+      layout.totalHeight,
+    );
   }
 
   progression(): number {

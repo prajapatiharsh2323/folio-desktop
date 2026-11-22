@@ -8,6 +8,8 @@ import { libraryLayout as L } from "../lib/libraryPaths";
 import { ManifestRepo } from "./repos";
 import { DocMetaRepo } from "./docMetaRepo";
 import { AnnotationsRepo, CollectionsRepo, PrefsRepo, ProgressRepo, ReadingLogRepo } from "./repos";
+import { PdfPrefsRepo } from "./pdfPrefs";
+import { EpubPrefsRepo } from "./epubPrefs";
 import type {
   Collection,
   DocKind,
@@ -34,6 +36,9 @@ export class LibraryManager {
   readonly progress: ProgressRepo;
   readonly collections: CollectionsRepo;
   readonly prefs: PrefsRepo;
+  /** Desktop-only PDF preferences, additive and schema-1 independent. */
+  readonly pdfPrefs: PdfPrefsRepo;
+  readonly epubPrefs: EpubPrefsRepo;
   readonly readingLog: ReadingLogRepo;
 
   constructor(
@@ -46,6 +51,8 @@ export class LibraryManager {
     this.progress = new ProgressRepo(fs, root);
     this.collections = new CollectionsRepo(fs, root);
     this.prefs = new PrefsRepo(fs, root);
+    this.pdfPrefs = new PdfPrefsRepo(fs, root, this.prefs);
+    this.epubPrefs = new EpubPrefsRepo(fs, root);
     this.readingLog = new ReadingLogRepo(fs, root);
   }
 
@@ -126,8 +133,10 @@ export class LibraryManager {
         }
       }
       if (collectionsChanged) await this.collections.save(collections);
-      // per-doc settings override removal
+      // per-doc settings override removal (both schema-1 and additive PDF)
       await this.prefs.removeDocOverride(docId);
+      await this.pdfPrefs.removeDocOverride(docId);
+      await this.epubPrefs.removeDocOverride(docId);
       // 4) manifest last
       if (manifest) {
         manifest.docs = manifest.docs.filter((d) => d.id !== docId);

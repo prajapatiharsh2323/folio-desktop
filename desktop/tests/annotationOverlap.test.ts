@@ -76,6 +76,90 @@ describe("findOverlappingHighlight", () => {
   });
 });
 
+describe("context-aware overlap", () => {
+  it("does not match the same quote at a different occurrence in one chapter", () => {
+    const list = [
+      annotation({
+        id: "first",
+        quote: "the light",
+        prefix: "before alpha ",
+        suffix: " after alpha",
+        location: "ch1.xhtml?p=0.2",
+      }),
+    ];
+    expect(
+      findOverlappingHighlight(list, "ch1.xhtml?p=0.8", {
+        quote: "the light",
+        prefix: "before omega ",
+        suffix: " after omega",
+      }),
+    ).toBeNull();
+  });
+
+  it("matches the same quote when the context is a window of the stored context", () => {
+    const list = [
+      annotation({
+        id: "first",
+        quote: "the light",
+        prefix: "a longer prefix before alpha ",
+        suffix: " after alpha and more",
+        location: "ch1.xhtml?p=0.2",
+      }),
+    ];
+    expect(
+      findOverlappingHighlight(list, "ch1.xhtml?p=0.2", {
+        quote: "the light",
+        prefix: "before alpha ",
+        suffix: " after alpha",
+      })?.id,
+    ).toBe("first");
+  });
+
+  it("requires word boundaries for containment", () => {
+    expect(quotesOverlap("cat", "concatenate")).toBe(false);
+    expect(quotesOverlap("quick brown", "the quick brown fox")).toBe(true);
+  });
+
+  it("does not guess when several identical quotes have no context", () => {
+    const list = [
+      annotation({ id: "first", quote: "echo", location: "ch1.xhtml?p=0.2" }),
+      annotation({ id: "second", quote: "echo", location: "ch1.xhtml?p=0.8" }),
+    ];
+    expect(findOverlappingHighlight(list, "ch1.xhtml", { quote: "echo" })).toBeNull();
+  });
+
+  it("prefers the candidate backed by matching context", () => {
+    const list = [
+      annotation({
+        id: "first",
+        quote: "echo",
+        prefix: "alpha ",
+        suffix: " omega",
+        location: "ch1.xhtml?p=0.2",
+      }),
+      annotation({
+        id: "second",
+        quote: "echo",
+        prefix: "beta ",
+        suffix: " zeta",
+        location: "ch1.xhtml?p=0.8",
+      }),
+    ];
+    expect(
+      findOverlappingHighlight(list, "ch1.xhtml", {
+        quote: "echo",
+        prefix: "beta ",
+        suffix: " zeta",
+      })?.id,
+    ).toBe("second");
+  });
+
+  it("does not match across a missing chapter hint", () => {
+    const list = [annotation({ id: "first", quote: "echo", location: "ch1.xhtml?p=0.2" })];
+    expect(findOverlappingHighlight(list, null, { quote: "echo" })).toBeNull();
+  });
+});
+
 describe("highlightAction", () => {
   it("creates without an existing highlight", () => {
     expect(highlightAction(null, "yellow")).toBe("create");

@@ -45,6 +45,7 @@ vi.mock("../src/store/libraryUi", () => ({
 import { useAnnotations } from "../src/screens/reader/useAnnotations";
 import type { Annotation } from "../src/model/types";
 import type { ReaderEngine, TextSelectionInfo } from "../src/reader/ReaderEngine";
+import { resolveReaderTheme } from "../src/reader/readerThemes";
 import type { RefObject } from "react";
 import { useToasts } from "../src/shell/toasts";
 
@@ -102,7 +103,7 @@ async function renderHook(docId: string | undefined, load = true) {
       resolveChapterId: () => null,
       showNavNotice: () => {},
       clearSelection: () => {},
-      systemDark: false,
+      theme: resolveReaderTheme("light", false),
     });
     harness = { result: value as Harness["result"] };
     return null;
