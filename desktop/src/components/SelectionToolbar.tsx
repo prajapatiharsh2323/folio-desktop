@@ -81,7 +81,10 @@ export function SelectionToolbar({
         type="button"
         className="folio-selection-btn"
         aria-label="Copy with citation"
-        title="Copy with citation"
+        title={
+          copyDisabled ? "Copying is not allowed for this document" : "Copy with citation"
+        }
+        disabled={copyDisabled}
         onClick={onCopyCitation}
       >
         <FolioIcons.Book size="sm" />
@@ -90,7 +93,8 @@ export function SelectionToolbar({
         type="button"
         className="folio-selection-btn"
         aria-label="Share as image"
-        title="Share as image"
+        title={copyDisabled ? "Sharing is not allowed for this document" : "Share as image"}
+        disabled={copyDisabled}
         onClick={onShare}
       >
         <FolioIcons.Share size="sm" />

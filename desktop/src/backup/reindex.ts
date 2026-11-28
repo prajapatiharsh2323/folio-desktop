@@ -12,6 +12,7 @@ import { parseEpub } from "../import/epubImporter";
 import type { DocMeta, Manifest } from "../model/types";
 import { openPdf } from "../pdf/pdfjsAdapter";
 import { buildPdfIndexEntries } from "../pdf/pdfIndexJob";
+import { bumpSearchIndexGeneration } from "../lib/searchCache";
 
 export interface ReindexFailure {
   docId: string;
@@ -94,6 +95,7 @@ export async function reindexDocs(
         L.indexText(root, docId),
         new TextEncoder().encode(JSON.stringify(index)),
       );
+      bumpSearchIndexGeneration();
       result.indexed++;
     } catch (e) {
       result.failed.push({

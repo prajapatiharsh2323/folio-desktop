@@ -71,6 +71,11 @@ export class LibraryManager {
     await this.fs.delete(absPath);
   }
 
+  /** Rename a folder tree (e.g. staging a Replace so a failed commit can roll back). */
+  async moveFolder(from: string, to: string): Promise<void> {
+    await this.fs.move(from, to);
+  }
+
   /** Import commit: write doc files + meta.json, then rebuild manifest LAST. */
   async addDoc(input: AddDocInput): Promise<Manifest> {
     const existingSlugs = await this.meta.listSlugs();
@@ -171,6 +176,12 @@ export class LibraryManager {
       if (patch.kind !== undefined) meta.kind = patch.kind;
       doc.updatedAt = nowIso();
       await this.meta.write(doc.slug, meta);
+      // meta.json bytes changed: refresh its manifest file entry before the
+      // commit point, as every other meta.json-mutating mutator does. A stale
+      // size/hash makes the library's own backup fail to restore.
+      const entry = await this.fileEntry(`docs/${doc.slug}/meta.json`);
+      doc.files = doc.files.filter((f) => f.path !== entry.path);
+      doc.files.push(entry);
       await this.manifest.write(manifest);
     });
   }

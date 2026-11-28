@@ -40,6 +40,15 @@ function options(): HTMLButtonElement[] {
 }
 
 describe("CommandPalette (X1 Ctrl+K)", () => {
+  it("listbox options are not extra tab stops (UI-014)", async () => {
+    await render();
+    expect(options().length).toBeGreaterThan(1);
+    expect(options().every((o) => o.tabIndex === -1)).toBe(true);
+    expect(
+      container!.querySelector('[role="combobox"]')!.getAttribute("aria-activedescendant"),
+    ).toBeTruthy();
+  });
+
   it("lists navigation and appearance commands when open", async () => {
     await render();
     const labels = options().map((o) => o.textContent);

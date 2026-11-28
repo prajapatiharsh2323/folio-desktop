@@ -6,6 +6,15 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 // Real pdf.js parsing takes >5s on slow CI runners (Windows): lift the
 // default test timeout for this file's real-parse tests.
 vi.setConfig({ testTimeout: 30_000 });
+
+// SEARCH-001: importing a PDF must enqueue the background index job. Spy on
+// the queue entry point so the test never runs a real pdf.js extraction.
+const h = vi.hoisted(() => ({ enqueue: vi.fn() }));
+vi.mock("../src/pdf/pdfIndexJob", () => ({
+  enqueueIndex: h.enqueue,
+  isIndexQueued: vi.fn(() => false),
+}));
+
 import { MemoryFileStore } from "../src/lib/fileStore";
 import { LibraryManager } from "../src/store/libraryManager";
 import { importFile, replaceDoc } from "../src/import/importService";
@@ -19,6 +28,7 @@ let fs: MemoryFileStore;
 beforeEach(() => {
   fs = new MemoryFileStore();
   lm = new LibraryManager(fs, ROOT);
+  h.enqueue.mockReset();
 });
 
 describe("import pipeline (PDF)", () => {
@@ -47,6 +57,25 @@ describe("import pipeline (PDF)", () => {
     expect(meta.chapters[0].href).toMatch(/^page-\d+$/);
     // no import-time index: the background job owns it (plan §6.4)
     await expect(fs.readBytes(`${ROOT}/index/text/${entry.id}.json`)).rejects.toThrow();
+  });
+
+  it("queues an index job for a newly imported PDF (SEARCH-001)", async () => {
+    const bytes = buildSyntheticPdf({ pages: 6, title: "Queued Book" });
+    const res = await importFile(lm, "queued-book.pdf", bytes);
+    expect(res.status).toBe("imported");
+    expect(h.enqueue).toHaveBeenCalledWith(res.docId);
+  });
+
+  it("requeues indexing after a PDF Replace (SEARCH-001)", async () => {
+    const firstBytes = buildSyntheticPdf({ pages: 3, title: "Old PDF" });
+    const first = await importFile(lm, "old.pdf", firstBytes);
+    expect(first.status).toBe("imported");
+    h.enqueue.mockClear();
+
+    const newBytes = buildSyntheticPdf({ pages: 4, title: "New PDF" });
+    const replaced = await replaceDoc(lm, first.docId!, "new.pdf", newBytes);
+    expect(replaced.status).toBe("replaced");
+    expect(h.enqueue).toHaveBeenCalledWith(first.docId);
   });
 
   it("short PDFs become articles (D3) with the outline as chapters", async () => {

@@ -18,6 +18,9 @@ import { nowIso, newUuid } from "../model/ids";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { makeCoverThumbnail } from "./cover";
 import { parsePdf, type PdfOutlineEntry } from "../pdf/parsePdf";
+import { enqueueIndex } from "../pdf/pdfIndexJob";
+import { bumpSearchIndexGeneration } from "../lib/searchCache";
+import { handleError } from "../lib/errorLog";
 
 export type DuplicateResolution = "skip" | "keep" | "replace";
 
@@ -115,13 +118,18 @@ async function runPipeline(
       ? await importHtml(new TextDecoder().decode(bytes), stem(fileName))
       : importTxt(new TextDecoder().decode(bytes), stem(fileName));
 
+  const imageBytes: Record<string, Uint8Array> = {};
+  for (const img of article.images) {
+    imageBytes[`${img.name}.${img.ext}`] = img.bytes;
+  }
   const built = await buildEpub({
     title: article.title,
     author: article.author,
     language: article.language,
     contentHash,
     chapters: article.chapters,
-    images: article.images.map((img) => `${img.name}.${img.ext}`),
+    images: Object.keys(imageBytes),
+    imageBytes,
   });
 
   const imageFiles: Record<string, Uint8Array> = {};
@@ -275,6 +283,7 @@ async function writeIndex(
     L.indexText(lm.root, docId),
     new TextEncoder().encode(JSON.stringify(index)),
   );
+  bumpSearchIndexGeneration();
 }
 
 export async function importFile(
@@ -319,13 +328,21 @@ export async function importFile(
       files: buildMetaFiles(p),
       chapters: p.chapters,
     };
-    await lm.addDoc({ meta, files: filesMapFor(p) });
-
+    // Derived index is written BEFORE the commit point: a failure here must
+    // be reportable as "refused" without leaving a committed doc behind.
+    // PDFs get their index from the background job (plan §6.4); an empty
+    // import-time index would make library search silently return nothing.
     if (p.sourceFormat !== "pdf") {
-      // PDFs get their index from the background job (plan §6.4); an empty
-      // import-time index would make library search silently return nothing.
       const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
       await writeIndex(lm, meta.id, p.chapters, textByChapter);
+    }
+
+    await lm.addDoc({ meta, files: filesMapFor(p) });
+
+    if (p.sourceFormat === "pdf") {
+      // Queue the background job now: waiting for boot-time reconcile would
+      // leave a freshly imported PDF invisible to library search this session.
+      enqueueIndex(meta.id);
     }
 
     // L3: additive shelf thumbnail (after the commit point; unregistered).
@@ -382,22 +399,69 @@ export async function replaceDoc(
       chapters: p.chapters,
     };
 
-    // delete old folder + old index first; annotations/progress stay (same docId)
-    await lm.deleteFolderOnly(L.docDir(lm.root, md.slug));
-    await lm.addDoc({ meta, files: filesMapFor(p) });
+    // Stage the old folder with a rename so a failed commit can restore it.
+    // Deleting first left the manifest pointing at a missing folder on any
+    // mid-commit failure (IMPORT-003). Annotations/progress stay: same docId.
+    const oldDir = L.docDir(lm.root, md.slug);
+    const stagedDir = `${oldDir}__replace-${newUuid()}`;
+    let staged = false;
+    let committed = false;
+    let failure: unknown = null;
+    try {
+      await lm.moveFolder(oldDir, stagedDir);
+      staged = true;
 
-    if (p.sourceFormat !== "pdf") {
-      const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
-      await writeIndex(lm, meta.id, p.chapters, textByChapter);
-    } else {
-      // the old index belongs to the old file — drop it; the background job
-      // (or reconcileIndexes) rebuilds from the new bytes
-      await lm.deleteFolderOnly(L.indexText(lm.root, meta.id));
+      // Index work precedes the commit so a failure can roll back cleanly
+      // instead of returning "refused" for an already-committed document.
+      if (p.sourceFormat !== "pdf") {
+        const textByChapter = new Map(p.chapters.map((c, i) => [c.id, p.chapterTexts[i] ?? ""]));
+        await writeIndex(lm, meta.id, p.chapters, textByChapter);
+      } else {
+        // the old index belongs to the old file — drop it; the background job
+        // rebuilds from the new bytes.
+        await lm.deleteFolderOnly(L.indexText(lm.root, meta.id));
+      }
+
+      await lm.addDoc({ meta, files: filesMapFor(p) });
+      committed = true;
+      if (p.sourceFormat === "pdf") enqueueIndex(meta.id);
+
+      // L3: additive shelf thumbnail (replaceDoc re-derives it too).
+      if (p.cover) await writeCoverThumbnail(lm, meta.slug, p.cover.bytes);
+    } catch (e) {
+      failure = e;
+      if (staged && !committed) {
+        try {
+          await lm.deleteFolderOnly(oldDir); // partial new files
+          await lm.moveFolder(stagedDir, oldDir); // restore the original bytes
+        } catch (rollbackError) {
+          handleError(rollbackError, { context: "import.replace.rollback" });
+          return {
+            status: "refused",
+            error: "Replace failed and the previous edition could not be fully restored.",
+          };
+        }
+      }
     }
 
-    // L3: additive shelf thumbnail (replaceDoc re-derives it too).
-    if (p.cover) await writeCoverThumbnail(lm, meta.slug, p.cover.bytes);
-
+    // Cleanup is best-effort: the new edition is already committed, so a
+    // stale staging folder must never turn a successful Replace into a failure.
+    if (staged) {
+      try {
+        await lm.deleteFolderOnly(stagedDir);
+      } catch (cleanupError) {
+        handleError(cleanupError, { context: "import.replace.cleanup" });
+      }
+    }
+    if (failure) {
+      if (failure instanceof ImportError) {
+        return { status: "refused", error: failure.message, errorCode: failure.code };
+      }
+      return {
+        status: "refused",
+        error: failure instanceof Error ? failure.message : "Replace failed",
+      };
+    }
     return { status: "replaced", docId: meta.id, title: p.title };
   } catch (e) {
     if (e instanceof ImportError) {

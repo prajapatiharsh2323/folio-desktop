@@ -311,6 +311,7 @@ export function CollectionsScreen() {
                 if (createError) setCreateError(null);
               }}
               placeholder="Collection name"
+              aria-label="Collection name"
               maxLength={NAME_MAX}
               aria-invalid={createError ? true : undefined}
               aria-describedby={createError ? "folio-collection-create-error" : undefined}

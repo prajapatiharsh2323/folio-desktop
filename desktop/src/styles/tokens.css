@@ -14,6 +14,7 @@
   --folio-border: #E1E0D6;
   --folio-border-control: #8A897C;
   --folio-accent: #355847;
+  --folio-focus: #355847;
   --folio-accent-pressed: #294638;
   --folio-accent-container: #E2EAE1;
   --folio-on-accent: #FFFDF7;
@@ -150,6 +151,7 @@
   --folio-border: #343D35;
   --folio-border-control: #748074;
   --folio-accent: #A7C4A6;
+  --folio-focus: #A7C4A6;
   --folio-accent-pressed: #BED4BB;
   --folio-accent-container: #2B3C2F;
   --folio-on-accent: #14201A;

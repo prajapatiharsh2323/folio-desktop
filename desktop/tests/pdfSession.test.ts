@@ -144,6 +144,21 @@ describe("PdfSession · zoom & viewport", () => {
 });
 
 describe("PdfSession · locators & progression", () => {
+  it("reports 100% on the last page so reading can complete (READ-018)", async () => {
+    const { opened, session } = await sessionFor({ pages: 10 });
+    try {
+      session.goToPage(10);
+      expect(session.page).toBe(10);
+      expect(session.progression()).toBe(1);
+      // scrub-to-end still lands on the last page
+      session.goToProgression(1);
+      expect(session.page).toBe(10);
+      expect(session.progression()).toBe(1);
+    } finally {
+      await opened.destroy();
+    }
+  });
+
   it("round-trips page ↔ offset ↔ locator", async () => {
     const { opened, session } = await sessionFor({ pages: 10 });
     try {

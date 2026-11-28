@@ -106,6 +106,14 @@ afterEach(() => {
 });
 
 describe("Notes screen write safety", () => {
+  it("edit-note textarea has an accessible name (UI-012)", async () => {
+    await render();
+    act(() => button("Edit note").click());
+    const textarea = container!.querySelector("textarea")!;
+    expect(textarea.getAttribute("aria-label")).toBeTruthy();
+    expect(textarea.getAttribute("aria-label")!.trim()).not.toBe("");
+  });
+
   it("keeps the edit dialog open with the draft when saving fails", async () => {
     h.update.mockRejectedValue(new Error("disk is read-only"));
     await render();

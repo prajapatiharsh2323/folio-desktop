@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FolioButton } from "../components/FolioButton";
-import { FolioChip } from "../components/FolioChip";
+import { FolioRadioGroup } from "../components/FolioRadioGroup";
 import { FolioDialog } from "../components/FolioDialog";
 import { FolioSectionHeader } from "../components/FolioSectionHeader";
 import { FolioSettingsRow } from "../components/FolioSettingsRow";
@@ -222,7 +222,7 @@ export function SettingsScreen() {
       const raw = await readJsonAsync<Record<string, unknown>>(fs, path);
       await writeJsonAtomic(fs, path, { ...(raw ?? {}), preventSleepWhileReading: enable });
       setMessage(
-        enable ? "Display sleep is allowed again." : "The display will stay awake while reading.",
+        enable ? "The display will stay awake while reading." : "Display sleep is allowed again.",
       );
     } catch (e) {
       handleError(e, { context: "settings.keepawake.save" });
@@ -608,61 +608,55 @@ export function SettingsScreen() {
           title="App appearance"
           helper="Light, dark, or follow your system setting"
           control={
-            <div className="folio-chip-row" role="group" aria-label="App appearance">
-              {THEME_OPTIONS.map((o) => (
-                <FolioChip
-                  key={o.value}
-                  selected={setting === o.value}
-                  onClick={() => setSetting(o.value)}
-                >
-                  {o.label}
-                </FolioChip>
-              ))}
-            </div>
+            <FolioRadioGroup
+              className="folio-chip-row"
+              label="App appearance"
+              value={setting}
+              options={THEME_OPTIONS}
+              onChange={setSetting}
+            />
           }
         />
         <FolioSettingsRow
           title="Interface zoom"
           helper="Scales Folio's controls and text from 80% to 150%"
           control={
-            <div className="folio-chip-row" role="group" aria-label="Interface zoom">
-              {UI_ZOOM_STEPS.map((z) => (
-                <FolioChip key={z} selected={uiZoom === z} onClick={() => setZoom(z)}>
-                  {z}%
-                </FolioChip>
-              ))}
-            </div>
+            <FolioRadioGroup
+              className="folio-chip-row"
+              label="Interface zoom"
+              value={String(uiZoom)}
+              options={UI_ZOOM_STEPS.map((z) => ({ value: String(z), label: `${z}%` }))}
+              onChange={(value) => setZoom(Number(value))}
+            />
           }
         />
         <FolioSettingsRow
           title="High contrast"
           helper="Stronger text and border contrast on top of the current theme"
           control={
-            <div className="folio-chip-row" role="group" aria-label="High contrast">
-              <FolioChip selected={contrast === "normal"} onClick={() => setContrast("normal")}>
-                Off
-              </FolioChip>
-              <FolioChip selected={contrast === "high"} onClick={() => setContrast("high")}>
-                On
-              </FolioChip>
-            </div>
+            <FolioRadioGroup
+              className="folio-chip-row"
+              label="High contrast"
+              value={contrast}
+              options={[
+                { value: "normal", label: "Off" },
+                { value: "high", label: "On" },
+              ]}
+              onChange={setContrast}
+            />
           }
         />
         <FolioSettingsRow
           title={t("common.settingsLanguage", locale)}
           helper={t("common.settingsLanguageHelper", locale)}
           control={
-            <div
+            <FolioRadioGroup
               className="folio-chip-row"
-              role="group"
-              aria-label={t("common.settingsLanguage", locale)}
-            >
-              {LOCALES.map((l) => (
-                <FolioChip key={l.id} selected={locale === l.id} onClick={() => setLocale(l.id)}>
-                  {l.label}
-                </FolioChip>
-              ))}
-            </div>
+              label={t("common.settingsLanguage", locale)}
+              value={locale}
+              options={LOCALES.map((l) => ({ value: l.id, label: l.label }))}
+              onChange={setLocale}
+            />
           }
         />
 
@@ -680,14 +674,16 @@ export function SettingsScreen() {
           title="Keep screen awake"
           helper="While you are actively reading, keep the display from sleeping"
           control={
-            <div className="folio-chip-row" role="group" aria-label="Keep screen awake">
-              <FolioChip selected={keepAwake} onClick={() => void setPreventSleep(true)}>
-                On
-              </FolioChip>
-              <FolioChip selected={!keepAwake} onClick={() => void setPreventSleep(false)}>
-                Off
-              </FolioChip>
-            </div>
+            <FolioRadioGroup
+              className="folio-chip-row"
+              label="Keep screen awake"
+              value={keepAwake ? "on" : "off"}
+              options={[
+                { value: "on", label: "On" },
+                { value: "off", label: "Off" },
+              ]}
+              onChange={(value) => void setPreventSleep(value === "on")}
+            />
           }
         />
 
@@ -695,14 +691,16 @@ export function SettingsScreen() {
           title="Reopen last book"
           helper="When Folio starts, open the book you read last at your saved position"
           control={
-            <div className="folio-chip-row" role="group" aria-label="Reopen last book">
-              <FolioChip selected={!reopenLast} onClick={() => void setReopenLastPref(false)}>
-                Off
-              </FolioChip>
-              <FolioChip selected={reopenLast} onClick={() => void setReopenLastPref(true)}>
-                On
-              </FolioChip>
-            </div>
+            <FolioRadioGroup
+              className="folio-chip-row"
+              label="Reopen last book"
+              value={reopenLast ? "on" : "off"}
+              options={[
+                { value: "off", label: "Off" },
+                { value: "on", label: "On" },
+              ]}
+              onChange={(value) => void setReopenLastPref(value === "on")}
+            />
           }
         />
 
@@ -729,14 +727,16 @@ export function SettingsScreen() {
           title="Default view"
           helper="List rows or the cover grid"
           control={
-            <div className="folio-chip-row" role="group" aria-label="Default library view">
-              <FolioChip selected={defaultView === "list"} onClick={() => setView("list")}>
-                List
-              </FolioChip>
-              <FolioChip selected={defaultView === "grid"} onClick={() => setView("grid")}>
-                Grid
-              </FolioChip>
-            </div>
+            <FolioRadioGroup
+              className="folio-chip-row"
+              label="Default library view"
+              value={defaultView}
+              options={[
+                { value: "list", label: "List" },
+                { value: "grid", label: "Grid" },
+              ]}
+              onChange={setView}
+            />
           }
         />
         <FolioSettingsRow
@@ -754,14 +754,16 @@ export function SettingsScreen() {
           title="Automatic backups"
           helper="Daily, into Folio's own data folder; the last 5 archives are kept"
           control={
-            <div className="folio-chip-row" role="group" aria-label="Automatic backups">
-              <FolioChip selected={!autoBackup} onClick={() => void setAutoBackupPref(false)}>
-                Off
-              </FolioChip>
-              <FolioChip selected={autoBackup} onClick={() => void setAutoBackupPref(true)}>
-                On
-              </FolioChip>
-            </div>
+            <FolioRadioGroup
+              className="folio-chip-row"
+              label="Automatic backups"
+              value={autoBackup ? "on" : "off"}
+              options={[
+                { value: "off", label: "Off" },
+                { value: "on", label: "On" },
+              ]}
+              onChange={(value) => void setAutoBackupPref(value === "on")}
+            />
           }
         />
         <FolioSettingsRow
@@ -992,25 +994,19 @@ export function SettingsScreen() {
           </div>
         )}
 
-        <div className="folio-chip-row folio-stack-12" role="group" aria-label="Restore mode">
-          <FolioChip
-            selected={restoreMode === "merge"}
-            onClick={() => setRestoreMode("merge")}
-            disabled={busy}
-          >
-            Merge
-          </FolioChip>
-          <FolioChip
-            selected={restoreMode === "replace"}
-            onClick={() => {
-              setRestoreMode("replace");
-              setReplaceConfirmed(false);
-            }}
-            disabled={busy}
-          >
-            Replace
-          </FolioChip>
-        </div>
+        <FolioRadioGroup
+          className="folio-chip-row folio-stack-12"
+          label="Restore mode"
+          value={restoreMode}
+          options={[
+            { value: "merge", label: "Merge", disabled: busy },
+            { value: "replace", label: "Replace", disabled: busy },
+          ]}
+          onChange={(value) => {
+            setRestoreMode(value);
+            if (value === "replace") setReplaceConfirmed(false);
+          }}
+        />
         <p className="folio-helper">
           {restoreMode === "merge"
             ? "Adds books that are missing and merges notes, progress and collections. Your current library is kept."
@@ -1066,7 +1062,7 @@ export function SettingsScreen() {
               Cancel
             </FolioButton>
             <FolioButton
-              variant="primary"
+              variant="danger"
               onClick={() => void resetAppData()}
               disabled={busy || !resetConfirmed}
             >

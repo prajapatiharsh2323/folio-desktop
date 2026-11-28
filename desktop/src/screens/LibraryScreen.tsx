@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FolioButton } from "../components/FolioButton";
 import { FolioChip } from "../components/FolioChip";
+import { FolioRadioGroup } from "../components/FolioRadioGroup";
 import { FolioIcons } from "../components/FolioIcons";
 import { FolioEmptyState } from "../components/FolioEmptyState";
 import { FolioSkeletonRows } from "../components/FolioSkeleton";
@@ -22,7 +23,7 @@ import { reportError } from "../lib/errorLog";
 import { libraryLayout as L } from "../lib/libraryPaths";
 import { readStorage, writeStorage } from "../lib/storage";
 import { sortLibraryRows } from "../lib/libraryView";
-import { searchSignature } from "../lib/searchCache";
+import { searchSignature, useSearchIndexGeneration } from "../lib/searchCache";
 import { hasBlockingOverlay } from "../shell/overlays";
 import { pushToast } from "../shell/toasts";
 import { handleError } from "../lib/errorLog";
@@ -115,6 +116,9 @@ export function LibraryScreen() {
   const [searchIndexVersion, setSearchIndexVersion] = useState(0);
   const [indexProgress, setIndexProgress] = useState<{ done: number; total: number } | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Index files are written asynchronously; a rewrite must invalidate the
+  // cached corpus even when no document row changed (SEARCH-002).
+  const indexGeneration = useSearchIndexGeneration((s) => s.generation);
 
   // ---- L5: view + filters --------------------------------------------------
   const [view, setView] = useState<"list" | "grid">(() =>
@@ -237,7 +241,7 @@ export function LibraryScreen() {
   useEffect(() => {
     if (!searchOpen) return;
     void buildSearchIndex();
-  }, [searchOpen, buildSearchIndex]);
+  }, [searchOpen, buildSearchIndex, indexGeneration]);
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -913,18 +917,16 @@ export function LibraryScreen() {
       )}
 
       {searchOpen && searchQuery.trim().length > 0 && indexProgress === null && (
-        <div
+        <FolioRadioGroup
           className="folio-toolbar"
-          role="group"
-          aria-label="Search scope"
-          style={{ paddingTop: 0 }}
-        >
-          {(["all", "book", "article"] as SearchScope[]).map((s) => (
-            <FolioChip key={s} selected={searchScope === s} onClick={() => setSearchScope(s)}>
-              {s === "all" ? "All" : s === "book" ? "Books" : "Articles"}
-            </FolioChip>
-          ))}
-        </div>
+          label="Search scope"
+          value={searchScope}
+          options={(["all", "book", "article"] as SearchScope[]).map((s) => ({
+            value: s,
+            label: s === "all" ? "All" : s === "book" ? "Books" : "Articles",
+          }))}
+          onChange={setSearchScope}
+        />
       )}
 
       {noResults && (
@@ -948,6 +950,7 @@ export function LibraryScreen() {
               id={`folio-library-search-opt-${i}`}
               type="button"
               role="option"
+              tabIndex={-1}
               aria-selected={i === activeResultIndex}
               className={`folio-searchresult${i === activeResultIndex ? " is-active" : ""}`}
               onClick={() => openSearchResult(r)}
@@ -1083,15 +1086,17 @@ export function LibraryScreen() {
           aria-label="Filters"
           style={{ paddingTop: 0, flexWrap: "wrap" }}
         >
-          <FolioChip selected={kindFilter === "all"} onClick={() => setKindFilter("all")}>
-            All
-          </FolioChip>
-          <FolioChip selected={kindFilter === "book"} onClick={() => setKindFilter("book")}>
-            Books
-          </FolioChip>
-          <FolioChip selected={kindFilter === "article"} onClick={() => setKindFilter("article")}>
-            Articles
-          </FolioChip>
+          <FolioRadioGroup
+            className="folio-chip-row"
+            label="Kind filter"
+            value={kindFilter}
+            options={[
+              { value: "all", label: "All" },
+              { value: "book", label: "Books" },
+              { value: "article", label: "Articles" },
+            ]}
+            onChange={setKindFilter}
+          />
           <FolioChip
             selected={statusFilter === "reading"}
             onClick={() => setStatusFilter(statusFilter === "reading" ? "all" : "reading")}

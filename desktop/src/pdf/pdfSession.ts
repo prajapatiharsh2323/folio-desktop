@@ -365,6 +365,9 @@ export class PdfSession {
   }
 
   progression(): number {
+    // Center-based mapping is intentional for scrubbing, but reaching the
+    // final page must report 100% so completion affordances can appear.
+    if (this._page >= this._pageCount) return 1;
     return progressionForPage(this._page, this._pageCount);
   }
 

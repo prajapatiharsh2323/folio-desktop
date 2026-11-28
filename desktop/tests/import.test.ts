@@ -21,6 +21,7 @@ import { importTxt } from "../src/import/articleImporters";
 import { strToU8, strFromU8, zipSync, type Zippable } from "fflate";
 import { unzipLimited } from "../src/import/zipLimits";
 import type { DocMeta } from "../src/model/types";
+import { useSearchIndexGeneration } from "../src/lib/searchCache";
 
 const ROOT = "/lib";
 let lm: LibraryManager;
@@ -281,6 +282,13 @@ describe("import pipeline", () => {
     expect(meta!.language).toBe("hi");
   });
 
+  it("bumps the search generation when an import writes an index (SEARCH-002)", async () => {
+    const before = useSearchIndexGeneration.getState().generation;
+    const res = await importFile(lm, "indexed.txt", TE.encode("A title\n\nSome searchable words here."));
+    expect(res.status).toBe("imported");
+    expect(useSearchIndexGeneration.getState().generation).toBe(before + 1);
+  });
+
   it("imports HTML: clean/index.html + extracted images + epub reading edition", async () => {
     const png =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -300,6 +308,26 @@ describe("import pipeline", () => {
     expect(clean).toContain("images/");
     const idx = JSON.parse(await fs.readText(`${ROOT}/index/text/${meta!.id}.json`));
     expect(idx.chapters.length).toBe(meta!.chapters.length);
+  });
+
+  it("embeds extracted inline images in the generated reading EPUB (IMPORT-001)", async () => {
+    const png =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const html = `<html><head><title>Image Clip</title></head><body>
+      <article><h1>Image Clip</h1><p>First paragraph with enough words to read.</p><img src="${png}">
+      ${Array.from({ length: 30 }, (_, i) => `<p>Filler paragraph number ${i} with words.</p>`).join("")}
+      </article></body></html>`;
+    const res = await importFile(lm, "image-clip.html", TE.encode(html));
+    expect(res.status).toBe("imported");
+    const doc = (await lm.load())!.docs[0];
+
+    const epub = await fs.readBytes(`${ROOT}/docs/${doc.slug}/reading/book.epub`);
+    const entries = unzipLimited(epub);
+    const imagePaths = Object.keys(entries).filter((p) => p.startsWith("OEBPS/images/"));
+    expect(imagePaths).toHaveLength(1);
+    const name = imagePaths[0].split("/").pop()!;
+    const cleanImage = await fs.readBytes(`${ROOT}/docs/${doc.slug}/clean/images/${name}`);
+    expect(Array.from(entries[imagePaths[0]])).toEqual(Array.from(cleanImage));
   });
 
   it("imports EPUB: book kind, cover extraction (EPUB3 cover-image), original kept", async () => {

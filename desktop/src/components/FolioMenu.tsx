@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 export interface FolioMenuItem {
   key: string;
@@ -41,6 +41,10 @@ export function FolioMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const enabledIndexes = items
+    .map((item, index) => (item.disabled ? -1 : index))
+    .filter((index) => index >= 0);
+  const [activeIndex, setActiveIndex] = useState(() => enabledIndexes[0] ?? 0);
 
   // Clamp after first paint, once the real height is known.
   useLayoutEffect(() => {
@@ -61,11 +65,37 @@ export function FolioMenu({
 
   useEffect(() => {
     if (!pos) return;
-    const first = ref.current?.querySelector<HTMLButtonElement>(
-      "button[role='menuitem']:not([disabled])",
-    );
-    first?.focus();
-  }, [pos]);
+    ref.current?.querySelectorAll<HTMLButtonElement>("button[role='menuitem']")[activeIndex]?.focus();
+  }, [pos, activeIndex]);
+
+  /** WAI-ARIA menu keys: wrap between enabled items, Home/End to the ends. */
+  const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (enabledIndexes.length === 0) return;
+    let next: number | undefined;
+    const at = enabledIndexes.indexOf(activeIndex);
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        next = enabledIndexes[(at + 1 + enabledIndexes.length) % enabledIndexes.length];
+        break;
+      case "ArrowUp":
+      case "ArrowLeft":
+        next = enabledIndexes[(at - 1 + enabledIndexes.length) % enabledIndexes.length];
+        break;
+      case "Home":
+        next = enabledIndexes[0];
+        break;
+      case "End":
+        next = enabledIndexes[enabledIndexes.length - 1];
+        break;
+      default:
+        return;
+    }
+    if (next === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveIndex(next);
+  };
 
   useEffect(() => {
     if (!pos) return;
@@ -94,17 +124,21 @@ export function FolioMenu({
       className="folio-menu"
       role="menu"
       aria-label={label}
+      tabIndex={-1}
       data-folio-modal
+      onKeyDown={onMenuKeyDown}
       style={{ top: pos.top, left: pos.left, width: MENU_WIDTH }}
     >
-      {items.map((item) => (
+      {items.map((item, i) => (
         <div key={item.key} className={item.separatorBefore ? "folio-menu__group" : undefined}>
           {item.separatorBefore && <div className="folio-menu__separator" role="separator" />}
           <button
             type="button"
             role="menuitem"
+            tabIndex={i === activeIndex ? 0 : -1}
             className={`folio-menu__item${item.danger ? " folio-menu__item--danger" : ""}`}
             disabled={item.disabled}
+            onMouseEnter={() => setActiveIndex(i)}
             onClick={() => {
               onClose();
               item.onSelect();

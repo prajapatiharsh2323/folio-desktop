@@ -121,6 +121,27 @@ describe("Settings — S1 UI zoom", () => {
   });
 });
 
+describe("Settings — single-select semantics (UI-013)", () => {
+  it("exposes mutually exclusive settings as radio groups, not pressed toggles", async () => {
+    await render();
+    for (const label of [
+      "App appearance",
+      "Interface zoom",
+      "High contrast",
+      "Keep screen awake",
+      "Reopen last book",
+      "Default library view",
+      "Automatic backups",
+    ]) {
+      const group = container!.querySelector(`[aria-label="${label}"]`)!;
+      expect(group, label).not.toBeNull();
+      expect(group.getAttribute("role"), label).toBe("radiogroup");
+      expect(group.querySelectorAll('[role="radio"]').length, label).toBeGreaterThan(1);
+      expect(group.querySelector("[aria-pressed]"), label).toBeNull();
+    }
+  });
+});
+
 describe("Settings — S1 keep screen awake", () => {
   it("writes preventSleepWhileReading into user/window.json", async () => {
     await render();
@@ -132,6 +153,25 @@ describe("Settings — S1 keep screen awake", () => {
     });
     const raw = await (h.fs as MemoryFileStore).readText("/folio-library/user/window.json");
     expect(JSON.parse(raw)).toMatchObject({ preventSleepWhileReading: false });
+  });
+
+  it("announces the correct outcome for On and Off (UI-006)", async () => {
+    await render();
+    const status = () => container!.querySelector('[role="status"]')?.textContent ?? "";
+
+    await act(async () => {
+      chipIn("Keep screen awake", "On").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(status()).toContain("The display will stay awake while reading.");
+
+    await act(async () => {
+      chipIn("Keep screen awake", "Off").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(status()).toContain("Display sleep is allowed again.");
   });
 });
 
@@ -293,6 +333,9 @@ describe("Settings — S1 reset app data", () => {
       (b) => b.textContent?.trim() === "Delete everything",
     )!;
     expect(del.disabled).toBe(true);
+    // UI-007: the irreversible action must look destructive, not primary.
+    expect(del.classList.contains("folio-btn--danger")).toBe(true);
+    expect(del.classList.contains("folio-btn--primary")).toBe(false);
 
     const box = dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
     await act(async () => {

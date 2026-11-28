@@ -12,6 +12,7 @@ import { libraryLayout as L } from "../lib/libraryPaths";
 import type { Manifest } from "../model/types";
 import { openPdf, type OpenedPdf } from "./pdfjsAdapter";
 import { extractPageText } from "./pdfText";
+import { bumpSearchIndexGeneration } from "../lib/searchCache";
 
 export interface PdfIndexEntry {
   id: string;
@@ -194,6 +195,7 @@ async function runIndexJob(docId: string, token: { cancelled: boolean }): Promis
       L.indexText(LIBRARY_ROOT, docId),
       new TextEncoder().encode(JSON.stringify(index)),
     );
+    bumpSearchIndexGeneration();
   } finally {
     // Every exit path clears the Library's job entry (cancelled, deleted,
     // failed, or done).

@@ -644,6 +644,7 @@ export function NotesScreen() {
           rows={4}
           value={editDraft}
           onChange={(e) => setEditDraft(e.target.value)}
+          aria-label="Note"
           autoFocus
           data-autofocus
         />

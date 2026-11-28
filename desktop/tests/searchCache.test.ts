@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { searchSignature } from "../src/lib/searchCache";
+import {
+  bumpSearchIndexGeneration,
+  searchSignature,
+  useSearchIndexGeneration,
+} from "../src/lib/searchCache";
 
 describe("search index signature", () => {
   it("is stable across row object identity", () => {
@@ -27,5 +31,15 @@ describe("search index signature", () => {
         { id: "2", title: "Deux" },
       ]),
     ).not.toBe(base);
+  });
+
+  it("changes when an index is rewritten without any row change (SEARCH-002)", () => {
+    const rows = [{ id: "1", title: "One" }];
+    const generationBefore = useSearchIndexGeneration.getState().generation;
+    const before = searchSignature(rows);
+    bumpSearchIndexGeneration();
+    expect(useSearchIndexGeneration.getState().generation).toBe(generationBefore + 1);
+    expect(searchSignature(rows)).not.toBe(before);
+    expect(searchSignature(rows.map((r) => ({ ...r })))).toBe(searchSignature(rows));
   });
 });

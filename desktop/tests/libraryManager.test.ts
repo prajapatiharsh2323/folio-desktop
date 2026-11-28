@@ -3,6 +3,8 @@ import { MemoryFileStore } from "../src/lib/fileStore";
 import { LibraryManager } from "../src/store/libraryManager";
 import type { DocMeta } from "../src/model/types";
 import { newUuid, nowIso } from "../src/model/ids";
+import { sha256Hex } from "../src/lib/sha256";
+import { createBackup, restoreBackup } from "../src/backup/backupService";
 
 const ROOT = "/lib";
 
@@ -92,6 +94,26 @@ describe("LibraryManager sticky rules (05 §4)", () => {
     const reading = doc.files.find((f) => f.path.endsWith("reading/book.epub"))!;
     expect(reading.sha256).toHaveLength(64);
     expect(reading.size).toBe("reading edition".length);
+  });
+
+  it("updateMeta refreshes the manifest meta.json entry so a backup can be restored (DATA-001)", async () => {
+    const localFs = new MemoryFileStore();
+    const lm = new LibraryManager(localFs, ROOT);
+    const meta = await addSampleDoc(lm);
+
+    await lm.updateMeta(meta.id, { title: "A Much Longer Renamed Book Title" });
+
+    const manifest = await lm.load();
+    const entry = manifest!.docs[0].files.find((f) => f.path.endsWith("meta.json"))!;
+    const actual = await localFs.readBytes(`${ROOT}/docs/${meta.slug}/meta.json`);
+    expect(entry.size).toBe(actual.length);
+    expect(entry.sha256).toBe(await sha256Hex(actual));
+
+    // The user-facing consequence: the library's own backup must restore.
+    const bytes = await createBackup(localFs, ROOT);
+    await expect(
+      restoreBackup({ fs: localFs, root: "/restored-library", bytes, mode: "replace" }),
+    ).resolves.toBeTruthy();
   });
 
   it("deleteDoc cascades: folder, index, annotations, progress, collections — manifest last", async () => {

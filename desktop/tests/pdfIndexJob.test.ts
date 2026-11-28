@@ -7,6 +7,7 @@ import { getLibraryFs, getLibraryManager, LIBRARY_ROOT } from "../src/store/libr
 import { buildSyntheticPdf } from "../src/perf/synthPdf";
 import { sha256Hex } from "../src/lib/sha256";
 import { newUuid, nowIso } from "../src/model/ids";
+import { useSearchIndexGeneration } from "../src/lib/searchCache";
 import type { DocMeta } from "../src/model/types";
 import {
   cancelIndex,
@@ -58,10 +59,12 @@ describe("pdfIndexJob", () => {
     const meta = await seedPdf();
     const fs = getLibraryFs();
     expect(isIndexQueued(meta.id)).toBe(false);
+    const generationBefore = useSearchIndexGeneration.getState().generation;
 
     enqueueIndex(meta.id);
     expect(isIndexQueued(meta.id)).toBe(true);
     await indexQueueIdle();
+    expect(useSearchIndexGeneration.getState().generation).toBe(generationBefore + 1);
 
     const raw = await fs.readText(`${LIBRARY_ROOT}/index/text/${meta.id}.json`);
     const index = JSON.parse(raw) as {

@@ -1557,8 +1557,8 @@
   width: 100%;
   padding: var(--folio-space-2);
   border: 1px solid var(--folio-border);
-  border-radius: var(--folio-radius);
-  background: var(--folio-bg-elevated);
+  border-radius: var(--folio-radius-control);
+  background: var(--folio-surface-raised);
   color: var(--folio-text-primary);
   font-size: var(--folio-type-body-size);
 }
@@ -1575,7 +1575,7 @@
   max-height: 320px;
   overflow: auto;
   border: 1px solid var(--folio-border);
-  border-radius: var(--folio-radius);
+  border-radius: var(--folio-radius-control);
 }
 
 .folio-palette-option {
@@ -1594,7 +1594,7 @@
 }
 
 .folio-palette-option.is-active {
-  background: var(--folio-bg-active);
+  background: var(--folio-accent-container);
 }
 
 .folio-palette-option:focus-visible {
@@ -1648,12 +1648,12 @@
   width: 48px;
   height: 64px;
   flex: none;
-  border-radius: var(--folio-radius);
+  border-radius: var(--folio-radius-cover);
   background: linear-gradient(
     100deg,
-    var(--folio-bg-elevated) 30%,
+    var(--folio-surface-raised) 30%,
     var(--folio-border) 50%,
-    var(--folio-bg-elevated) 70%
+    var(--folio-surface-raised) 70%
   );
   background-size: 200% 100%;
   animation: folio-shimmer 1.4s ease-in-out infinite;
@@ -1673,12 +1673,12 @@
 
 .folio-skeleton-bar {
   height: 12px;
-  border-radius: var(--folio-radius);
+  border-radius: var(--folio-radius-control);
   background: linear-gradient(
     100deg,
-    var(--folio-bg-elevated) 30%,
+    var(--folio-surface-raised) 30%,
     var(--folio-border) 50%,
-    var(--folio-bg-elevated) 70%
+    var(--folio-surface-raised) 70%
   );
   background-size: 200% 100%;
   animation: folio-shimmer 1.4s ease-in-out infinite;
@@ -1709,7 +1709,7 @@
   .folio-skeleton-cover,
   .folio-skeleton-bar {
     animation: none;
-    background: var(--folio-bg-elevated);
+    background: var(--folio-surface-raised);
     border: 1px solid var(--folio-border);
   }
 }

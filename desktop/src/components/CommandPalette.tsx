@@ -169,6 +169,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               id={`folio-palette-opt-${command.id}`}
               type="button"
               role="option"
+              tabIndex={-1}
               aria-selected={i === active}
               className={`folio-palette-option${i === active ? " is-active" : ""}`}
               onMouseMove={() => setActive(i)}

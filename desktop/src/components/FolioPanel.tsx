@@ -88,7 +88,9 @@ export function FolioPanel({
         aria-label={title}
         tabIndex={-1}
         style={{ width }}
-        onKeyDown={(e) => trapTabKey(panelRef.current!, e.nativeEvent)}
+        // Docked panels are intentionally non-modal: let Tab leave for the
+        // reader chrome/canvas. Only modal panels contain focus.
+        onKeyDown={modal ? (e) => trapTabKey(panelRef.current!, e.nativeEvent) : undefined}
       >
         <div className="folio-panel__header">
           {title && <h2 className="folio-panel__title">{title}</h2>}

@@ -117,8 +117,10 @@ export async function buildEpub(input: {
   language: string;
   contentHash: string;
   chapters: BuilderChapter[];
-  /** image file names already placed under OEBPS/images/ */
+  /** image file names to list in the OPF manifest */
   images?: string[];
+  /** bytes for each name above, written as OEBPS/images/<name> */
+  imageBytes?: Record<string, Uint8Array>;
 }): Promise<BuildEpubResult> {
   const uuid = uuidFromContentHash(input.contentHash);
   const chapters: Chapter[] = input.chapters.map((c, i) => ({
@@ -152,6 +154,11 @@ export async function buildEpub(input: {
       { level: 6, mtime: FIXED_MTIME },
     ];
   });
+  // The OPF advertises these images, so the archive must actually contain
+  // them — otherwise every clipped article with inline images renders broken.
+  for (const [name, bytes] of Object.entries(input.imageBytes ?? {})) {
+    files[`OEBPS/images/${name}`] = [bytes, { level: 6, mtime: FIXED_MTIME }];
+  }
 
   const bytes = zipSync(files as never);
   return { bytes, chapters };

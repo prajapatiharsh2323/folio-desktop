@@ -212,4 +212,54 @@ describe("FolioPanel modal prop (R8)", () => {
     resetModalStack();
     void token;
   });
+
+  it("non-modal Tab is not trapped, so focus can leave the docked panel (UI-002)", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    const outside = document.createElement("button");
+    outside.type = "button";
+    outside.textContent = "outside";
+    document.body.appendChild(outside);
+    root = createRoot(container);
+    act(() => {
+      root!.render(
+        <FolioPanel open modal={false} onClose={() => {}} title="Docked">
+          <button type="button">first</button>
+          <button type="button">last</button>
+        </FolioPanel>,
+      );
+    });
+    const last = Array.from(container!.querySelectorAll("button")).find(
+      (b) => b.textContent === "last",
+    )!;
+    last.focus();
+    const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    act(() => {
+      last.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("modal Tab is still trapped (UI-002 regression guard)", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root!.render(
+        <FolioPanel open modal={true} onClose={() => {}} title="Modal">
+          <button type="button">first</button>
+          <button type="button">last</button>
+        </FolioPanel>,
+      );
+    });
+    const last = Array.from(container!.querySelectorAll("button")).find(
+      (b) => b.textContent === "last",
+    )!;
+    last.focus();
+    const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    act(() => {
+      last.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(true);
+  });
 });

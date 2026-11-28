@@ -59,4 +59,34 @@ describe("SelectionToolbar share + citation (R6)", () => {
     act(() => root.unmount());
     container.remove();
   });
+
+  it("disables every text-extraction action for a no-copy document (READ-006)", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root: Root = createRoot(container);
+    act(() => {
+      root.render(
+        <SelectionToolbar
+          rect={{ top: 10, left: 10, bottom: 12, right: 100 }}
+          onHighlight={() => {}}
+          onNote={() => {}}
+          onCopy={() => {}}
+          onCopyCitation={() => {}}
+          onShare={() => {}}
+          copyDisabled
+        />,
+      );
+    });
+    const byLabel = (label: string) =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+        (b) => b.getAttribute("aria-label") === label,
+      );
+    for (const label of ["Copy", "Copy with citation", "Share as image"]) {
+      expect(byLabel(label)?.disabled).toBe(true);
+    }
+    expect(byLabel("Highlight Yellow")?.disabled).not.toBe(true);
+    expect(byLabel("Add note")?.disabled).not.toBe(true);
+    act(() => root.unmount());
+    container.remove();
+  });
 });

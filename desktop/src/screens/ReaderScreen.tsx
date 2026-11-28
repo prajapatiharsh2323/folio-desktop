@@ -1487,6 +1487,7 @@ export function ReaderScreen() {
               rows={4}
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
+              aria-label="Note"
               placeholder="Add personal note…"
               autoFocus
               data-autofocus
