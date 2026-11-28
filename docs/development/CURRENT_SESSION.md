@@ -1,3 +1,71 @@
+## Checkpoint — installed-build verification (2026-11-27)
+
+The 2026-11-22 NSIS artifact was installed for real on this host (Folio was
+**not** installed beforehand — no uninstall entry and no
+`%LOCALAPPDATA%\Folio` — so this is a clean first install of that build).
+Record: [`R-20261122-02`](audits/results/R-20261122-02-windows-gate-ft062.md)
+addendum.
+
+- **Install:** `Folio_0.1.0_x64-setup.exe /S` → exit 0 in 3.3 s →
+  `%LOCALAPPDATA%\Folio` (`folio-desktop.exe` 21,761,024 bytes,
+  `uninstall.exe`); uninstall entry **Folio 0.1.0** registered under HKCU;
+  Start Menu and Desktop `Folio.lnk` both target the installed exe.
+- **Same build, proven:** the installed exe differs from the build-tree exe by
+  exactly **3 bytes** — Tauri's bundler rewrites
+  `__TAURI_BUNDLE_TYPE_VAR_UNK` → `__TAURI_BUNDLE_TYPE_VAR_NSIS` (offset
+  18,369,962); everything else matches.
+- **Launch:** visible window **Folio** (`com.folio.desktop-siw` helper
+  alongside), 47.5 MB working set; second launch exits 0 in 0.04 s while the
+  first stays up. Empty profile initialised: `user/window.json` written,
+  `library\` created; no `library/manifest.json` because the manifest is only
+  written at the first doc mutation, and no book was imported.
+- **Environment note:** the WebView2 runtime is now **158.0.4370.45** (the
+  last WebDriver smoke used a 157 driver), so a future e2e run needs the
+  matching `msedgedriver`.
+
+**Exact next action:** unchanged — the interactive checklist in
+`WINDOWS-REMAINING.md` (item 2 open-with/drag-drop/`tauri:dev`, item 3
+Narrator/scaling/jump-list clicks, item 4 in-webview perf, item 5 updater
+signing, item 6 highlight/backup steps, item 7 Phase-5 runtime verdicts), now
+against the installed app at `%LOCALAPPDATA%\Folio\folio-desktop.exe`.
+
+## Checkpoint — S-20261122-04 (latest Windows gate + installer, 2026-11-22)
+
+Automated Windows gate re-run on the **FT-062** tree (the last Windows build,
+`R-20261122-01`, predates the appearance-panel/highlight change) and a fresh
+NSIS build, so the latest application is available for the interactive
+checklist. Record:
+[`R-20261122-02`](audits/results/R-20261122-02-windows-gate-ft062.md),
+perf JSON `audits/results/perf-20261122-windows-ft062.json`.
+
+- **Gate:** `tsc -b` 0, ESLint 0/0, Prettier clean, **Vitest 776/776 (99
+  files)** — the first full run showed 775 passed + 1 failure,
+  `axeSweep` dark `SettingsScreen` timing out at 5.38 s under cold-run host
+  load; the file re-ran alone at 10/10 (2.35 s) with no code change, the same
+  host-load flake pattern as `R-20261120-01`. Vite build green (24.5 s),
+  perf within budget (`reader_parse` 335.78 ms vs 1 200 ms;
+  `locator_decode_200` 0.16 ms vs 400 ms), `cargo fmt` clean, clippy
+  `-D warnings` clean, `cargo test --all-targets` **31**, foliocore **15**
+  (`--manifest-path`).
+- **Build:** `pnpm exec tauri build --no-sign` → release compile 10 m 24 s,
+  `folio-desktop.exe` 21,761,024 bytes, NSIS
+  `Folio_0.1.0_x64-setup.exe` **10,395,418 bytes (9.91 MiB)**. Updater signing
+  still skipped (`--no-sign`; keys pending, `P-20261116-02`).
+- **Release smoke:** visible top-level window titled **Folio** (the second
+  visible handle `com.folio.desktop-siw` is the single-instance helper);
+  31.5 MB working set; `%APPDATA%\Folio\library\manifest.json` and
+  `%APPDATA%\Folio\user` present; second launch exits 0 in 1.32 s while the
+  first stays up. Installer not re-installed over the existing per-user
+  install.
+- **No code changes were needed** — every remaining open item is interactive
+  QA or needs the user's signing keypair; nothing in `TASKS.md` is unblocked
+  code work.
+
+**Exact next action:** the interactive checklist in `WINDOWS-REMAINING.md`
+(item 2 open-with/drag-drop/`tauri:dev`, item 3 Narrator/scaling/jump-list
+clicks, item 4 in-webview perf, item 5 updater signing, item 6
+highlight/backup steps, item 7 Phase-5 runtime verdicts) on this build.
+
 ## Checkpoint — S-20261122-02 (Windows verification, 2026-11-22)
 
 Full Windows gate re-run on the FT-058/059 tree (the last Windows build

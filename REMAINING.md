@@ -70,8 +70,9 @@ are called out explicitly.
       200 highlights ≤ 400 ms — harness + method + Linux baseline done
       (`scripts/perf.ts`; reader-parse 316 ms). **Windows 11 host baseline
       (2026-11-22, reader-upgrade tree): reader-parse 535.59 ms, locator
-      decode 0.26 ms — within budget.** The **in-webview runtime verdicts**
-      still need a real app session (procedure in
+      decode 0.26 ms; re-run on the FT-062 tree: reader-parse 335.78 ms,
+      locator decode 0.16 ms — all within budget.** The **in-webview runtime
+      verdicts** still need a real app session (procedure in
       `docs/development/audits/results/`). CI now fails the build when a
       budget is exceeded (perf-report artifact).
 - [x] Accessibility pass (03 §7): focus rings, tab order, ARIA, contrast —
@@ -108,6 +109,19 @@ are called out explicitly.
       `tauri build --no-sign` → 9.91 MiB installer; jump-list store entry
       verified; WebDriver smoke **11/11**
       ([`R-20261122-01`](docs/development/audits/results/R-20261122-01-windows-gate-reader-upgrade.md)).
+- [x] **Windows gate re-run on the FT-062 tree + latest installer
+      (2026-11-22)** — tsc, ESLint 0/0, Prettier, Vitest **776/776 (99
+      files)** (one host-load 5 s axe timeout passed on an isolated rerun),
+      Vite build, perf within budget (reader-parse 335.78 ms, locator decode
+      0.16 ms), `cargo fmt`, clippy `-D warnings`, `cargo test --all-targets`
+      **31 passed**, foliocore **15 passed**, `tauri build --no-sign` →
+      `Folio_0.1.0_x64-setup.exe` 9.91 MiB; release smoke: window **Folio**,
+      app dirs present, single-instance hand-off 1.32 s. On 2026-11-27 the
+      installer was installed for real (`/S`, exit 0, 3.3 s) and the installed
+      binary launched: window **Folio**, 47.5 MB, hand-off 0.04 s; the
+      installed exe matches the build-tree exe except Tauri's 3-byte
+      bundle-type marker
+      ([`R-20261122-02`](docs/development/audits/results/R-20261122-02-windows-gate-ft062.md)).
 - [x] `cargo test` parity for path guard, fs commands, app-dir mapping,
       window-state clamping, launch parsing, (the dictionary tests were
       removed with the feature, 2026-10-31; OAuth helpers were removed with

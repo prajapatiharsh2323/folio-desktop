@@ -1,0 +1,62 @@
+{
+  "harness": "desktop/scripts/perf.ts",
+  "date": "2026-11-22T14:56:53.850Z",
+  "environment": {
+    "runtime": "node 24.18.0",
+    "platform": "win32/x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+    "cores": 8,
+    "domParser": "jsdom (slower than Chromium; numbers are a conservative baseline, not the runtime verdict)"
+  },
+  "fixture": {
+    "epubSizeBytes": 2755626,
+    "epubSizeMiB": 2.63,
+    "chapters": 24
+  },
+  "results": [
+    {
+      "id": "reader_parse_openEpubFromBytes",
+      "runs": 5,
+      "samplesMs": [324.4, 325.37, 335.78, 339.58, 351.38],
+      "medianMs": 335.78,
+      "budget": {
+        "limitMs": 1200,
+        "withinBudget": true,
+        "scope": "04 §12 budget 1 factor — 'parser' of cold open (zip + container/OPF + manifest → Readium Publication). Webview init/rendering excluded."
+      }
+    },
+    {
+      "id": "import_parseEpub",
+      "runs": 5,
+      "samplesMs": [3055.39, 3075.07, 3201.5, 3220.29, 3447.15],
+      "medianMs": 3201.5,
+      "budget": {
+        "limitMs": null,
+        "withinBudget": null,
+        "scope": "Import-path parse (zip + OPF + spine HTML → sanitized text). A distinct user flow ('Add book'), recorded for comparison; not the 1.2 s budget itself."
+      }
+    },
+    {
+      "id": "import_digest_sha256",
+      "runs": 7,
+      "samplesMs": [5.23, 6.28, 6.8, 7.05, 7.22, 7.38, 7.7],
+      "medianMs": 7.05,
+      "budget": {
+        "limitMs": null,
+        "withinBudget": null,
+        "scope": "Content digest persisted on import; informative cold-open component."
+      }
+    },
+    {
+      "id": "locator_decode_200",
+      "runs": 9,
+      "samplesMs": [0.12, 0.12, 0.14, 0.14, 0.16, 0.16, 0.2, 0.42, 0.54],
+      "medianMs": 0.16,
+      "budget": {
+        "limitMs": 400,
+        "withinBudget": true,
+        "scope": "Pure locator decode cost of a 200-highlight batch (input side of 04 §12 budget 3). Paint cost excluded — needs the webview."
+      }
+    }
+  ]
+}

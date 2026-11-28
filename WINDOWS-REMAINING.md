@@ -8,6 +8,9 @@ Updated: 2026-11-22 — automated gate + NSIS build re-run on the FT-058/059
 tree, jump-list tasks verified in the shell store, and the WebDriver smoke
 executed (11/11) —
 [`R-20261122-01`](docs/development/audits/results/R-20261122-01-windows-gate-reader-upgrade.md).
+The gate + build were then re-run on the FT-062 tree (appearance panels,
+complete-range highlights) with a fresh 9.91 MiB installer —
+[`R-20261122-02`](docs/development/audits/results/R-20261122-02-windows-gate-ft062.md).
 Items 3 (Narrator/scaling + jump-list clicks), 5, the highlight/backup steps
 of 6, 7 and the interactive half of 2 remain manual.
 
@@ -56,7 +59,14 @@ hand-off, silent install/upgrade, installed-binary launch
 (`R-20261120-01`). Re-verified on the FT-058/059 tree: window **Folio**,
 `%APPDATA%\Folio\{library,user}` + `library/manifest.json`, second launch
 exits in 0.2 s, 34.6 MB working set (`R-20261122-01`). The new installer was
-built but not re-installed over the existing per-user install.
+built but not re-installed over the existing per-user install. The FT-062
+build re-verified the same smoke: visible window **Folio**, app dirs present,
+31.5 MB working set, second launch exits 0 in 1.32 s
+(`R-20261122-02`). On 2026-11-27 that installer was installed with `/S` (exit
+0, 3.3 s) and the installed binary was launched: window **Folio**, 47.5 MB
+working set, second launch exits 0 in 0.04 s, empty profile initialised
+(`user/window.json`; no `library/manifest.json` until the first import)
+(`R-20261122-02` addendum).
 
 ## 3. §12 manual QA (runbook pointers in `REMAINING.md`)
 
